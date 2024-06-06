@@ -1,7 +1,9 @@
+// src/pages/Home.js
+
 import React from 'react';
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
-import Map from '../components/Map';
+import TravelInfo from '../components/TravelInfo'; // Import the TravelInfo component
 
 const Home = () => {
   const handleSearch = (location) => {
@@ -13,7 +15,14 @@ const Home = () => {
     <div>
       <Header />
       <SearchBar onSearch={handleSearch} />
-      <Map />
+      <div className="content">
+        <div className="left-panel">
+          <TravelInfo />
+        </div>
+        <div className="right-panel">
+          {/* You can keep your existing content here */}
+        </div>
+      </div>
     </div>
   );
 };

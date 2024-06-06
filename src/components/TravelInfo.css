@@ -1,0 +1,19 @@
+/* TravelInfo.css */
+
+.site-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.site-item {
+  border: 1px solid #ddd;
+  padding: 20px;
+  text-align: center;
+}
+
+/* Apply responsive styling to the image */
+.site-item img {
+  max-width: 100%; /* Ensure the image does not exceed its container's width */
+  height: auto; /* Maintain the image's aspect ratio */
+}
