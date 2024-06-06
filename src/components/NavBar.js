@@ -11,6 +11,9 @@ const NavBar = () => {
   return (
     <nav className="navbar">
       <div className="nav-container">
+        <div className="nav-icon" onClick={toggleMenu}>
+          <i className="fas fa-bars"></i>
+        </div>
         <div className="nav-logo">Travel Advisor</div>
         <ul className={`nav-menu ${isMenuOpen ? 'active' : ''}`}>
           <li className="nav-item">
@@ -26,9 +29,6 @@ const NavBar = () => {
           <li className="nav-item">Review</li>
           <li className="nav-item">Need Help?</li>
         </ul>
-        <div className="nav-icon" onClick={toggleMenu}>
-          <i className="fas fa-bars"></i>
-        </div>
       </div>
     </nav>
   );

@@ -19,6 +19,8 @@
     color: #fff;
     font-size: 24px;
     font-weight: bold;
+    text-align: center;
+    flex: 1; /* Ensure it takes available space */
   }
   
   .nav-menu {
@@ -35,6 +37,7 @@
     left: 0;
     width: 100%;
     background-color: #333;
+    text-align: center; /* Center menu items */
   }
   
   .nav-item {
@@ -90,6 +93,20 @@
   
     .nav-menu.active {
       display: flex;
+    }
+  
+    .nav-logo {
+      flex: 1;
+      text-align: center;
+      order: 1; /* Move the logo to the middle */
+    }
+  
+    .nav-icon {
+      order: 0; /* Ensure the menu icon is on the left */
+    }
+  
+    .nav-item {
+      margin: 0; /* Remove margin for items in the dropdown */
     }
   }
   

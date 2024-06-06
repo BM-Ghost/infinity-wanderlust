@@ -5,7 +5,7 @@ const Header = () => {
   return (
     <AppBar position="static">
       <Toolbar>
-        <Typography variant="h6">Travel Advisor</Typography>
+        <Typography variant="h6">Infinity Wanderlust</Typography>
       </Toolbar>
     </AppBar>
   );
