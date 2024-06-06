@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './NavBar.css';
 
 const NavBar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const toggleDropdown = () => setIsOpen(!isOpen);
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+
+  const handleClickOutside = (event) => {
+    if (menuRef.current && !menuRef.current.contains(event.target)) {
+      setIsMenuOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <nav className="navbar">
@@ -14,8 +28,8 @@ const NavBar = () => {
         <div className="nav-icon" onClick={toggleMenu}>
           <i className="fas fa-bars"></i>
         </div>
-        <div className="nav-logo">Travel Advisor</div>
-        <ul className={`nav-menu ${isMenuOpen ? 'active' : ''}`}>
+        <div className="nav-logo">Infinity Wanderlust</div>
+        <ul className={`nav-menu ${isMenuOpen ? 'active' : ''}`} ref={menuRef}>
           <li className="nav-item">
             <div className="nav-link" onClick={toggleDropdown}>Discover</div>
             {isOpen && (

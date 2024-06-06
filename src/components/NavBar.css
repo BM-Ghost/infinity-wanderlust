@@ -31,24 +31,27 @@
   }
   
   .nav-menu.active {
-    display: block;
+    display: flex;
     position: absolute;
     top: 60px;
     left: 0;
-    width: 100%;
+    width: 250px; /* Set a fixed width for the sidebar */
     background-color: #333;
-    text-align: center; /* Center menu items */
+    flex-direction: column;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); /* Add a subtle shadow */
+    border-radius: 0 5px 5px 0; /* Rounded corners on the right */
+    z-index: 1000; /* Ensure it appears above other elements */
   }
   
   .nav-item {
-    margin-left: 20px;
-    position: relative;
+    margin: 0; /* Remove margin for items in the dropdown */
   }
   
   .nav-link {
     color: #fff;
     text-decoration: none;
     cursor: pointer;
+    padding: 10px 20px;
   }
   
   .dropdown {
@@ -58,7 +61,7 @@
     left: 0;
     background-color: #444;
     list-style: none;
-    padding: 10px 0;
+    padding: 0;
     margin: 0;
   }
   
@@ -107,6 +110,10 @@
   
     .nav-item {
       margin: 0; /* Remove margin for items in the dropdown */
+    }
+  
+    .nav-menu.active .nav-item {
+      width: 100%; /* Ensure nav items take full width of the menu */
     }
   }
   
