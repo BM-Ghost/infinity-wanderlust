@@ -1,5 +1,5 @@
 import React from 'react';
-import './TravelInfo.css'; // Import the CSS file for styling
+import './TravelInfo.css';
 
 const TravelInfo = () => {
   const tourismSites = [
@@ -13,12 +13,11 @@ const TravelInfo = () => {
   ];
 
   return (
-    <div>
-      <h2>Visit these places</h2>
+    <div className="travel-info">
+      <h2>Recommended Places to Visit</h2>
       <div className="site-grid">
         {tourismSites.map((site, index) => (
           <div key={index} className="site-item">
-            {/* Apply responsive styling to the image */}
             <img className="site-image" src={site.imageUrl} alt={site.name} />
             <h3>{site.name}</h3>
             <p>{site.description}</p>

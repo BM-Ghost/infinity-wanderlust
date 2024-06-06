@@ -1,9 +1,8 @@
-// src/pages/Home.js
-
 import React from 'react';
-import Header from '../components/Header';
+import NavBar from '../components/NavBar';
 import SearchBar from '../components/SearchBar';
-import TravelInfo from '../components/TravelInfo'; // Import the TravelInfo component
+import TravelInfo from '../components/TravelInfo';
+import './Home.css'; // Make sure this path is correct
 
 const Home = () => {
   const handleSearch = (location) => {
@@ -13,16 +12,9 @@ const Home = () => {
 
   return (
     <div>
-      <Header />
+      <NavBar /> {/* Include NavBar at the top */}
       <SearchBar onSearch={handleSearch} />
-      <div className="content">
-        <div className="left-panel">
-          <TravelInfo />
-        </div>
-        <div className="right-panel">
-          {/* You can keep your existing content here */}
-        </div>
-      </div>
+      <TravelInfo />
     </div>
   );
 };
