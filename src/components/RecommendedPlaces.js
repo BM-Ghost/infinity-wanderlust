@@ -20,7 +20,7 @@ const RecommendedPlaces = () => {
 
   return (
     <div>
-      <h2>Recommended Places to Visit</h2>
+      <h2>Recommended Places</h2>
       <div className="hotel-categories" ref={categoriesRef}>
       <div className="category">
           <img src="/images/eiffel_tower.jpg" alt="Top Hotels" />
