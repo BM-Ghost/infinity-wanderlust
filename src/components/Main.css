@@ -1,0 +1,183 @@
+.homepage {
+  background-image: url('./images/jw_marriott.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #fff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center vertically */
+  align-items: center; /* Center horizontally */
+  height: 100vh;
+}
+
+.main-container {
+  display: flex;
+  justify-content: space-between; /* Space between logo and menu */
+  align-items: center; /* Align items to the center */
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 16px;
+}
+
+.logo {
+  color: #fff;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: left; /* Ensure logo is always aligned left */
+  margin-left: 16px; /* Add margin for spacing */
+}
+
+.menu {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-grow: 1;
+  justify-content: flex-end; /* Align menu items to the right */
+  margin-right: 16px; /* Add margin for spacing */
+}
+
+.menu.active {
+  display: flex;
+  position: absolute;
+  top: 60px;
+  right: 0; /* Align dropdown to the right */
+  width: 250px;
+  background-color: #333;
+  flex-direction: column;
+}
+
+.item {
+  margin-left: 20px;
+  position: relative;
+}
+
+.nav-link {
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 10px 20px;
+}
+
+.dropdown {
+  display: block;
+  position: relative;
+  padding-left: 20px; /* Add padding for indentation */
+  list-style: none;
+  padding: 10px 0;
+  margin: 0;
+  margin-top: 10px; /* Add margin to push down other links */
+  background-color: #444; /* Add background color to dropdown */
+}
+
+.dropdown-item {
+  padding: 10px 20px;
+  color: #fff;
+  text-decoration: none;
+  display: block;
+  cursor: pointer;
+}
+
+.nav-icon {
+  display: none;
+  color: #fff;
+  cursor: pointer;
+  margin-left: 16px; /* Add margin for spacing */
+}
+
+@media (max-width: 768px) {
+  .menu {
+      display: none;
+      flex-direction: column;
+  }
+
+  .nav-icon {
+      display: block; /* Ensure hamburger menu is visible */
+      margin-left: 16px; /* Add margin for spacing */
+  }
+
+  .menu.active {
+      display: flex;
+      position: absolute;
+      top: 60px;
+      left: 16px; /* Add padding from the left edge */
+      width: 250px;
+      background-color: #333;
+      flex-direction: column;
+  }
+
+  .logo {
+      text-align: center; /* Center logo when screen is minimized */
+      flex: 1;
+      margin: 0; /* Reset margin for centering */
+  }
+
+  .item {
+      margin: 0;
+  }
+}
+
+.bio-section {
+  margin-top: 20px;
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
+  padding: 40px 20px; /* Increase padding for more space */
+  border-radius: 8px;
+  text-align: center; /* Center align text */
+  align-self: center; /* Center align within the parent */
+  max-width: 800px; /* Limit the width of the section */
+  color: #FFFFFF; /* Text color */
+  font-family: 'Open Sans', sans-serif; /* Font family */
+  font-size: 18px; /* Font size */
+  font-weight: 400; /* Font weight */
+}
+
+.bio-section h2 {
+  margin: 0 0 20px 0; /* Increase margin for spacing */
+  font-family: 'Average', sans-serif; /* Font family */
+  font-size: 43px; /* Font size */
+  font-weight: 700; /* Font weight */
+}
+
+.bio-section p {
+  margin: 0 0 20px 0; /* Increase margin for spacing */
+  font-size: 18px; /* Font size */
+  font-weight: 400; /* Font weight */
+}
+
+.explore-more-link {
+  display: inline-block;
+  color: #fff;
+  background-color: #4e4e4e; /* Primary button color */
+  padding: 15px 30px; /* Increase padding for larger button */
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+  border: 2px solid #fff; /* Add border for the box effect */
+}
+
+.explore-more-link:hover {
+  background-color: #b37400; /* Darken button color on hover */
+}
+
+@media (max-width: 768px) {
+  .bio-section {
+      margin-top: 40px;
+      padding: 30px 15px; /* Adjust padding for mobile view */
+  }
+
+  .bio-section h2 {
+      font-size: 28px; /* Adjust font size for mobile view */
+  }
+
+  .bio-section p {
+      font-size: 16px; /* Adjust font size for mobile view */
+  }
+
+  .explore-more-link {
+      padding: 12px 24px; /* Adjust padding for mobile view */
+  }
+}
