@@ -1,7 +1,7 @@
 /* Main.css */
 .homepage {
   background-image: url('./images/jw_marriott.jpg');
-  background-size: cover;
+  background-size: 100% 100%; /* Ensure image covers both width and height */
   background-position: center;
   background-repeat: no-repeat;
   color: #fff;
@@ -16,7 +16,7 @@
 }
 
 .bio-section {
-  margin-top: 20px;
+  margin: 20px auto; /* Auto margin for vertical centering */
   background-color: rgba(0, 0, 0, 0.6);
   padding: 40px 20px;
   border-radius: 8px;

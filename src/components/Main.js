@@ -5,13 +5,14 @@ import Navigation from './Navigation';
 import emailIcon from './images/email_icon.png';
 import instagramIcon from './images/instagram_icon.png';
 import tiktokIcon from './images/tiktok_icon.png';
+import AboutMe from './AboutMe';
 
 const Main = () => {
   return (
-    <div className="homepage">
+    <div>
       <Navigation />
       <div className="bio-section">
-        <h2>Explore.Dream.Discover</h2>
+        <h2>Explore. Dream. Discover</h2>
         <p>Hello! I'm a travel enthusiast who loves exploring new places and cultures. I believe that travel is not just about visiting new places but about experiencing life in different ways.</p>
         <p>
           <a href="mailto:infinitywanderlusttravels@gmail.com"><img src={emailIcon} alt="Email" /></a>
@@ -22,6 +23,7 @@ const Main = () => {
           <a href="#explore-more" className="explore-more-link">Start Exploring</a>
         </p>
       </div>
+      <AboutMe />
     </div>
   );
 };
