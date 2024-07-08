@@ -1,3 +1,4 @@
+/* Main.css */
 .homepage {
   background-image: url('./images/jw_marriott.jpg');
   background-size: cover;
@@ -7,179 +8,68 @@
   padding: 16px;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* Center vertically */
-  align-items: center; /* Center horizontally */
-  height: 100vh;
-}
-
-.main-container {
-  display: flex;
-  justify-content: space-between; /* Space between logo and menu */
-  align-items: center; /* Align items to the center */
-  width: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  padding: 16px;
-}
-
-.logo {
-  color: #fff;
-  font-size: 24px;
-  font-weight: bold;
-  text-align: left; /* Ensure logo is always aligned left */
-  margin-left: 16px; /* Add margin for spacing */
-}
-
-.nav-menu {
-  display: flex;
-  justify-content: flex-end; /* Align items to the right */
+  justify-content: center;
   align-items: center;
-  gap: 20px;
-}
-
-.nav-icon {
-  display: none;
-  color: #fff;
-  cursor: pointer;
-  font-size: 24px;
-  position: absolute;
-  top: 16px;
-  left: 16px;
-}
-
-.dropdown {
-  position: relative;
-  display: inline-block;
-}
-
-.dropbtn {
-  background-color: transparent;
-  color: white;
-  padding: 16px;
-  font-size: 16px;
-  border: none;
-  cursor: pointer;
-}
-
-.dropbtn:hover {
-  background-color: grey; /* Change background color on hover */
-}
-
-.dropdown-content {
-  display: none;
-  position: absolute;
-  background-color: #f1f1f1;
-  min-width: 160px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  z-index: 1;
-}
-
-.dropdown-content a {
-  color: black;
-  padding: 12px 16px;
-  text-decoration: none;
-  display: block;
-}
-
-.dropdown-content a:hover {
-  background-color: #ddd;
-}
-
-.dropdown:hover .dropdown-content {
-  display: block;
+  min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box; /* Ensures padding is included in element's total width and height */
 }
 
 .bio-section {
   margin-top: 20px;
-  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
-  padding: 40px 20px; /* Increase padding for more space */
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 40px 20px;
   border-radius: 8px;
-  text-align: center; /* Center align text */
-  align-self: center; /* Center align within the parent */
-  max-width: 800px; /* Limit the width of the section */
-  color: #FFFFFF; /* Text color */
-  font-family: 'Open Sans', sans-serif; /* Font family */
-  font-size: 18px; /* Font size */
-  font-weight: 400; /* Font weight */
+  text-align: center;
+  max-width: 90%; /* Adjust max-width for better flexibility */
+  box-sizing: border-box; /* Ensures padding is included in element's total width and height */
+  color: #FFFFFF;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 400;
 }
 
 .bio-section h2 {
-  margin: 0 0 20px 0; /* Increase margin for spacing */
-  font-family: 'Average', sans-serif; /* Font family */
-  font-size: 43px; /* Font size */
-  font-weight: 700; /* Font weight */
+  margin: 0 0 20px 0;
+  font-family: 'Average', sans-serif;
+  font-size: 50px;
+  font-weight: 700;
+  word-wrap: break-word; /* Allow words to break if they are too long */
 }
 
 .bio-section p {
-  margin: 0 0 20px 0; /* Increase margin for spacing */
-  font-size: 18px; /* Font size */
-  font-weight: 400; /* Font weight */
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 400;
 }
 
 .explore-more-link {
   display: inline-block;
   color: #fff;
-  background-color: #4e4e4e; /* Primary button color */
-  padding: 15px 30px; /* Increase padding for larger button */
+  background-color: #4e4e4e;
+  padding: 20px 40px;
   text-decoration: none;
   border-radius: 4px;
   transition: background-color 0.3s ease;
-  border: 2px solid #fff; /* Add border for the box effect */
+  border: 2px solid #fff;
+  font-size: 20px;
 }
 
 .explore-more-link:hover {
-  background-color: #b37400; /* Darken button color on hover */
+  background-color: #b37400;
 }
 
+/* Media queries for devices with max-width of 768px (phones, small tablets) */
 @media (max-width: 768px) {
-  .nav-menu {
-    display: none; /* Hide the menu when screen is minimized */
-  }
-
-  .nav-icon {
-    display: block; /* Show the hamburger menu */
-  }
-
-  .menu {
-    display: none;
-    flex-direction: column;
-    position: absolute;
-    top: 60px;
-    left: 16px;
-    background-color: #333;
-    padding: 10px;
-    border-radius: 8px;
-  }
-
-  .menu.active {
-    display: flex;
-  }
-
-  .menu-item {
-    color: #fff;
-    padding: 10px;
-    cursor: pointer;
-    text-decoration: none;
-  }
-
-  .menu-item:hover {
-    background-color: grey;
-  }
-
-  .logo {
-    text-align: center; /* Center logo when screen is minimized */
-    flex: 1;
-    margin: 0; /* Reset margin for centering */
-  }
-
   .bio-section {
     margin-top: 40px;
-    padding: 30px 15px; /* Adjust padding for mobile view */
+    padding: 30px 15px;
+    max-width: 100%; /* Ensure bio section does not exceed screen width */
   }
 
   .bio-section h2 {
     font-size: 28px; /* Adjust font size for mobile view */
+    word-wrap: break-word; /* Ensure text breaks properly on small screens */
   }
 
   .bio-section p {
@@ -188,5 +78,6 @@
 
   .explore-more-link {
     padding: 12px 24px; /* Adjust padding for mobile view */
+    font-size: 16px; /* Adjust font size for mobile view */
   }
 }
