@@ -31,94 +31,63 @@
   margin-left: 16px; /* Add margin for spacing */
 }
 
-.menu {
+.nav-menu {
   display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  flex-grow: 1;
-  justify-content: flex-end; /* Align menu items to the right */
-  margin-right: 16px; /* Add margin for spacing */
-}
-
-.menu.active {
-  display: flex;
-  position: absolute;
-  top: 60px;
-  right: 0; /* Align dropdown to the right */
-  width: 250px;
-  background-color: #333;
-  flex-direction: column;
-}
-
-.item {
-  margin-left: 20px;
-  position: relative;
-}
-
-.nav-link {
-  color: #fff;
-  text-decoration: none;
-  cursor: pointer;
-  padding: 10px 20px;
-}
-
-.dropdown {
-  display: block;
-  position: relative;
-  padding-left: 20px; /* Add padding for indentation */
-  list-style: none;
-  padding: 10px 0;
-  margin: 0;
-  margin-top: 10px; /* Add margin to push down other links */
-  background-color: #444; /* Add background color to dropdown */
-}
-
-.dropdown-item {
-  padding: 10px 20px;
-  color: #fff;
-  text-decoration: none;
-  display: block;
-  cursor: pointer;
+  justify-content: flex-end; /* Align items to the right */
+  align-items: center;
+  gap: 20px;
 }
 
 .nav-icon {
   display: none;
   color: #fff;
   cursor: pointer;
-  margin-left: 16px; /* Add margin for spacing */
+  font-size: 24px;
+  position: absolute;
+  top: 16px;
+  left: 16px;
 }
 
-@media (max-width: 768px) {
-  .menu {
-      display: none;
-      flex-direction: column;
-  }
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
 
-  .nav-icon {
-      display: block; /* Ensure hamburger menu is visible */
-      margin-left: 16px; /* Add margin for spacing */
-  }
+.dropbtn {
+  background-color: transparent;
+  color: white;
+  padding: 16px;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+}
 
-  .menu.active {
-      display: flex;
-      position: absolute;
-      top: 60px;
-      left: 16px; /* Add padding from the left edge */
-      width: 250px;
-      background-color: #333;
-      flex-direction: column;
-  }
+.dropbtn:hover {
+  background-color: grey; /* Change background color on hover */
+}
 
-  .logo {
-      text-align: center; /* Center logo when screen is minimized */
-      flex: 1;
-      margin: 0; /* Reset margin for centering */
-  }
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f1f1f1;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
 
-  .item {
-      margin: 0;
-  }
+.dropdown-content a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropdown-content a:hover {
+  background-color: #ddd;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
 }
 
 .bio-section {
@@ -164,20 +133,60 @@
 }
 
 @media (max-width: 768px) {
+  .nav-menu {
+    display: none; /* Hide the menu when screen is minimized */
+  }
+
+  .nav-icon {
+    display: block; /* Show the hamburger menu */
+  }
+
+  .menu {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 60px;
+    left: 16px;
+    background-color: #333;
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .menu.active {
+    display: flex;
+  }
+
+  .menu-item {
+    color: #fff;
+    padding: 10px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .menu-item:hover {
+    background-color: grey;
+  }
+
+  .logo {
+    text-align: center; /* Center logo when screen is minimized */
+    flex: 1;
+    margin: 0; /* Reset margin for centering */
+  }
+
   .bio-section {
-      margin-top: 40px;
-      padding: 30px 15px; /* Adjust padding for mobile view */
+    margin-top: 40px;
+    padding: 30px 15px; /* Adjust padding for mobile view */
   }
 
   .bio-section h2 {
-      font-size: 28px; /* Adjust font size for mobile view */
+    font-size: 28px; /* Adjust font size for mobile view */
   }
 
   .bio-section p {
-      font-size: 16px; /* Adjust font size for mobile view */
+    font-size: 16px; /* Adjust font size for mobile view */
   }
 
   .explore-more-link {
-      padding: 12px 24px; /* Adjust padding for mobile view */
+    padding: 12px 24px; /* Adjust padding for mobile view */
   }
 }
