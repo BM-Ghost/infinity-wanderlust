@@ -24,7 +24,7 @@ Make sure you have the following installed:
 
 ## 🤝 Contributing
 
-I welcome contributions! Please feel free to jump in and help improve the project.
+I welcome contributions! Please feel free to jump in, inquire and help improve the project.
 
 ## 📞 Contact
 
