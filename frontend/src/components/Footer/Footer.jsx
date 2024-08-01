@@ -35,7 +35,7 @@ const quick__links2 = [
 ]
 
 const Footer = () => {
-   // const year = new Date().getFullYear()
+   const year = new Date().getFullYear()
 
    return (
       <footer className='footer'>
@@ -43,28 +43,28 @@ const Footer = () => {
             <Row>
                <Col lg='3'>
                   <div className="logo">
-                     <img src={logo} alt="" />
+                     <img src={logo} alt="Logo" />
                      <p>Unlocking unforgettable journeys with expert guidance and insider insights.</p>
                      <div className="social__link d-flex align-items-center gap-4">
                         <span>
-                           <Link to='#'>
-                              <i class='ri-youtube-line'></i>
-                           </Link>
+                           <a href='https://www.tiktok.com/@infinity_wanderlust' target='_blank' rel='noopener noreferrer'>
+                              <i className='ri-tiktok-line'></i>
+                           </a>
                         </span>
                         <span>
-                           <Link to='#'>
-                              <i class='ri-github-fill'></i>
-                           </Link>
+                           <a href='https://www.instagram.com/infinity_wanderlust/' target='_blank' rel='noopener noreferrer'>
+                              <i className='ri-instagram-line'></i>
+                           </a>
                         </span>
                         <span>
-                           <Link to='#'>
-                              <i class='ri-facebook-circle-line'></i>
-                           </Link>
+                           <a href='https://x.com/kenyanetraveler' target='_blank' rel='noopener noreferrer'>
+                              <i className='ri-twitter-line'></i>
+                           </a>
                         </span>
                         <span>
-                           <Link to='#'>
-                              <i class='ri-instagram-line'></i>
-                           </Link>
+                           <a href='mailto:infinitywanderlusttravels@gmail.com' target='_blank' rel='noopener noreferrer'>
+                              <i className='ri-mail-line'></i>
+                           </a>
                         </span>
                      </div>
                   </div>
@@ -102,33 +102,28 @@ const Footer = () => {
                   <ListGroup className='footer__quick-links'>
                      <ListGroupItem className='ps-0 border-0 d-flex align-items-center gap-3'>
                         <h6 className='mb-0 d-flex align-items-center gap-2'>
-                           <span><i class='ri-map-pin-line'></i></span>
+                           <span><i className='ri-map-pin-line'></i></span>
                            Address:
                         </h6>
-                        <p className='mb-0'>Lorem</p>
+                        <p className='mb-0'>Nairobi, Kenya</p>
                      </ListGroupItem>
 
                      <ListGroupItem className='ps-0 border-0 d-flex align-items-center gap-3'>
                         <h6 className='mb-0 d-flex align-items-center gap-2'>
-                           <span><i class='ri-mail-line'></i></span>
+                           <span><i className='ri-mail-line'></i></span>
                            Email:
                         </h6>
-
-                        <p className='mb-0'>Lorem</p>
-                     </ListGroupItem>
-
-                     <ListGroupItem className='ps-0 border-0 d-flex align-items-center gap-3'>
-                        <h6 className='mb-0 d-flex align-items-center gap-2'>
-                           <span><i class='ri-phone-fill'></i></span>
-                           Phone:
-                        </h6>
-
-                        <p className='mb-0'>Lorem</p>
+                        <p className='mb-0'>
+                           <a href='mailto:infinitywanderlusttravels@gmail.com'>infinitywanderlusttravels@gmail.com</a>
+                        </p>
                      </ListGroupItem>
                   </ListGroup>
                </Col>
             </Row>
          </Container>
+         <div className="footer__bottom text-center mt-4">
+            <p>&copy; {year} Infinity Wanderlust Travels. All rights reserved.</p>
+         </div>
       </footer>
    )
 }
