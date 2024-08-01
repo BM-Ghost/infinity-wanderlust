@@ -41,7 +41,3 @@ I welcome contributions! Please feel free to jump in and help improve the projec
 Feel free to reach out if you have any questions or suggestions! 😊
 
 Happy traveling! 🌍✨
-
----
-
-This method uses HTML's `<details>` and `<summary>` tags to create collapsible sections. When a user clicks on the summary, the hidden content (phone number and email) will become visible.
