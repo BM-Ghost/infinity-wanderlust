@@ -3,6 +3,9 @@ import './footer.css'
 import { Container, Row, Col, ListGroup, ListGroupItem } from 'reactstrap'
 import { Link } from 'react-router-dom'
 import logo from '../../assets/images/logo.png'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faInstagram, faTwitter, faTiktok } from '@fortawesome/free-brands-svg-icons'
+import { faEnvelope } from '@fortawesome/free-solid-svg-icons'
 
 const quick__links = [
    {
@@ -48,22 +51,22 @@ const Footer = () => {
                      <div className="social__link d-flex align-items-center gap-4">
                         <span>
                            <a href='https://www.tiktok.com/@infinity_wanderlust' target='_blank' rel='noopener noreferrer'>
-                              <i className='ri-tiktok-line'></i>
+                              <FontAwesomeIcon icon={faTiktok} />
                            </a>
                         </span>
                         <span>
                            <a href='https://www.instagram.com/infinity_wanderlust/' target='_blank' rel='noopener noreferrer'>
-                              <i className='ri-instagram-line'></i>
+                              <FontAwesomeIcon icon={faInstagram} />
                            </a>
                         </span>
                         <span>
                            <a href='https://x.com/kenyanetraveler' target='_blank' rel='noopener noreferrer'>
-                              <i className='ri-twitter-line'></i>
+                              <FontAwesomeIcon icon={faTwitter} />
                            </a>
                         </span>
                         <span>
                            <a href='mailto:infinitywanderlusttravels@gmail.com' target='_blank' rel='noopener noreferrer'>
-                              <i className='ri-mail-line'></i>
+                              <FontAwesomeIcon icon={faEnvelope} />
                            </a>
                         </span>
                      </div>
