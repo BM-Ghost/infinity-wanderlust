@@ -35,7 +35,7 @@ const quick__links2 = [
 ]
 
 const Footer = () => {
-   const year = new Date().getFullYear()
+   // const year = new Date().getFullYear()
 
    return (
       <footer className='footer'>
@@ -44,7 +44,7 @@ const Footer = () => {
                <Col lg='3'>
                   <div className="logo">
                      <img src={logo} alt="" />
-                     <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Commodi, enim.</p>
+                     <p>Unlocking unforgettable journeys with expert guidance and insider insights.</p>
                      <div className="social__link d-flex align-items-center gap-4">
                         <span>
                            <Link to='#'>

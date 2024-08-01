@@ -1,6 +1,6 @@
 import React from 'react'
 import '../styles/home.css'
-import { Container, Row, Col, CardSubtitle } from 'reactstrap'
+import { Container, Row, Col } from 'reactstrap'
 import heroImg from '../assets/images/hero-img01.jpg'
 import heroImg02 from '../assets/images/hero-img02.jpg'
 import heroVideo from '../assets/images/hero-video.mp4'
@@ -12,7 +12,7 @@ import SearchBar from './../shared/SearchBar'
 import ServiceList from '../services/ServiceList'
 import FeaturedTourList from '../components/Featured-tours/FeaturedTourList'
 import MasonryImagesGallery from '../components/Image-gallery/MasonryImagesGallery'
-import Testimonials from '../components/Testimonial/Testimonials'
+// import Testimonials from '../components/Testimonial/Testimonials'
 import NewsLetter from '../shared/Newsletter'
 
 const Home = () => {
@@ -29,10 +29,7 @@ const Home = () => {
                      </div>
                      <h1>Traveling opens the door to creating <span className='hightlight'> memories</span></h1>
                      <p>
-                        Lorem ipsum dolor sit amet consectetur, adipisicing elit.
-                        Ullam ipsum nobis asperiores soluta voluptas quas voluptates.
-                        Molestiae tempora dignissimos, animi praesentium molestias perferendis
-                        porro expedita delectus. Soluta natus porro.
+                     From Dubai's awe-inspiring skyline to Zanzibar's pristine beaches, each destination offers unique, unforgettable experiences. Exploring Arusha's vibrant culture and Kenya's diverse wonders, from bustling Nairobi to serene savannahs, creates indelible memories that enrich our lives and broaden our horizons.
                      </p>
                   </div>
                </Col>
@@ -64,8 +61,8 @@ const Home = () => {
          <Container>
             <Row>
                <Col lg='3'>
-                  <h5 className="services__subtitle">What we serve</h5>
-                  <h2 className="services__title">We offer our best services</h2>
+                  <h5 className="services__subtitle">I assure you</h5>
+                  <h2 className="services__title">I commit to offer my best services</h2>
                </Col>
                <ServiceList />
             </Row>
@@ -93,9 +90,9 @@ const Home = () => {
                <Col lg='6'>
                   <div className="experience__content">
                      <Subtitle subtitle={'Experience'} />
-                     <h2>With our all experience <br /> we will serve you</h2>
-                     <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit.
-                        <br /> Quas aliquam, hic tempora inventore suscipit unde. </p>
+                     <h2>With my experience <br /> I will serve you</h2>
+                     <p>I will serve you as a knowledgeable guide. 
+                        <br /> Let me help you create unforgettable memories and explore these incredible destinations, enriching your journey with insights and tips from my own adventures.. </p>
                   </div>
 
                   <div className="counter__wrapper d-flex align-items-center gap-5">
@@ -141,7 +138,7 @@ const Home = () => {
 
       {/* ========== TESTIMONIAL SECTION START ================ */}
       <section>
-         <Container>
+         {/* <Container>
             <Row>
                <Col lg='12'>
                   <Subtitle subtitle={'Fans Love'} />
@@ -151,7 +148,7 @@ const Home = () => {
                   <Testimonials />
                </Col>
             </Row>
-         </Container>
+         </Container> */}
       </section>
       {/* ========== TESTIMONIAL SECTION END ================== */}
       <NewsLetter />
