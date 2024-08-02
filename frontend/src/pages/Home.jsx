@@ -2,7 +2,7 @@ import React from 'react'
 import '../styles/home.css'
 import { Container, Row, Col } from 'reactstrap'
 import heroImg from '../assets/images/hero-img01.jpg'
-import heroImg02 from '../assets/images/hero-img02.jpg'
+import waterfallvid from '../assets/images/hero-vid.mp4'
 import heroVideo from '../assets/images/hero-video.mp4'
 import worldImg from '../assets/images/world.png'
 import experienceImg from '../assets/images/experience.png'
@@ -45,8 +45,8 @@ const Home = () => {
                   </div>
                </Col>
                <Col lg='2'>
-                  <div className="hero__img-box mt-5">
-                     <img src={heroImg02} alt="" />
+                  <div className="hero__img-box hero__video-box mt-4">
+                     <video src={waterfallvid} alt="" controls />
                   </div>
                </Col>
 
