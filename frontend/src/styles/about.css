@@ -1,0 +1,8 @@
+.experience__image {
+    max-width: 200px; /* Make the image smaller */
+    height: auto;
+    border-radius: 10px;
+    float: right; /* Allows text to wrap around the image */
+    margin-right: 20px; /* Space between the image and text */
+}
+
