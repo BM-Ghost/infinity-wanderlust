@@ -38,7 +38,7 @@ const Register = () => {
          const data = {
             username: credentials.username,
             email: credentials.email,
-            emailVisibility: credentials.emailVisibility,
+            emailVisibility: true,
             password: credentials.password,
             passwordConfirm: credentials.passwordConfirm,
             name: credentials.name
@@ -90,12 +90,6 @@ const Register = () => {
                            </FormGroup>
                            <FormGroup>
                               <input type="password" placeholder='Confirm Password' id='passwordConfirm' onChange={handleChange} required />
-                           </FormGroup>
-                           <FormGroup check>
-                              <label>
-                                 <input type="checkbox" id='emailVisibility' checked={credentials.emailVisibility} onChange={e => setCredentials(prev => ({ ...prev, emailVisibility: e.target.checked }))} />
-                                 Email Visibility
-                              </label>
                            </FormGroup>
                            <Button className='btn secondary__btn auth__btn' type='submit'>Create Account</Button>
                         </Form>
