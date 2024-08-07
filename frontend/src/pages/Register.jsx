@@ -1,47 +1,63 @@
-import React, { useState, useContext } from 'react'
-import { Container, Row, Col, Form, FormGroup, Button } from 'reactstrap'
-import '../styles/login.css'
-import { Link, useNavigate } from 'react-router-dom'
-import registerImg from '../assets/images/login.png'
-import userIcon from '../assets/images/user.png'
-import { AuthContext } from '../context/AuthContext'
-import { BASE_URL } from '../utils/config'
+import React, { useState, useContext } from 'react';
+import { Container, Row, Col, Form, FormGroup, Button } from 'reactstrap';
+import '../styles/login.css';
+import { Link, useNavigate } from 'react-router-dom';
+import registerImg from '../assets/images/login.png';
+import userIcon from '../assets/images/user.png';
+import { AuthContext } from '../context/AuthContext';
+import PocketBase from 'pocketbase';
+
+const pb = new PocketBase('https://remain-faceghost.pockethost.io');
 
 const Register = () => {
    const [credentials, setCredentials] = useState({
-      userName: undefined,
-      email: undefined,
-      password: undefined
-   })
+      username: '',
+      email: '',
+      emailVisibility: true,
+      password: '',
+      passwordConfirm: '',
+      name: ''
+   });
 
-   const {dispatch} = useContext(AuthContext)
-   const navigate = useNavigate()
+   const { dispatch } = useContext(AuthContext);
+   const navigate = useNavigate();
 
    const handleChange = e => {
-      setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }))
-   }
+      setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }));
+   };
 
    const handleClick = async e => {
-      e.preventDefault()
+      e.preventDefault();
+
+      if (credentials.password !== credentials.passwordConfirm) {
+         alert('Passwords do not match.');
+         return;
+      }
 
       try {
-         const res = await fetch(`${BASE_URL}/auth/register`, {
-            method:'post',
-            headers: {
-               'content-type':'application/json'
-            },
-            body: JSON.stringify(credentials)
-         })
-         const result = await res.json()
+         const data = {
+            username: credentials.username,
+            email: credentials.email,
+            emailVisibility: credentials.emailVisibility,
+            password: credentials.password,
+            passwordConfirm: credentials.passwordConfirm,
+            name: credentials.name
+         };
 
-         if(!res.ok) alert(result.message)
+         const record = await pb.collection('users').create(data);
 
-         dispatch({type:'REGISTER_SUCCESS'})
-         navigate('/login')
-      } catch(err) {
-         alert(err.message)
+         if (record) {
+            // Optional: send an email verification request
+            await pb.collection('users').requestVerification(credentials.email);
+            
+            dispatch({ type: 'REGISTER_SUCCESS' });
+            navigate('/login');
+         }
+      } catch (err) {
+         console.error('Error creating record:', err);
+         alert('Failed to create account. Please try again.');
       }
-   }
+   };
 
    return (
       <section>
@@ -64,10 +80,22 @@ const Register = () => {
                               <input type="text" placeholder='Username' id='username' onChange={handleChange} required />
                            </FormGroup>
                            <FormGroup>
+                              <input type="text" placeholder='Name' id='name' onChange={handleChange} required />
+                           </FormGroup>
+                           <FormGroup>
                               <input type="email" placeholder='Email' id='email' onChange={handleChange} required />
                            </FormGroup>
                            <FormGroup>
                               <input type="password" placeholder='Password' id='password' onChange={handleChange} required />
+                           </FormGroup>
+                           <FormGroup>
+                              <input type="password" placeholder='Confirm Password' id='passwordConfirm' onChange={handleChange} required />
+                           </FormGroup>
+                           <FormGroup check>
+                              <label>
+                                 <input type="checkbox" id='emailVisibility' checked={credentials.emailVisibility} onChange={e => setCredentials(prev => ({ ...prev, emailVisibility: e.target.checked }))} />
+                                 Email Visibility
+                              </label>
                            </FormGroup>
                            <Button className='btn secondary__btn auth__btn' type='submit'>Create Account</Button>
                         </Form>
@@ -78,7 +106,7 @@ const Register = () => {
             </Row>
          </Container>
       </section>
-   )
-}
+   );
+};
 
-export default Register
+export default Register;
