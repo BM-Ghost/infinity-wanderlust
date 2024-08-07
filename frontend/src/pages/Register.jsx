@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { Container, Row, Col, Form, FormGroup, Button } from 'reactstrap';
+import { Container, Row, Col, Form, FormGroup, Button, Spinner } from 'reactstrap';
 import '../styles/login.css';
 import { Link, useNavigate } from 'react-router-dom';
 import registerImg from '../assets/images/login.png';
@@ -21,6 +21,7 @@ const Register = () => {
     const [verificationCode, setVerificationCode] = useState('');
     const [showVerification, setShowVerification] = useState(false);
     const [timer, setTimer] = useState(120);
+    const [loading, setLoading] = useState(false);
 
     const { dispatch } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -49,6 +50,8 @@ const Register = () => {
             return;
         }
 
+        setLoading(true); // Set loading to true
+
         try {
             const data = {
                 username: credentials.username,
@@ -68,6 +71,8 @@ const Register = () => {
         } catch (err) {
             console.error('Error creating record:', err);
             alert('Failed to create account. Please try again.');
+        } finally {
+            setLoading(false); // Set loading to false
         }
     };
 
@@ -103,68 +108,61 @@ const Register = () => {
                                 <img src={registerImg} alt="" />
                             </div>
 
-                            <div className="login__form">
-                                <div className="user">
-                                    <img src={userIcon} alt="" />
-                                </div>
-                                <h2>Register</h2>
+                            {!showVerification ? (
+                                <div className="login__form">
+                                    <div className="user">
+                                        <img src={userIcon} alt="" />
+                                    </div>
+                                    <h2>Register</h2>
 
-                                <Form onSubmit={handleClick}>
-                                    <FormGroup>
-                                        <input type="text" placeholder='Username' id='username' onChange={handleChange} required />
-                                    </FormGroup>
-                                    <FormGroup>
-                                        <input type="text" placeholder='Name' id='name' onChange={handleChange} required />
-                                    </FormGroup>
-                                    <FormGroup>
-                                        <input type="email" placeholder='Email' id='email' onChange={handleChange} required />
-                                    </FormGroup>
-                                    <FormGroup>
-                                        <input type="password" placeholder='Password' id='password' onChange={handleChange} required />
-                                    </FormGroup>
-                                    <FormGroup>
-                                        <input type="password" placeholder='Confirm Password' id='passwordConfirm' onChange={handleChange} required />
-                                    </FormGroup>
-                                    <Button className='btn secondary__btn auth__btn' type='submit'>Create Account</Button>
-                                </Form>
-                                <p>Already have an account? <Link to='/login'>Login</Link></p>
-                            </div>
+                                    {loading ? (
+                                        <div className="loading-spinner">
+                                            <Spinner />
+                                        </div>
+                                    ) : (
+                                        <Form onSubmit={handleClick}>
+                                            <FormGroup>
+                                                <input type="text" placeholder='Username' id='username' onChange={handleChange} required />
+                                            </FormGroup>
+                                            <FormGroup>
+                                                <input type="text" placeholder='Name' id='name' onChange={handleChange} required />
+                                            </FormGroup>
+                                            <FormGroup>
+                                                <input type="email" placeholder='Email' id='email' onChange={handleChange} required />
+                                            </FormGroup>
+                                            <FormGroup>
+                                                <input type="password" placeholder='Password' id='password' onChange={handleChange} required />
+                                            </FormGroup>
+                                            <FormGroup>
+                                                <input type="password" placeholder='Confirm Password' id='passwordConfirm' onChange={handleChange} required />
+                                            </FormGroup>
+                                            <Button className='btn secondary__btn auth__btn' type='submit'>Create Account</Button>
+                                        </Form>
+                                    )}
+                                    <p>Already have an account? <Link to='/login'>Login</Link></p>
+                                </div>
+                            ) : (
+                                <div className="login__form">
+                                    <h2>Verify Your Email</h2>
+                                    <p>A verification code has been sent to your email. Please enter the code below:</p>
+                                    <Form onSubmit={handleVerification}>
+                                        <FormGroup>
+                                            <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
+                                        </FormGroup>
+                                        <Button className='btn secondary__btn auth__btn' type='submit'>Verify</Button>
+                                    </Form>
+                                    <p>
+                                        {timer > 0
+                                            ? `You can resend the email in ${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`
+                                            : <Button onClick={resendVerificationEmail}>Resend</Button>
+                                        }
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </Col>
                 </Row>
             </Container>
-
-            {showVerification && (
-                <section>
-                    <Container>
-                        <Row>
-                            <Col lg='8' className='m-auto'>
-                                <div className="login__container d-flex justify-content-between">
-                                    <div className="login__img">
-                                        <img src={registerImg} alt="" />
-                                    </div>
-                                    <div className="login__form">
-                                        <h2>Verify Your Email</h2>
-                                        <p>A verification code has been sent to your email. Please enter the code below:</p>
-                                        <Form onSubmit={handleVerification}>
-                                            <FormGroup>
-                                                <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
-                                            </FormGroup>
-                                            <Button className='btn secondary__btn auth__btn' type='submit'>Verify</Button>
-                                        </Form>
-                                        <p>
-                                            {timer > 0
-                                                ? `You can resend the email in ${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`
-                                                : <Button onClick={resendVerificationEmail}>Resend</Button>
-                                            }
-                                        </p>
-                                    </div>
-                                </div>
-                            </Col>
-                        </Row>
-                    </Container>
-                </section>
-            )}
         </section>
     );
 };
