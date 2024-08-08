@@ -22,6 +22,7 @@ const Register = () => {
     const [showVerification, setShowVerification] = useState(false);
     const [timer, setTimer] = useState(120);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const { dispatch } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -50,7 +51,8 @@ const Register = () => {
             return;
         }
 
-        setLoading(true); // Set loading to true
+        setLoading(true);
+        setError(null);
 
         try {
             const data = {
@@ -62,7 +64,11 @@ const Register = () => {
                 name: credentials.name
             };
 
+            console.log('Request Data:', JSON.stringify(data));
+
             const record = await pb.collection('users').create(data);
+
+            console.log('Response Data:', record);
 
             if (record) {
                 await pb.collection('users').requestVerification(credentials.email);
@@ -70,16 +76,31 @@ const Register = () => {
             }
         } catch (err) {
             console.error('Error creating record:', err);
-            alert('Failed to create account. Please try again.');
+            if (err.data) {
+                console.error('PocketBase Error Data:', err.data);
+                // Extract specific error messages
+                let errorMessage = err.data.message || 'Failed to create account.';
+                if (err.data.data) {
+                    const fieldErrors = Object.values(err.data.data)
+                        .map(fieldError => fieldError.message)
+                        .join(' ');
+                    errorMessage = fieldErrors || errorMessage;
+                }
+                setError({ code: err.data.code, message: errorMessage });
+            } else {
+                setError({ message: 'Failed to create account. Please try again.' });
+            }
         } finally {
-            setLoading(false); // Set loading to false
+            setLoading(false);
         }
     };
 
     const handleVerification = async e => {
         e.preventDefault();
         try {
-            await pb.collection('users').confirmVerification(verificationCode);
+            console.log('Verification Code:', verificationCode);
+            const response = await pb.collection('users').confirmVerification(verificationCode);
+            console.log('Verification Response:', response);
             dispatch({ type: 'REGISTER_SUCCESS' });
             navigate('/login');
         } catch (err) {
@@ -91,7 +112,7 @@ const Register = () => {
     const resendVerificationEmail = async () => {
         try {
             await pb.collection('users').requestVerification(credentials.email);
-            setTimer(120); // reset timer
+            setTimer(120);
         } catch (err) {
             console.error('Error resending verification email:', err);
             alert('Failed to resend verification email. Please try again.');
@@ -107,8 +128,19 @@ const Register = () => {
                             <div className="login__img">
                                 <img src={registerImg} alt="" />
                             </div>
-
-                            {!showVerification ? (
+                            {error && (
+                                <div className="error-message">
+                                    <div className="error-header">
+                                        <span>Error: {error.code}</span>
+                                        <button onClick={() => setError(null)}>X</button>
+                                    </div>
+                                    <div className="error-body">
+                                        <p>{error.message}</p>
+                                        <Button onClick={() => setShowVerification(false)}>Try Again</Button>
+                                    </div>
+                                </div>
+                            )}
+                            {!error && !showVerification ? (
                                 <div className="login__form">
                                     <div className="user">
                                         <img src={userIcon} alt="" />
@@ -142,22 +174,24 @@ const Register = () => {
                                     <p>Already have an account? <Link to='/login'>Login</Link></p>
                                 </div>
                             ) : (
-                                <div className="login__form">
-                                    <h2>Verify Your Email</h2>
-                                    <p>A verification code has been sent to your email. Please enter the code below:</p>
-                                    <Form onSubmit={handleVerification}>
-                                        <FormGroup>
-                                            <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
-                                        </FormGroup>
-                                        <Button className='btn secondary__btn auth__btn' type='submit'>Verify</Button>
-                                    </Form>
-                                    <p>
-                                        {timer > 0
-                                            ? `You can resend the email in ${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`
-                                            : <Button onClick={resendVerificationEmail}>Resend</Button>
-                                        }
-                                    </p>
-                                </div>
+                                !error && showVerification && (
+                                    <div className="login__form">
+                                        <h2>Verify Your Email</h2>
+                                        <p>A verification code has been sent to your email. Please enter the code below:</p>
+                                        <Form onSubmit={handleVerification}>
+                                            <FormGroup>
+                                                <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
+                                            </FormGroup>
+                                            <Button className='btn secondary__btn auth__btn' type='submit'>Verify</Button>
+                                        </Form>
+                                        <p>
+                                            {timer > 0
+                                                ? `You can resend the email in ${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`
+                                                : <Button onClick={resendVerificationEmail}>Resend</Button>
+                                            }
+                                        </p>
+                                    </div>
+                                )
                             )}
                         </div>
                     </Col>

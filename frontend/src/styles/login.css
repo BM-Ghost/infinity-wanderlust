@@ -101,3 +101,29 @@
       padding-bottom: 1rem;
    }
 }
+
+.error-message {
+   background-color: #f8d7da;
+   color: #721c24;
+   border: 1px solid #f5c6cb;
+   padding: 10px;
+   margin-bottom: 20px;
+   border-radius: 5px;
+}
+
+.error-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+}
+
+.error-header button {
+   background: none;
+   border: none;
+   font-size: 1.2em;
+   cursor: pointer;
+}
+
+.error-body {
+   margin-top: 10px;
+}
