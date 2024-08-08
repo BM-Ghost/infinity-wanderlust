@@ -136,7 +136,7 @@ const Register = () => {
                                     </div>
                                     <div className="error-body">
                                         <p>{error.message}</p>
-                                        <Button onClick={() => setShowVerification(false)}>Try Again</Button>
+                                        <Button onClick={() => { setError(null); setShowVerification(false); }}>Try Again</Button>
                                     </div>
                                 </div>
                             )}
