@@ -39,9 +39,9 @@ const Register = () => {
         return () => clearInterval(countdown);
     }, [showVerification, timer]);
 
-    const generateVerificationCode = () => {
-        return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
-    };
+    // const generateVerificationCode = () => {
+    //     return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
+    // };
 
     const handleChange = e => {
         setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }));
@@ -59,7 +59,7 @@ const Register = () => {
         setError(null);
 
         try {
-            const verificationCode = generateVerificationCode();
+            // const verificationCode = generateVerificationCode();
 
             const data = {
                 username: credentials.username,
@@ -68,7 +68,8 @@ const Register = () => {
                 password: credentials.password,
                 passwordConfirm: credentials.passwordConfirm,
                 name: credentials.name,
-                verificationCode: verificationCode // Store the verification code
+                // verificationCode: verificationCode // Store the verification code
+                verificationCode: 173814 // Store the verification code
             };
 
             console.log('Request Data:', JSON.stringify(data));
