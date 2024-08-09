@@ -39,6 +39,10 @@ const Register = () => {
         return () => clearInterval(countdown);
     }, [showVerification, timer]);
 
+    const generateVerificationCode = () => {
+        return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
+    };
+
     const handleChange = e => {
         setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }));
     };
@@ -55,13 +59,16 @@ const Register = () => {
         setError(null);
 
         try {
+            const verificationCode = generateVerificationCode();
+
             const data = {
                 username: credentials.username,
                 email: credentials.email,
                 emailVisibility: true,
                 password: credentials.password,
                 passwordConfirm: credentials.passwordConfirm,
-                name: credentials.name
+                name: credentials.name,
+                verificationCode: verificationCode // Store the verification code
             };
 
             console.log('Request Data:', JSON.stringify(data));
@@ -71,6 +78,7 @@ const Register = () => {
             console.log('Response Data:', record);
 
             if (record) {
+                // Send email with the verification code (modify this method to include the verification code in the email)
                 await pb.collection('users').requestVerification(credentials.email);
                 setShowVerification(true);
             }
@@ -78,7 +86,6 @@ const Register = () => {
             console.error('Error creating record:', err);
             if (err.data) {
                 console.error('PocketBase Error Data:', err.data);
-                // Extract specific error messages
                 let errorMessage = err.data.message || 'Failed to create account.';
                 if (err.data.data) {
                     const fieldErrors = Object.values(err.data.data)
@@ -98,11 +105,20 @@ const Register = () => {
     const handleVerification = async e => {
         e.preventDefault();
         try {
-            console.log('Verification Code:', verificationCode);
-            const response = await pb.collection('users').confirmVerification(verificationCode);
-            console.log('Verification Response:', response);
-            dispatch({ type: 'REGISTER_SUCCESS' });
-            navigate('/login');
+            const user = await pb.collection('users').getFirstListItem(`email="${credentials.email}"`);
+
+            if (user.verificationCode === verificationCode) {
+                console.log('Verification successful.');
+
+                // Optionally mark the user as verified (e.g., update a `verified` field)
+                await pb.collection('users').update(user.id, { emailVerified: true });
+
+                dispatch({ type: 'REGISTER_SUCCESS' });
+                navigate('/login');
+            } else {
+                console.error('Verification failed. Incorrect code.');
+                alert('Incorrect verification code. Please try again.');
+            }
         } catch (err) {
             console.error('Error verifying account:', err);
             alert('Failed to verify account. Please try again.');
