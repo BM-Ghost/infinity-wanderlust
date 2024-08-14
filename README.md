@@ -13,14 +13,12 @@ Welcome to **Travel Advisor** - your one-stop destination for travel recommendat
 Make sure you have the following installed:
 
 - [Node.js](https://nodejs.org/) (v14.x or later)
-- [MongoDB](https://www.mongodb.com/) (v4.x or later)
 - [npm](https://www.npmjs.com/) (v6.x or later)
 
 ### 🛠️ Tools & Technologies
 
 - **Backend**: Node.js, Express.js
-- **Database**: MongoDB
-- **Tools**: MongoDB Compass, Postman
+- **Tools**: Pocketbase, Postman
 
 ## 🤝 Contributing
 
