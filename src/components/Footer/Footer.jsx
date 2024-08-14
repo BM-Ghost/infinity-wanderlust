@@ -31,10 +31,10 @@ const quick__links2 = [
       path: '/login',
       display: 'Login'
    },
-   {
-      path: '/register',
-      display: 'Register'
-   },
+   // {
+   //    path: '/register',
+   //    display: 'Register'
+   // },
 ]
 
 const Footer = () => {
