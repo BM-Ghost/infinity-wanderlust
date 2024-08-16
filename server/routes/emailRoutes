@@ -1,0 +1,14 @@
+// server/routes/emailRoutes.js
+const express = require('express');
+const { sendVerificationEmail } = require('../controllers/emailController');
+
+const router = express.Router();
+
+router.post('/send-verification', (req, res) => {
+    const { email, subject, text } = req.body;
+    sendVerificationEmail(email, subject, text)
+        .then(() => res.status(200).send('Email sent'))
+        .catch((err) => res.status(500).send('Error sending email'));
+});
+
+module.exports = router;

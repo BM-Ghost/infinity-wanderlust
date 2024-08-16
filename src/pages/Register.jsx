@@ -39,9 +39,9 @@ const Register = () => {
         return () => clearInterval(countdown);
     }, [showVerification, timer]);
 
-    // const generateVerificationCode = () => {
-    //     return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
-    // };
+    const generateVerificationCode = () => {
+        return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
+    };
 
     const handleChange = e => {
         setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }));
@@ -59,7 +59,7 @@ const Register = () => {
         setError(null);
 
         try {
-            // const verificationCode = generateVerificationCode();
+            const verificationCode = generateVerificationCode();
 
             const data = {
                 username: credentials.username,
@@ -68,8 +68,7 @@ const Register = () => {
                 password: credentials.password,
                 passwordConfirm: credentials.passwordConfirm,
                 name: credentials.name,
-                // verificationCode: verificationCode // Store the verification code
-                verificationCode: 173814 // Store the verification code
+                verificationCode: verificationCode // Store the verification code
             };
 
             console.log('Request Data:', JSON.stringify(data));
@@ -79,8 +78,18 @@ const Register = () => {
             console.log('Response Data:', record);
 
             if (record) {
-                // Send email with the verification code (modify this method to include the verification code in the email)
-                await pb.collection('users').requestVerification(credentials.email);
+                // Send verification code via API request to Node.js server
+                await fetch('/api/send-verification-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: credentials.email,
+                        verificationCode: verificationCode,
+                    }),
+                });
+
                 setShowVerification(true);
             }
         } catch (err) {
@@ -128,7 +137,21 @@ const Register = () => {
 
     const resendVerificationEmail = async () => {
         try {
-            await pb.collection('users').requestVerification(credentials.email);
+            const newVerificationCode = generateVerificationCode();
+            await fetch('/api/send-verification-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: credentials.email,
+                    verificationCode: newVerificationCode,
+                }),
+            });
+            await pb.collection('users').update(
+                (await pb.collection('users').getFirstListItem(`email="${credentials.email}"`)).id,
+                { verificationCode: newVerificationCode }
+            );
             setTimer(120);
         } catch (err) {
             console.error('Error resending verification email:', err);
