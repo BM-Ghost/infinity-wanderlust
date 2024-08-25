@@ -79,7 +79,7 @@ const Register = () => {
 
             if (record) {
                 // Send verification code via API request to Node.js server
-                await fetch('/api/send-verification-email', {
+                await fetch('http://localhost:5000/api/send-verification-email', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -89,6 +89,7 @@ const Register = () => {
                         verificationCode: verificationCode,
                     }),
                 });
+                
 
                 setShowVerification(true);
             }
