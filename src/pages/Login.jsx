@@ -60,7 +60,6 @@ const Login = () => {
                            <FormGroup>
                               <input type="email" placeholder='Email' id='email' onChange={handleChange} required />
                            </FormGroup>
-                           
                            <FormGroup>
                               <input type="password" placeholder='Password' id='password' onChange={handleChange} required />
                            </FormGroup>
