@@ -1,103 +1,108 @@
-import React, { useEffect, useRef, useContext } from 'react'
-import { Container, Row, Button } from 'reactstrap'
+import React, { useEffect, useRef, useContext, useState } from 'react'
+import { Container, Row } from 'reactstrap'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import Logo from '../../assets/images/logo.png'
-import "./header.css"
 import { AuthContext } from '../../context/AuthContext'
+import { RiUserLine } from 'react-icons/ri'; // Importing the user icon
+
+import './header.css'
 
 const nav__links = [
-   {
-      path: '/home',
-      display: 'Home'
-   },
-   {
-      path: '/about',
-      display: 'About'
-   },
-   {
-      path: '/tours',
-      display: 'Tours'
-   },
-   {
-      path: '/login',
-      display: 'Login'
-   },
+  { path: '/home', display: 'Home' },
+  { path: '/about', display: 'About' },
+  { path: '/tours', display: 'Tours' },
 ]
 
 const Header = () => {
-   const headerRef = useRef(null)
-   const menuRef = useRef(null)
-   const navigate = useNavigate()
-   const { user, dispatch } = useContext(AuthContext)
+  const headerRef = useRef(null)
+  const menuRef = useRef(null)
+  const navigate = useNavigate()
+  const { user, dispatch } = useContext(AuthContext)
 
-   const logout = () => {
-      dispatch({ type: 'LOGOUT' })
-      navigate('/')
-   }
+  const [showDropdown, setShowDropdown] = useState(false)
 
-   const stickyHeaderFunc = () => {
-      window.addEventListener('scroll', () => {
-         if (document.body.scrollTop > 80 || document.documentElement.scrollTop > 80) {
-            headerRef.current.classList.add('sticky__header')
-         } else {
-            headerRef.current.classList.remove('sticky__header')
-         }
-      })
-   }
+  const logout = () => {
+    dispatch({ type: 'LOGOUT' })
+    navigate('/login') // Redirect to login page after logout
+  }
 
-   useEffect(() => {
-      stickyHeaderFunc()
+  const stickyHeaderFunc = () => {
+    window.addEventListener('scroll', () => {
+      if (document.body.scrollTop > 80 || document.documentElement.scrollTop > 80) {
+        headerRef.current.classList.add('sticky__header')
+      } else {
+        headerRef.current.classList.remove('sticky__header')
+      }
+    })
+  }
 
-      return window.removeEventListener('scroll', stickyHeaderFunc)
-   })
+  const handleClickOutside = (e) => {
+    if (!headerRef.current.contains(e.target)) {
+      setShowDropdown(false)
+    }
+  }
 
-   const toggleMenu = () => menuRef.current.classList.toggle('show__menu')
+  useEffect(() => {
+    stickyHeaderFunc()
+    document.addEventListener('click', handleClickOutside) // Listen for clicks outside the header
+    return () => document.removeEventListener('click', handleClickOutside) // Cleanup event listener
+  }, [])
 
-   return (
-      <header className='header' ref={headerRef}>
-         <Container>
-            <Row>
-               <div className="nav__wrapper d-flex align-items-center justify-content-between">
-                  {/* ========== LOGO ========== */}
-                  <div className="logo">
-                     <img src={Logo} alt="" />
-                  </div>
-                  {/* ========================== */}
+  const toggleDropdown = () => setShowDropdown(!showDropdown)
 
-                  {/* ========== MENU START ========== */}
-                  <div className="navigation" ref={menuRef} onClick={toggleMenu}>
-                     <ul className="menu d-flex align-items-center gap-5">
-                        {
-                           nav__links.map((item, index) => (
-                              <li className="nav__item" key={index}>
-                                 <NavLink to={item.path} className={navClass => navClass.isActive ? 'active__link' : ''}>{item.display}</NavLink>
-                              </li>
-                           ))
-                        }
-                     </ul>
-                  </div>
-                  {/* ================================ */}
+  return (
+    <header className="header" ref={headerRef}>
+      <Container>
+        <Row>
+          <div className="nav__wrapper d-flex align-items-center justify-content-between">
+            <div className="logo">
+              <img src={Logo} alt="Logo" />
+            </div>
 
-                  <div className="nav__right d-flex align-items-center gap-4">
-                     <div className="nav__btns d-flex align-items-center gap-2">
-                        {
-                           user ? <> <h5 className='mb-0'>{user.username}</h5>
-                                 <Button className='btn btn-dark' onClick={logout}>Logout</Button>
-                              </> : <>
-                                 <Button className='btn primary__btn'><Link to='/register'>Register</Link></Button>
-                              </>
-                        }
-                     </div>
+            <div className="navigation" ref={menuRef}>
+              <ul className="menu d-flex align-items-center gap-5">
+                {nav__links.map((item, index) => (
+                  <li className="nav__item" key={index}>
+                    <NavLink
+                      to={item.path}
+                      className={(navClass) => (navClass.isActive ? 'active__link' : '')}
+                    >
+                      {item.display}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-                     <span className="mobile__menu" onClick={toggleMenu}>
-                        <i class="ri-menu-line"></i>
-                     </span>
-                  </div>
-               </div>
-            </Row>
-         </Container>
-      </header>
-   )
+            <div className="nav__right d-flex align-items-center gap-4">
+              {user ? (
+                <div className="dropdown">
+                  <h5 className="username mb-0" onClick={toggleDropdown}>
+                    <RiUserLine /> {user.username} {/* Add the user icon */}
+                  </h5>
+                  {showDropdown && (
+                    <div className="dropdown__menu">
+                      <Link to="/profile">Profile</Link>
+                      <button onClick={logout}>Logout</button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="nav__btns d-flex align-items-center gap-2">
+                  <Link to="/login" className="btn primary__btn">Login</Link>
+                  <Link to="/register" className="btn primary__btn">Register</Link>
+                </div>
+              )}
+
+              <span className="mobile__menu">
+                <i className="ri-menu-line"></i>
+              </span>
+            </div>
+          </div>
+        </Row>
+      </Container>
+    </header>
+  )
 }
 
 export default Header

@@ -36,6 +36,49 @@
    color: var(--secondary-color);
 }
 
+/* Adjust username and icon */
+.nav__right h5 {
+   display: flex;
+   align-items: center;
+   gap: 0.5rem;
+   font-size: 1.2rem;
+   color: var(--heading-color);
+   margin: 0;
+}
+
+.nav__right h5 i {
+   font-size: 1.5rem;
+   color: var(--primary-color);
+}
+
+.dropdown {
+   position: relative;
+   cursor: pointer;
+}
+
+.dropdown__menu {
+   position: absolute;
+   top: 100%;
+   left: 0;
+   background: #fff;
+   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+   padding: 10px;
+   display: flex;
+   flex-direction: column;
+   gap: 10px;
+}
+
+.dropdown__menu a,
+.dropdown__menu button {
+   text-decoration: none;
+   color: #333;
+   border: none;
+   background: none;
+   padding: 5px;
+   cursor: pointer;
+   text-align: left;
+}
+
 .mobile__menu {
    font-size: 1.3rem;
    color    : var(--heading-color);

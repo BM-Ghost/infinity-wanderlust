@@ -28,15 +28,17 @@ const Login = () => {
       dispatch({ type: 'LOGIN_START' })
 
       try {
-         const authData = await pb.collection('users').authWithPassword(credentials.email, credentials.password)
+         const authData = await pb
+            .collection('users')
+            .authWithPassword(credentials.email, credentials.password)
 
          if (authData) {
-            dispatch({ type: 'LOGIN_SUCCESS', payload: authData })
-            navigate('/')
+            dispatch({ type: 'LOGIN_SUCCESS', payload: authData.record })
+            navigate('/home') // Redirect to home on success
          }
       } catch (err) {
          dispatch({ type: 'LOGIN_FAILURE', payload: err.message })
-         alert(err.message)
+         alert(err) // Popup error
       }
    }
 
@@ -44,28 +46,48 @@ const Login = () => {
       <section>
          <Container>
             <Row>
-               <Col lg='8' className='m-auto'>
+               <Col lg="8" className="m-auto">
                   <div className="login__container d-flex justify-content-between">
                      <div className="login__img">
-                        <img src={loginImg} alt="" />
+                        <img src={loginImg} alt="Login Illustration" />
                      </div>
 
                      <div className="login__form">
                         <div className="user">
-                           <img src={userIcon} alt="" />
+                           <img src={userIcon} alt="User Icon" />
                         </div>
                         <h2>Login</h2>
 
                         <Form onSubmit={handleClick}>
                            <FormGroup>
-                              <input type="email" placeholder='Email' id='email' onChange={handleChange} required />
+                              <input
+                                 type="email"
+                                 placeholder="Email"
+                                 id="email"
+                                 onChange={handleChange}
+                                 required
+                              />
                            </FormGroup>
                            <FormGroup>
-                              <input type="password" placeholder='Password' id='password' onChange={handleChange} required />
+                              <input
+                                 type="password"
+                                 placeholder="Password"
+                                 id="password"
+                                 onChange={handleChange}
+                                 required
+                              />
                            </FormGroup>
-                           <Button className='btn secondary__btn auth__btn' type='submit'>Login</Button>
+                           <Button
+                              className="btn secondary__btn auth__btn"
+                              type="submit"
+                           >
+                              Login
+                           </Button>
                         </Form>
-                        <p>Don't have an account? <Link to='/register'>Create</Link></p>
+                        <p>
+                           Don't have an account?{' '}
+                           <Link to="/register">Create</Link>
+                        </p>
                      </div>
                   </div>
                </Col>
