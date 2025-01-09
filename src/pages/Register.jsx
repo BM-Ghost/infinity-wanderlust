@@ -8,6 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import PocketBase from 'pocketbase';
 
 const pb = new PocketBase('https://remain-faceghost.pockethost.io');
+const hunterApiKey = 'c372adc4ab978be7a6b95a48bbb6dc371f77d18c';
 
 const Register = () => {
     const [credentials, setCredentials] = useState({
@@ -18,7 +19,6 @@ const Register = () => {
         passwordConfirm: '',
         name: ''
     });
-    // const [verificationCode, setVerificationCode] = useState('');
     const [showVerification, setShowVerification] = useState(false);
     const [timer, setTimer] = useState(120);
     const [loading, setLoading] = useState(false);
@@ -39,10 +39,6 @@ const Register = () => {
         return () => clearInterval(countdown);
     }, [showVerification, timer]);
 
-    // const generateVerificationCode = () => {
-    //     return Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
-    // };
-
     const handleChange = e => {
         setCredentials(prev => ({ ...prev, [e.target.id]: e.target.value }));
     };
@@ -59,8 +55,19 @@ const Register = () => {
         setError(null);
 
         try {
-            // const verificationCode = generateVerificationCode();
+            // Step 1: Verify email with Hunter.io
+            const emailVerificationResponse = await fetch(
+                `https://api.hunter.io/v2/email-verifier?email=${credentials.email}&api_key=${hunterApiKey}`
+            );
+            const verificationResult = await emailVerificationResponse.json();
 
+            if (!verificationResult.data || verificationResult.data.result !== 'deliverable') {
+                setError({ message: 'Invalid email address. Please provide a valid email.' });
+                setLoading(false);
+                return;
+            }
+
+            // Step 2: Proceed with PocketBase registration
             const data = {
                 username: credentials.username,
                 email: credentials.email,
@@ -68,36 +75,17 @@ const Register = () => {
                 password: credentials.password,
                 passwordConfirm: credentials.passwordConfirm,
                 name: credentials.name,
-                // verificationCode: verificationCode // Store the verification code
-                // verificationCode: 173814 // Store the verification code
             };
-
-            console.log('Request Data:', JSON.stringify(data));
 
             const record = await pb.collection('users').create(data);
 
-            console.log('Response Data:', record);
-
             if (record) {
-                // Send email with the verification code (modify this method to include the verification code in the email)
                 await pb.collection('users').requestVerification(credentials.email);
                 setShowVerification(true);
             }
         } catch (err) {
             console.error('Error creating record:', err);
-            if (err.data) {
-                console.error('PocketBase Error Data:', err.data);
-                let errorMessage = err.data.message || 'Failed to create account.';
-                if (err.data.data) {
-                    const fieldErrors = Object.values(err.data.data)
-                        .map(fieldError => fieldError.message)
-                        .join(' ');
-                    errorMessage = fieldErrors || errorMessage;
-                }
-                setError({ code: err.data.code, message: errorMessage });
-            } else {
-                setError({ message: 'Failed to create account. Please try again.' });
-            }
+            setError({ message: 'Failed to create account. Please try again.' });
         } finally {
             setLoading(false);
         }
@@ -105,26 +93,8 @@ const Register = () => {
 
     const handleVerification = async e => {
         e.preventDefault();
-        // try {
-        //     const user = await pb.collection('users').getFirstListItem(`email="${credentials.email}"`);
-
-        //     if (user.verificationCode === verificationCode) {
-        //         console.log('Verification successful.');
-
-        //         // Optionally mark the user as verified (e.g., update a `verified` field)
-        //         await pb.collection('users').update(user.id, { emailVerified: true });
-
-                dispatch({ type: 'REGISTER_SUCCESS' });
-                navigate('/login');
-        //         navigate('/login');
-        //     } else {
-        //         console.error('Verification failed. Incorrect code.');
-        //         alert('Incorrect verification code. Please try again.');
-        //     }
-        // } catch (err) {
-        //     console.error('Error verifying account:', err);
-        //     alert('Failed to verify account. Please try again.');
-        // }
+        dispatch({ type: 'REGISTER_SUCCESS' });
+        navigate('/login');
     };
 
     const resendVerificationEmail = async () => {
@@ -149,7 +119,7 @@ const Register = () => {
                             {error && (
                                 <div className="error-message">
                                     <div className="error-header">
-                                        <span>Error: {error.code}</span>
+                                        <span>Error</span>
                                         <button onClick={() => setError(null)}>X</button>
                                     </div>
                                     <div className="error-body">
@@ -195,11 +165,8 @@ const Register = () => {
                                 !error && showVerification && (
                                     <div className="login__form">
                                         <h2>Verify Your Email</h2>
-                                        <p>A verification code has been sent to your email. Please enter the code below:</p>
+                                        <p>A verification link has been sent to your email. Please verify your email.</p>
                                         <Form onSubmit={handleVerification}>
-                                            {/* <FormGroup>
-                                                <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
-                                            </FormGroup> */}
                                             <Button className='btn secondary__btn auth__btn' type='submit'>Verified</Button>
                                         </Form>
                                         <p>
