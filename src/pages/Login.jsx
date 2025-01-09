@@ -24,15 +24,22 @@ const Login = () => {
 
    const handleClick = async e => {
       e.preventDefault()
-
+   
       dispatch({ type: 'LOGIN_START' })
-
+   
       try {
          const authData = await pb
             .collection('users')
             .authWithPassword(credentials.email, credentials.password)
-
+   
          if (authData) {
+            // Check if the user is verified
+            if (!authData.record.verified) {
+               dispatch({ type: 'LOGIN_FAILURE', payload: 'User not verified' })
+               alert('Your account is not verified. Please check your email for verification.')
+               return
+            }
+   
             dispatch({ type: 'LOGIN_SUCCESS', payload: authData.record })
             navigate('/home') // Redirect to home on success
          }
@@ -40,7 +47,7 @@ const Login = () => {
          dispatch({ type: 'LOGIN_FAILURE', payload: err.message })
          alert(err) // Popup error
       }
-   }
+   }   
 
    return (
       <section>

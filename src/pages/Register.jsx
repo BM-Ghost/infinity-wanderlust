@@ -18,7 +18,7 @@ const Register = () => {
         passwordConfirm: '',
         name: ''
     });
-    const [verificationCode, setVerificationCode] = useState('');
+    // const [verificationCode, setVerificationCode] = useState('');
     const [showVerification, setShowVerification] = useState(false);
     const [timer, setTimer] = useState(120);
     const [loading, setLoading] = useState(false);
@@ -69,7 +69,7 @@ const Register = () => {
                 passwordConfirm: credentials.passwordConfirm,
                 name: credentials.name,
                 // verificationCode: verificationCode // Store the verification code
-                verificationCode: 173814 // Store the verification code
+                // verificationCode: 173814 // Store the verification code
             };
 
             console.log('Request Data:', JSON.stringify(data));
@@ -105,25 +105,26 @@ const Register = () => {
 
     const handleVerification = async e => {
         e.preventDefault();
-        try {
-            const user = await pb.collection('users').getFirstListItem(`email="${credentials.email}"`);
+        // try {
+        //     const user = await pb.collection('users').getFirstListItem(`email="${credentials.email}"`);
 
-            if (user.verificationCode === verificationCode) {
-                console.log('Verification successful.');
+        //     if (user.verificationCode === verificationCode) {
+        //         console.log('Verification successful.');
 
-                // Optionally mark the user as verified (e.g., update a `verified` field)
-                await pb.collection('users').update(user.id, { emailVerified: true });
+        //         // Optionally mark the user as verified (e.g., update a `verified` field)
+        //         await pb.collection('users').update(user.id, { emailVerified: true });
 
                 dispatch({ type: 'REGISTER_SUCCESS' });
                 navigate('/login');
-            } else {
-                console.error('Verification failed. Incorrect code.');
-                alert('Incorrect verification code. Please try again.');
-            }
-        } catch (err) {
-            console.error('Error verifying account:', err);
-            alert('Failed to verify account. Please try again.');
-        }
+        //         navigate('/login');
+        //     } else {
+        //         console.error('Verification failed. Incorrect code.');
+        //         alert('Incorrect verification code. Please try again.');
+        //     }
+        // } catch (err) {
+        //     console.error('Error verifying account:', err);
+        //     alert('Failed to verify account. Please try again.');
+        // }
     };
 
     const resendVerificationEmail = async () => {
@@ -196,10 +197,10 @@ const Register = () => {
                                         <h2>Verify Your Email</h2>
                                         <p>A verification code has been sent to your email. Please enter the code below:</p>
                                         <Form onSubmit={handleVerification}>
-                                            <FormGroup>
+                                            {/* <FormGroup>
                                                 <input type="text" placeholder='Verification Code' onChange={(e) => setVerificationCode(e.target.value)} required />
-                                            </FormGroup>
-                                            <Button className='btn secondary__btn auth__btn' type='submit'>Verify</Button>
+                                            </FormGroup> */}
+                                            <Button className='btn secondary__btn auth__btn' type='submit'>Verified</Button>
                                         </Form>
                                         <p>
                                             {timer > 0

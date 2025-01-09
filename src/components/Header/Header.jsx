@@ -3,7 +3,7 @@ import { Container, Row } from 'reactstrap'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import Logo from '../../assets/images/logo.png'
 import { AuthContext } from '../../context/AuthContext'
-import { RiUserLine } from 'react-icons/ri'; // Importing the user icon
+import { RiUserLine } from 'react-icons/ri'
 
 import './header.css'
 
@@ -80,12 +80,10 @@ const Header = () => {
                   <h5 className="username mb-0" onClick={toggleDropdown}>
                     <RiUserLine /> {user.username} {/* Add the user icon */}
                   </h5>
-                  {showDropdown && (
-                    <div className="dropdown__menu">
-                      <Link to="/profile">Profile</Link>
-                      <button onClick={logout}>Logout</button>
-                    </div>
-                  )}
+                  <div className={`dropdown__menu ${showDropdown ? 'show' : ''}`}>
+                    <Link to="/profile" onClick={() => setShowDropdown(false)}>Profile</Link>
+                    <button onClick={() => { logout(); setShowDropdown(false); }}>Logout</button>
+                  </div>
                 </div>
               ) : (
                 <div className="nav__btns d-flex align-items-center gap-2">

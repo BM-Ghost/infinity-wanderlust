@@ -36,7 +36,7 @@
    color: var(--secondary-color);
 }
 
-/* Adjust username and icon */
+/* User profile dropdown styling */
 .nav__right h5 {
    display: flex;
    align-items: center;
@@ -44,6 +44,7 @@
    font-size: 1.2rem;
    color: var(--heading-color);
    margin: 0;
+   cursor: pointer;
 }
 
 .nav__right h5 i {
@@ -54,18 +55,30 @@
 .dropdown {
    position: relative;
    cursor: pointer;
+   display: inline-block;
 }
 
 .dropdown__menu {
    position: absolute;
    top: 100%;
-   left: 0;
+   right: 0; /* Position the menu to the right */
    background: #fff;
    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
    padding: 10px;
+   width: 150px; /* Set a fixed width for the dropdown */
    display: flex;
    flex-direction: column;
    gap: 10px;
+   z-index: 999;
+   border-radius: 4px;
+   transition: opacity 0.3s ease, transform 0.3s ease;
+   opacity: 0;
+   transform: translateY(-10px);
+}
+
+.dropdown__menu.show {
+   opacity: 1;
+   transform: translateY(0);
 }
 
 .dropdown__menu a,
@@ -74,9 +87,27 @@
    color: #333;
    border: none;
    background: none;
-   padding: 5px;
+   padding: 8px;
    cursor: pointer;
    text-align: left;
+   font-size: 1rem;
+   transition: background 0.3s ease;
+   border-radius: 4px;
+}
+
+.dropdown__menu a:hover,
+.dropdown__menu button:hover {
+   background-color: var(--secondary-color);
+   color: white;
+}
+
+/* Close the menu when clicked outside */
+.dropdown__menu {
+   display: none;
+}
+
+.dropdown__menu.show {
+   display: block;
 }
 
 .mobile__menu {
