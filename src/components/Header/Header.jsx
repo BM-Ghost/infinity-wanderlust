@@ -20,6 +20,7 @@ const Header = () => {
   const { user, dispatch } = useContext(AuthContext)
 
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   const logout = () => {
     dispatch({ type: 'LOGOUT' })
@@ -39,6 +40,7 @@ const Header = () => {
   const handleClickOutside = (e) => {
     if (!headerRef.current.contains(e.target)) {
       setShowDropdown(false)
+      setShowMobileMenu(false)  // Close mobile menu if clicked outside
     }
   }
 
@@ -50,6 +52,10 @@ const Header = () => {
 
   const toggleDropdown = () => setShowDropdown(!showDropdown)
 
+  const toggleMobileMenu = () => {
+    setShowMobileMenu(!showMobileMenu) // Toggle mobile menu visibility
+  }
+
   return (
     <header className="header" ref={headerRef}>
       <Container>
@@ -59,13 +65,14 @@ const Header = () => {
               <img src={Logo} alt="Logo" />
             </div>
 
-            <div className="navigation" ref={menuRef}>
+            <div className={`navigation ${showMobileMenu ? 'show__menu' : ''}`} ref={menuRef}>
               <ul className="menu d-flex align-items-center gap-5">
                 {nav__links.map((item, index) => (
                   <li className="nav__item" key={index}>
                     <NavLink
                       to={item.path}
                       className={(navClass) => (navClass.isActive ? 'active__link' : '')}
+                      onClick={() => setShowMobileMenu(false)}  // Close mobile menu when a link is clicked
                     >
                       {item.display}
                     </NavLink>
@@ -78,7 +85,7 @@ const Header = () => {
               {user ? (
                 <div className="dropdown">
                   <h5 className="username mb-0" onClick={toggleDropdown}>
-                    <RiUserLine /> {user.username} {/* Add the user icon */}
+                    <RiUserLine /> {user.username}
                   </h5>
                   <div className={`dropdown__menu ${showDropdown ? 'show' : ''}`}>
                     <Link to="/profile" onClick={() => setShowDropdown(false)}>Profile</Link>
@@ -92,7 +99,7 @@ const Header = () => {
                 </div>
               )}
 
-              <span className="mobile__menu">
+              <span className="mobile__menu" onClick={toggleMobileMenu}>
                 <i className="ri-menu-line"></i>
               </span>
             </div>
