@@ -110,3 +110,44 @@ ul {
       font-size: 1.3rem;
    }
 }
+
+/* Light Theme */
+body.light {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+body.light img.logo {
+  filter: none; /* Ensure logo remains unaffected */
+}
+
+/* Dark Theme */
+body.dark {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+body.dark img.logo {
+  filter: none; /* Exclude logo from theme styling */
+}
+
+body.dark .dark-sensitive {
+  color: #ffffff !important; /* Turn black text to white */
+  background-color: #222222 !important; /* Darker backgrounds */
+}
+
+/* Dark Green Theme */
+body.dark-green {
+  background-color: #0a3d3d;
+  color: #a4f4dc;
+}
+
+body.dark-green img.logo {
+  filter: none; /* Ensure logo remains unaffected */
+}
+
+body.dark-green .dark-sensitive {
+  color: #ffffff !important;
+  background-color: #134e4e !important;
+}
+
