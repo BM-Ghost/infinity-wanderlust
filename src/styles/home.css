@@ -1,8 +1,8 @@
 :root {
-   --primary-color     : #ff7e01;
-   --secondary-color   : #faa935;
-   --heading-color     : #0b2727;
-   --text-color        : #6e7074;
+   --primary-color     : #002106;
+   --secondary-color   : #044512;
+   --heading-color     : #e8eded;
+   --text-color        : hsl(210, 18%, 96%);
    --font-name         : "Montserrat", sans-serif;
    --subtitle-font-name: "Island Moments", cursive;
 }
