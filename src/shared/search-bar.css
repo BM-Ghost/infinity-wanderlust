@@ -15,7 +15,7 @@
 .form__group input {
    border     : none;
    font-size  : 0.9rem;
-   color      : var(--heading-color);
+   color      : #000000;
    font-weight: 500;
 }
 
