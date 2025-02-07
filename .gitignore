@@ -1,5 +1,7 @@
 # Ignore build directories
 build/
+backend/build/
+frontend/build/
 
 # Ignore node_modules directory
-node_modules/
+frontend/node_modules/
