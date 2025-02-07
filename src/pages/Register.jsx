@@ -8,7 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import PocketBase from 'pocketbase';
 
 const pb = new PocketBase('https://remain-faceghost.pockethost.io');
-const hunterApiKey = 'c372adc4ab978be7a6b95a48bbb6dc371f77d18c';
+const hunterApiKey = '572557b3f832258066fb2fe92f863a806e13c57f';
 
 const Register = () => {
     const [credentials, setCredentials] = useState({
@@ -60,9 +60,10 @@ const Register = () => {
                 `https://api.hunter.io/v2/email-verifier?email=${credentials.email}&api_key=${hunterApiKey}`
             );
             const verificationResult = await emailVerificationResponse.json();
+            const acceptAll = verificationResult.data?.status === 'accept_all';
 
-            if (!verificationResult.data || verificationResult.data.result !== 'deliverable') {
-                setError({ message: 'Invalid email address. Please provide a valid email.' });
+            if ((!verificationResult.data || verificationResult.data.result !== 'deliverable') && !acceptAll) {
+                setError({ message: verificationResult.data?.status || 'Invalid email address. Please provide a valid email.' });
                 setLoading(false);
                 return;
             }
@@ -85,7 +86,7 @@ const Register = () => {
             }
         } catch (err) {
             console.error('Error creating record:', err);
-            setError({ message: 'Failed to create account. Please try again.' });
+            setError({ message: err.message || 'Failed to create account. Please try again.' });
         } finally {
             setLoading(false);
         }

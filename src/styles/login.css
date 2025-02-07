@@ -48,7 +48,7 @@
    border-radius: 5px;
    border       : none;
    font-size    : 0.8rem;
-   color        : var(--heading-color);
+   color        : #000000;
 }
 
 .login__form input:focus {
@@ -70,9 +70,9 @@
 }
 
 .auth__btn {
-   background: var(--heading-color) !important;
+   background: #fff !important;
    width     : 100%;
-   color     : #fff !important;
+   color     : #08390c;
 }
 
 /* =============== RESPONSIVE ================ */
