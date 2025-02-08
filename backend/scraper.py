@@ -1,39 +1,59 @@
-import requests
-from bs4 import BeautifulSoup
-import sys
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 import json
+import sys
+import time
 
-def get_travel_articles(location):
-    search_url = f"https://www.nationalgeographic.com/search?q={location.replace(' ', '+')}"
+BASE_URL = "https://www.nationalgeographic.com/search?q="
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-
-    response = requests.get(search_url, headers=headers)
-
-    if response.status_code != 200:
-        return json.dumps({"error": f"Failed to fetch data (Status Code {response.status_code})"})
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    articles = []
+def scrape_articles(location):
+    search_url = f"{BASE_URL}{location.replace(' ', '%20')}"
     
-    for article in soup.find_all('article'):
-        title_element = article.find('h2')
-        link_element = article.find('a')
+    options = Options()
+    options.add_argument("--headless")  # Run in headless mode (no browser UI)
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920x1080")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
-        if title_element and link_element:
-            title = title_element.get_text(strip=True)
-            link = link_element['href']
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
+    try:
+        driver.get(search_url)
+        time.sleep(5)  # Allow time for JavaScript to load
 
-            if not link.startswith('http'):
-                link = f"https://www.nationalgeographic.com{link}"
+        # Locate article elements
+        articles = driver.find_elements(By.CSS_SELECTOR, "a.AnchorLink.ResultCard__Link")
 
-            articles.append({"title": title, "link": link})
+        results = []
+        for article in articles:
+            link = article.get_attribute("href")
+            
+            # Find the actual title element inside the anchor tag
+            try:
+                title_element = article.find_element(By.XPATH, ".//span[@class='sr-only']")
+                title = title_element.text.strip()
+            except:
+                title = "Title Not Found"
 
-    return json.dumps(articles if articles else {"message": "No articles found for this location."})
+            results.append({"title": title, "link": link})
+
+        return results if results else {"message": "No articles found for this location."}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(json.dumps({"error": "Please provide a location."}))
+        sys.exit(1)
+
     location = sys.argv[1]
-    print(get_travel_articles(location))
+    data = scrape_articles(location)
+    print(json.dumps(data, indent=4))
