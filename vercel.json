@@ -13,20 +13,10 @@
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "/"
-    },
-    {
-      "src": "/test",
-      "dest": "/"
-    },
-    {
       "src": "/api/(.*)",
       "dest": "/backend/index.js"
     },
-    { 
-      "handle": "filesystem" 
-    },
+    { "handle": "filesystem" },
     {
       "src": "/(.*)",
       "dest": "/index.html"
