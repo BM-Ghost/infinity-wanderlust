@@ -4,11 +4,13 @@
   "description": "Welcome to **Travel Advisor** - your one-stop destination for travel recommendations! ✈️🌍",
   "main": "index.js",
   "scripts": {
-    "postinstall": "cd frontend && npm install && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start-frontend": "cd frontend && npm start",
     "start-backend": "cd backend && node server.js",
     "start": "npm-run-all --parallel start-frontend start-backend"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "npm-run-all": "^4.1.5"
   }
