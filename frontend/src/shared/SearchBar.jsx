@@ -16,9 +16,11 @@ const SearchBar = () => {
       
       setLoading(true);
       setArticles([]); // Clear previous search results
+      const API_URL = process.env.REACT_APP_API_URL;
+      console.log('Using API URL:', API_URL);
 
       try {
-         const res = await fetch(`http://localhost:10000/api/travel-articles?location=${location}`);
+         const res = await fetch(`${API_URL}/api/travel-articles?location=${location}`);
          const data = await res.json();
 
          if (!res.ok) throw new Error(data.error || 'Failed to fetch articles');
