@@ -2,12 +2,14 @@
 const express = require('express');
 const cors = require('cors');
 const { exec } = require('child_process');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 10001; // Use 10001 for the backend
 
 app.use(cors());
 
+// Define your existing API endpoint
 app.get('/api/travel-articles', (req, res) => {
   const { location } = req.query;
   if (!location) {
@@ -30,10 +32,18 @@ app.get('/api/travel-articles', (req, res) => {
   });
 });
 
-// Export the app for Vercel instead of starting the server directly.
+// Serve the React frontend for undefined routes
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Handle all other routes and serve the React index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+});
+
+// Export the app for Vercel or Render instead of starting the server directly
 module.exports = app;
 
-// Only start the server when running locally (for local development).
+// Only start the server when running locally (for local development)
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
