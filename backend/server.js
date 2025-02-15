@@ -1,20 +1,27 @@
 // backend/server.js
-const express = require('express');
-const cors = require('cors');
-const { exec } = require('child_process');
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const { exec } = require("child_process");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Middleware
 app.use(cors());
+app.use(express.json());
 
-app.get('/api/travel-articles', (req, res) => {
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+// API Route: Travel Articles
+app.get("/api/travel-articles", (req, res) => {
   const { location } = req.query;
   if (!location) {
     return res.status(400).json({ error: "Query parameter 'location' is required." });
   }
-  
-  // Use exec to call your Python scraper
+
+  // Use exec to call the Python scraper
   exec(`python3 scraper.py "${location}"`, (error, stdout, stderr) => {
     if (error) {
       console.error("Execution error:", stderr);
@@ -30,10 +37,16 @@ app.get('/api/travel-articles', (req, res) => {
   });
 });
 
-// Export the app for Vercel instead of starting the server directly.
+// Serve React app for unknown routes
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
+});
+
+// Export the app for deployment
 module.exports = app;
 
-// Only start the server when running locally (for local development).
+// Start the server locally
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
+
