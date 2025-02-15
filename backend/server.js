@@ -5,7 +5,7 @@ const { exec } = require('child_process');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 5000; // Use 10001 for the backend
+const PORT = process.env.PORT || 10000; // Use 10001 for the backend
 
 app.use(cors());
 

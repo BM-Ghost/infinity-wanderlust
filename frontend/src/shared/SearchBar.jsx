@@ -18,7 +18,7 @@ const SearchBar = () => {
       setArticles([]); // Clear previous search results
 
       try {
-         const res = await fetch(`http://localhost:5000/api/travel-articles?location=${location}`);
+         const res = await fetch(`http://localhost:10000/api/travel-articles?location=${location}`);
          const data = await res.json();
 
          if (!res.ok) throw new Error(data.error || 'Failed to fetch articles');
