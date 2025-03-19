@@ -19,8 +19,8 @@ app.get('/api/travel-articles', (req, res) => {
   // Use exec to call your Python scraper
   exec(`python3 scraper.py "${location}"`, (error, stdout, stderr) => {
     if (error) {
-      console.error("Execution error:", stderr);
-      return res.status(500).json({ error: "Error fetching articles." });
+      console.error("Execution error:", stderr || error.message);
+      return res.status(500).json({ error: "Error fetching articles.", details: stderr || error.message });
     }
     try {
       const articles = JSON.parse(stdout);
