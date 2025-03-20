@@ -29,7 +29,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-  "start": "react-scripts start --host 0.0.0.0",
+  "start": "HOST=0.0.0.0 react-scripts start",
   "build": "react-scripts build",
   "test": "react-scripts test",
   "eject": "react-scripts eject"
@@ -52,7 +52,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "https://travel-advisor-xjye.onrender.com",
+  "proxy": "https://infinity-wanderlust.onrender.com",
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }
