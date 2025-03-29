@@ -273,7 +273,7 @@ export default function GalleryPage() {
   const selectedImageDetails = getSelectedImageDetails()
 
   return (
-    <div className="min-h-screen dark-green-gradient leaf-bg sunset-overlay">
+    <div className="forest-bg min-h-screen">
       <Navbar />
 
       <div className="container py-16">

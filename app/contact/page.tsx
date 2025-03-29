@@ -63,7 +63,7 @@ export default function ContactPage() {
   }
 
   return (
-    <>
+    <div className="tropical-bg min-h-screen">
       <Navbar />
 
       <div className="container py-16">
@@ -237,7 +237,7 @@ export default function ContactPage() {
       </div>
 
       <Footer />
-    </>
+    </div>
   )
 }
 

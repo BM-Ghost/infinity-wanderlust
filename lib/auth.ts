@@ -13,6 +13,7 @@ export function useAuth() {
     signUp: async () => {},
     signOut: () => {},
     resetPassword: async () => {},
+    resendVerification: async () => false,
   }
 }
 

@@ -166,7 +166,7 @@ export default function EventsPage() {
   )
 
   return (
-    <>
+    <div className="mountain-lake-bg min-h-screen">
       <Navbar />
 
       <div className="container py-16">
@@ -358,7 +358,7 @@ export default function EventsPage() {
       </div>
 
       <Footer />
-    </>
+    </div>
   )
 }
 

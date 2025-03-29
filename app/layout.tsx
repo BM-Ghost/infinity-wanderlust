@@ -1,17 +1,13 @@
 import type React from "react"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/toaster"
-import { LanguageProvider } from "@/components/language-provider"
-import { AuthProvider } from "@/components/auth-provider"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Infinity Wanderlust | Travel Blog",
   description: "Share your travel experiences and join exciting adventures",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -21,20 +17,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <AuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <LanguageProvider>
-              <main className="min-h-screen bg-background">{children}</main>
-              <Toaster />
-            </LanguageProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }
 
-
-
-import './globals.css'

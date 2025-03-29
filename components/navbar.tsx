@@ -8,11 +8,16 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageToggle } from "@/components/language-toggle"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
-import { getFirstName } from "@/lib/pocketbase"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+// Helper function to get first name
+function getFirstName(fullName: string | undefined) {
+  if (!fullName) return ""
+  return fullName.split(" ")[0]
+}
 
 export function Navbar() {
   const pathname = usePathname()

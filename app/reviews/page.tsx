@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Star, ThumbsUp, Calendar, MapPin, Camera } from "lucide-react"
+import { Star, ThumbsUp, Calendar, MapPin, Camera, LogIn } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
 
@@ -103,7 +104,7 @@ export default function ReviewsPage() {
   }
 
   return (
-    <>
+    <div className="rainforest-bg min-h-screen">
       <Navbar />
 
       <div className="container py-16">
@@ -113,11 +114,30 @@ export default function ReviewsPage() {
 
           <div className="mt-8">
             <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" disabled={!user}>
-                  {t("writeReview")}
-                </Button>
-              </DialogTrigger>
+              {user ? (
+                <DialogTrigger asChild>
+                  <Button size="lg">{t("writeReview")}</Button>
+                </DialogTrigger>
+              ) : (
+                <Card className="max-w-md mx-auto bg-background/80 backdrop-blur-sm">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col items-center text-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <LogIn className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium">Sign in to share your experience</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Join our community to share your travel stories and help others plan their adventures
+                        </p>
+                      </div>
+                      <Button asChild className="mt-2">
+                        <Link href="/login">Sign In</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                   <DialogTitle>{t("writeReview")}</DialogTitle>
@@ -307,7 +327,7 @@ export default function ReviewsPage() {
       </div>
 
       <Footer />
-    </>
+    </div>
   )
 }
 
