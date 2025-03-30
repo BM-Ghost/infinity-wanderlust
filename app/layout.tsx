@@ -8,6 +8,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Infinity Wanderlust | Travel Blog",
   description: "Share your travel experiences and join exciting adventures",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -22,3 +23,6 @@ export default function RootLayout({
   )
 }
 
+
+
+import './globals.css'

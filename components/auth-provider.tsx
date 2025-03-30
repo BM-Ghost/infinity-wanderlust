@@ -1,3 +1,4 @@
+// Completely rewrite the auth provider with a much simpler implementation
 "use client"
 
 import type React from "react"
