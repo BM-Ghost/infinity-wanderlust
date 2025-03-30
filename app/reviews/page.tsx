@@ -2,9 +2,10 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -22,86 +23,846 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Star, ThumbsUp, Calendar, MapPin, Camera, LogIn } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationEllipsis,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/components/ui/use-toast"
+import {
+  Star,
+  ThumbsUp,
+  Calendar,
+  MapPin,
+  Camera,
+  LogIn,
+  Trash2,
+  Edit,
+  User,
+  MessageSquare,
+  Reply,
+  MoreVertical,
+  AtSign,
+  Heart,
+  Share2,
+} from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
+import {
+  fetchReviews,
+  createReview,
+  updateReview,
+  deleteReview,
+  likeReview,
+  type ReviewWithAuthor,
+} from "@/lib/reviews"
+import {
+  fetchComments,
+  createComment,
+  deleteComment,
+  likeComment,
+  searchUsers,
+  type CommentWithAuthor,
+} from "@/lib/comments"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+
+  // State for reviews data
+  const [reviews, setReviews] = useState<ReviewWithAuthor[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const perPage = 5
+
+  // Filtering and sorting state
+  const [activeTab, setActiveTab] = useState("all")
+  const [sortOrder, setSortOrder] = useState("-created")
+
+  // Review form state
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [rating, setRating] = useState(0)
   const [reviewText, setReviewText] = useState("")
   const [destination, setDestination] = useState("")
-  const [reviewImages, setReviewImages] = useState<string[]>([])
+  const [reviewImages, setReviewImages] = useState<File[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [previewImages, setPreviewImages] = useState<string[]>([])
 
-  // Sample reviews data
-  const reviews = [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      avatar: "/placeholder.svg?height=100&width=100",
-      destination: "Japan Tour",
-      date: "March 10, 2025",
-      rating: 5,
-      content:
-        "The Japan tour was absolutely incredible! Our guide was knowledgeable and the itinerary was perfect. We visited Tokyo, Kyoto, and Osaka, experiencing both modern city life and traditional Japanese culture. The accommodations were excellent and the food was amazing. Can't wait to travel with Infinity Wanderlust again!",
-      images: ["/placeholder.svg?height=300&width=400", "/placeholder.svg?height=300&width=400"],
-      likes: 42,
-    },
-    {
-      id: 2,
-      name: "Michael Chen",
-      avatar: "/placeholder.svg?height=100&width=100",
-      destination: "Peru Expedition",
-      date: "February 22, 2025",
-      rating: 4,
-      content:
-        "Machu Picchu was a dream come true. The local experiences arranged by Infinity Wanderlust made this trip special and authentic. We stayed with a local family in the Sacred Valley and learned about traditional weaving techniques. The hike along the Inca Trail was challenging but rewarding with breathtaking views. The only downside was that some parts of the trip felt a bit rushed.",
-      images: ["/placeholder.svg?height=300&width=400"],
-      likes: 28,
-    },
-    {
-      id: 3,
-      name: "Emma Wilson",
-      avatar: "/placeholder.svg?height=100&width=100",
-      destination: "Safari Adventure",
-      date: "January 15, 2025",
-      rating: 5,
-      content:
-        "The safari in Kenya exceeded all my expectations! We saw the Big Five within the first three days, and our guide was exceptional at spotting wildlife. The tented camps were luxurious yet authentic, and falling asleep to the sounds of the savanna was magical. The hot air balloon ride over the Maasai Mara at sunrise was the highlight of the trip. Highly recommend!",
-      images: [
-        "/placeholder.svg?height=300&width=400",
-        "/placeholder.svg?height=300&width=400",
-        "/placeholder.svg?height=300&width=400",
-      ],
-      likes: 56,
-    },
-  ]
+  // Edit review state
+  const [editReviewId, setEditReviewId] = useState<string | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editRating, setEditRating] = useState(0)
+  const [editReviewText, setEditReviewText] = useState("")
+  const [editDestination, setEditDestination] = useState("")
+  const [editReviewImages, setEditReviewImages] = useState<File[]>([])
+  const [editPreviewImages, setEditPreviewImages] = useState<string[]>([])
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false)
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newImages = Array.from(e.target.files).map((file) => URL.createObjectURL(file))
-      setReviewImages([...reviewImages, ...newImages])
+  // Comments state
+  const [reviewComments, setReviewComments] = useState<{ [reviewId: string]: CommentWithAuthor[] }>({})
+  const [loadingComments, setLoadingComments] = useState<{ [reviewId: string]: boolean }>({})
+  const [commentText, setCommentText] = useState<{ [reviewId: string]: string }>({})
+  const [replyToComment, setReplyToComment] = useState<{ [reviewId: string]: string | null }>({})
+  const [showComments, setShowComments] = useState<{ [reviewId: string]: boolean }>({})
+  const [commentInputFocus, setCommentInputFocus] = useState<{ [reviewId: string]: boolean }>({})
+  const [userSearchResults, setUserSearchResults] = useState<
+    Array<{ id: string; name: string; username: string; avatar?: string }>
+  >([])
+  const [taggedUsers, setTaggedUsers] = useState<{ [reviewId: string]: { id: string; name: string }[] }>({})
+  const [searchQuery, setSearchQuery] = useState("")
+  const [showUserSearch, setShowUserSearch] = useState<{ [reviewId: string]: boolean }>({})
+  const [cursorPosition, setCursorPosition] = useState<{ [reviewId: string]: number }>({})
+  const [userLikes, setUserLikes] = useState<{ [reviewId: string]: boolean }>({})
+  const commentInputRefs = useRef<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
+
+  // Get page from URL
+  useEffect(() => {
+    const page = searchParams.get("page")
+    if (page) {
+      setCurrentPage(Number.parseInt(page, 10))
+    }
+  }, [searchParams])
+
+  // Load reviews
+  const loadReviews = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      let filter = ""
+
+      // Apply filters based on active tab
+      if (activeTab === "mine" && user) {
+        filter = `reviewer = "${user.id}"`
+      } else if (activeTab === "top") {
+        filter = "rating >= 4"
+      }
+
+      const result = await fetchReviews(currentPage, perPage, sortOrder, filter)
+
+      setReviews(result.items)
+      setTotalPages(result.totalPages)
+      setTotalItems(result.totalItems)
+    } catch (err) {
+      console.error("Failed to load reviews:", err)
+      setError("Failed to load reviews. Please try again later.")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentPage, perPage, sortOrder, activeTab, user])
+
+  useEffect(() => {
+    loadReviews()
+  }, [loadReviews])
+
+  // Load comments for a review
+  const loadComments = async (reviewId: string) => {
+    if (loadingComments[reviewId]) return
+
+    setLoadingComments((prev) => ({ ...prev, [reviewId]: true }))
+
+    try {
+      const result = await fetchComments(reviewId)
+      setReviewComments((prev) => ({ ...prev, [reviewId]: result.items }))
+    } catch (err) {
+      console.error(`Failed to load comments for review ${reviewId}:`, err)
+      toast({
+        variant: "destructive",
+        title: "Failed to load comments",
+        description: "Please try again later.",
+      })
+    } finally {
+      setLoadingComments((prev) => ({ ...prev, [reviewId]: false }))
     }
   }
 
-  const handleSubmitReview = () => {
-    // In a real app, you would submit the review to your backend
-    console.log({
-      rating,
-      destination,
-      content: reviewText,
-      images: reviewImages,
-    })
+  // Toggle comments visibility
+  const toggleComments = (reviewId: string) => {
+    const newValue = !showComments[reviewId]
+    setShowComments((prev) => ({ ...prev, [reviewId]: newValue }))
 
-    // Reset form and close dialog
-    setRating(0)
-    setDestination("")
-    setReviewText("")
-    setReviewImages([])
-    setReviewDialogOpen(false)
+    if (newValue && !reviewComments[reviewId]) {
+      loadComments(reviewId)
+    }
   }
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    router.push(`/reviews?page=${page}`)
+  }
+
+  // Handle image upload for new review
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files)
+      setReviewImages([...reviewImages, ...files])
+
+      // Create preview URLs
+      const newPreviewUrls = files.map((file) => URL.createObjectURL(file))
+      setPreviewImages([...previewImages, ...newPreviewUrls])
+    }
+  }
+
+  // Handle image upload for edit review
+  const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files)
+      setEditReviewImages([...editReviewImages, ...files])
+
+      // Create preview URLs
+      const newPreviewUrls = files.map((file) => URL.createObjectURL(file))
+      setEditPreviewImages([...editPreviewImages, ...newPreviewUrls])
+    }
+  }
+
+  // Remove image from upload
+  const removeImage = (index: number) => {
+    const newImages = [...reviewImages]
+    newImages.splice(index, 1)
+    setReviewImages(newImages)
+
+    const newPreviews = [...previewImages]
+    URL.revokeObjectURL(newPreviews[index])
+    newPreviews.splice(index, 1)
+    setPreviewImages(newPreviews)
+  }
+
+  // Remove image from edit upload
+  const removeEditImage = (index: number) => {
+    const newImages = [...editReviewImages]
+    newImages.splice(index, 1)
+    setEditReviewImages(newImages)
+
+    const newPreviews = [...editPreviewImages]
+    URL.revokeObjectURL(newPreviews[index])
+    newPreviews.splice(index, 1)
+    setEditPreviewImages(newPreviews)
+  }
+
+  // Handle review submission
+  const handleSubmitReview = async () => {
+    if (!rating || !destination || !reviewText.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const result = await createReview(
+        {
+          destination,
+          rating,
+          review_text: reviewText,
+        },
+        reviewImages.length > 0 ? reviewImages : undefined,
+      )
+
+      if (result) {
+        toast({
+          title: "Review submitted",
+          description: "Your review has been published successfully.",
+        })
+
+        // Reset form and close dialog
+        setRating(0)
+        setDestination("")
+        setReviewText("")
+        setReviewImages([])
+        setPreviewImages([])
+        setReviewDialogOpen(false)
+
+        // Reload reviews to show the new one
+        loadReviews()
+      } else {
+        throw new Error("Failed to create review")
+      }
+    } catch (err: any) {
+      console.error("Error submitting review:", err)
+      toast({
+        variant: "destructive",
+        title: "Submission failed",
+        description: err.message || "There was an error submitting your review. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Open edit dialog with review data
+  const handleEditReview = (review: ReviewWithAuthor) => {
+    setEditReviewId(review.id)
+    setEditRating(review.rating)
+    setEditReviewText(review.review_text)
+    setEditDestination(review.destination)
+    setEditReviewImages([])
+    setEditPreviewImages(review.photoUrl ? [review.photoUrl] : [])
+    setEditDialogOpen(true)
+  }
+
+  // Handle edit review submission
+  const handleSubmitEditReview = async () => {
+    if (!editReviewId || !editRating || !editDestination || !editReviewText.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+      })
+      return
+    }
+
+    setIsEditSubmitting(true)
+
+    try {
+      const result = await updateReview(
+        editReviewId,
+        {
+          destination: editDestination,
+          rating: editRating,
+          review_text: editReviewText,
+        },
+        editReviewImages.length > 0 ? editReviewImages : undefined,
+      )
+
+      if (result) {
+        toast({
+          title: "Review updated",
+          description: "Your review has been updated successfully.",
+        })
+
+        // Update the review in the list
+        setReviews(reviews.map((review) => (review.id === editReviewId ? { ...result } : review)))
+
+        // Reset form and close dialog
+        setEditReviewId(null)
+        setEditRating(0)
+        setEditDestination("")
+        setEditReviewText("")
+        setEditReviewImages([])
+        setEditPreviewImages([])
+        setEditDialogOpen(false)
+      } else {
+        throw new Error("Failed to update review")
+      }
+    } catch (err: any) {
+      console.error("Error updating review:", err)
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: err.message || "There was an error updating your review. Please try again.",
+      })
+    } finally {
+      setIsEditSubmitting(false)
+    }
+  }
+
+  // Handle review deletion
+  const handleDeleteReview = async (id: string) => {
+    if (confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+      try {
+        const success = await deleteReview(id)
+
+        if (success) {
+          toast({
+            title: "Review deleted",
+            description: "Your review has been deleted successfully.",
+          })
+
+          // Remove the deleted review from the list
+          setReviews(reviews.filter((review) => review.id !== id))
+        } else {
+          throw new Error("Failed to delete review")
+        }
+      } catch (err: any) {
+        console.error("Error deleting review:", err)
+        toast({
+          variant: "destructive",
+          title: "Deletion failed",
+          description: err.message || "There was an error deleting your review. Please try again.",
+        })
+      }
+    }
+  }
+
+  // Handle review like
+  const handleLikeReview = async (reviewId: string) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please sign in to like reviews.",
+      })
+      return
+    }
+
+    if (userLikes[reviewId]) {
+      // User already liked this review
+      toast({
+        title: "Already liked",
+        description: "You've already liked this review.",
+      })
+      return
+    }
+
+    try {
+      const success = await likeReview(reviewId)
+
+      if (success) {
+        // Update the review in the state
+        setReviews(
+          reviews.map((review) => {
+            if (review.id === reviewId) {
+              return {
+                ...review,
+                likes_count: (review.likes_count || 0) + 1,
+              }
+            }
+            return review
+          }),
+        )
+
+        // Mark as liked by the user
+        setUserLikes((prev) => ({
+          ...prev,
+          [reviewId]: true,
+        }))
+
+        toast({
+          title: "Review liked",
+          description: "You liked this review.",
+        })
+      }
+    } catch (error) {
+      console.error("Error liking review:", error)
+      toast({
+        variant: "destructive",
+        title: "Action failed",
+        description: "Please try again later.",
+      })
+    }
+  }
+
+  // Handle comment submission
+  const handleSubmitComment = async (reviewId: string) => {
+    if (!commentText[reviewId]?.trim()) return
+
+    try {
+      const parentCommentId = replyToComment[reviewId] || undefined
+
+      // Get tagged user IDs
+      const taggedUserIds = taggedUsers[reviewId]?.map((user) => user.id) || []
+
+      const result = await createComment(reviewId, commentText[reviewId], parentCommentId, taggedUserIds)
+
+      if (result) {
+        // Update comments list
+        setReviewComments((prev) => ({
+          ...prev,
+          [reviewId]: [...(prev[reviewId] || []), result],
+        }))
+
+        // Update the review's comment count
+        setReviews(
+          reviews.map((review) => {
+            if (review.id === reviewId) {
+              return {
+                ...review,
+                comments_count: (review.comments_count || 0) + 1,
+              }
+            }
+            return review
+          }),
+        )
+
+        // Clear input and reset states
+        setCommentText((prev) => ({ ...prev, [reviewId]: "" }))
+        setReplyToComment((prev) => ({ ...prev, [reviewId]: null }))
+        setTaggedUsers((prev) => ({ ...prev, [reviewId]: [] }))
+
+        toast({
+          title: "Comment added",
+          description: "Your comment has been added successfully.",
+        })
+      }
+    } catch (err: any) {
+      console.error("Error submitting comment:", err)
+      toast({
+        variant: "destructive",
+        title: "Comment failed",
+        description: err.message || "There was an error posting your comment. Please try again.",
+      })
+    }
+  }
+
+  // Handle comment deletion
+  const handleDeleteComment = async (reviewId: string, commentId: string) => {
+    if (confirm("Are you sure you want to delete this comment?")) {
+      try {
+        const success = await deleteComment(commentId)
+
+        if (success) {
+          // Remove the comment from the list
+          setReviewComments((prev) => ({
+            ...prev,
+            [reviewId]: (prev[reviewId] || []).filter((comment) => comment.id !== commentId),
+          }))
+
+          // Update the review's comment count
+          setReviews(
+            reviews.map((review) => {
+              if (review.id === reviewId) {
+                return {
+                  ...review,
+                  comments_count: Math.max(0, (review.comments_count || 1) - 1),
+                }
+              }
+              return review
+            }),
+          )
+
+          toast({
+            title: "Comment deleted",
+            description: "Your comment has been deleted successfully.",
+          })
+        }
+      } catch (err: any) {
+        console.error("Error deleting comment:", err)
+        toast({
+          variant: "destructive",
+          title: "Deletion failed",
+          description: err.message || "There was an error deleting your comment. Please try again.",
+        })
+      }
+    }
+  }
+
+  // Handle liking a comment
+  const handleLikeComment = async (reviewId: string, commentId: string) => {
+    try {
+      const success = await likeComment(commentId)
+
+      if (success) {
+        // Update the comment's like count
+        setReviewComments((prev) => {
+          const updatedComments = [...(prev[reviewId] || [])]
+          const commentIndex = updatedComments.findIndex((c) => c.id === commentId)
+
+          if (commentIndex !== -1) {
+            updatedComments[commentIndex] = {
+              ...updatedComments[commentIndex],
+              likes_count: updatedComments[commentIndex].likes_count + 1,
+            }
+          }
+
+          return { ...prev, [reviewId]: updatedComments }
+        })
+      }
+    } catch (err: any) {
+      console.error("Error liking comment:", err)
+      toast({
+        variant: "destructive",
+        title: "Action failed",
+        description: err.message || "There was an error liking this comment. Please try again.",
+      })
+    }
+  }
+
+  // Set up reply to comment
+  const handleReplyToComment = (reviewId: string, commentId: string, authorName: string) => {
+    setReplyToComment((prev) => ({ ...prev, [reviewId]: commentId }))
+
+    // Add the author to tagged users
+    const comment = reviewComments[reviewId]?.find((c) => c.id === commentId)
+    if (comment) {
+      setTaggedUsers((prev) => ({
+        ...prev,
+        [reviewId]: [...(prev[reviewId] || []), { id: comment.user, name: authorName }],
+      }))
+    }
+
+    // Update comment text with @mention
+    setCommentText((prev) => ({ ...prev, [reviewId]: `@${authorName} ` }))
+
+    // Focus the comment input
+    const commentInput = commentInputRefs.current[reviewId]
+    if (commentInput) {
+      commentInput.focus()
+    }
+  }
+
+  // Cancel reply
+  const handleCancelReply = (reviewId: string) => {
+    setReplyToComment((prev) => ({ ...prev, [reviewId]: null }))
+    setCommentText((prev) => ({ ...prev, [reviewId]: "" }))
+    setTaggedUsers((prev) => ({ ...prev, [reviewId]: [] }))
+  }
+
+  // Handle comment input change with @mention detection
+  const handleCommentInputChange = async (reviewId: string, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    setCommentText((prev) => ({ ...prev, [reviewId]: value }))
+
+    // Get cursor position
+    const cursorPos = e.target.selectionStart
+    setCursorPosition((prev) => ({ ...prev, [reviewId]: cursorPos }))
+
+    // Check for @ symbol
+    const textBeforeCursor = value.substring(0, cursorPos)
+    const atIndex = textBeforeCursor.lastIndexOf("@")
+
+    if (atIndex !== -1 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === " ")) {
+      const query = textBeforeCursor.substring(atIndex + 1)
+
+      if (query.length >= 1) {
+        // Search for users
+        setSearchQuery(query)
+        const results = await searchUsers(query)
+        setUserSearchResults(results)
+        setShowUserSearch((prev) => ({ ...prev, [reviewId]: true }))
+      } else {
+        setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+      }
+    } else {
+      setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+    }
+  }
+
+  // Handle selecting a user from the search results
+  const handleSelectUser = (reviewId: string, user: { id: string; name: string; username: string }) => {
+    // Add user to tagged users
+    setTaggedUsers((prev) => ({
+      ...prev,
+      [reviewId]: [...(prev[reviewId] || []).filter((u) => u.id !== user.id), { id: user.id, name: user.name }],
+    }))
+
+    // Replace the @query with @username
+    const text = commentText[reviewId] || ""
+    const cursorPos = cursorPosition[reviewId] || 0
+    const textBeforeCursor = text.substring(0, cursorPos)
+    const atIndex = textBeforeCursor.lastIndexOf("@")
+
+    if (atIndex !== -1) {
+      const beforeAt = text.substring(0, atIndex)
+      const afterCursor = text.substring(cursorPos)
+      const newText = `${beforeAt}@${user.username} ${afterCursor}`
+
+      setCommentText((prev) => ({ ...prev, [reviewId]: newText }))
+
+      // Hide user search
+      setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+
+      // Focus back on input and set cursor position after the inserted username
+      setTimeout(() => {
+        const input = commentInputRefs.current[reviewId]
+        if (input) {
+          const newCursorPos = atIndex + user.username.length + 2 // +2 for @ and space
+          input.focus()
+          input.setSelectionRange(newCursorPos, newCursorPos)
+        }
+      }, 0)
+    }
+  }
+
+  // Handle comment input focus
+  const handleCommentInputFocus = (reviewId: string) => {
+    setCommentInputFocus((prev) => ({ ...prev, [reviewId]: true }))
+  }
+
+  // Handle comment input blur
+  const handleCommentInputBlur = (reviewId: string) => {
+    // Delay hiding the user search to allow for clicking on results
+    setTimeout(() => {
+      setCommentInputFocus((prev) => ({ ...prev, [reviewId]: false }))
+      setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+    }, 200)
+  }
+
+  // Share review
+  const handleShareReview = (review: ReviewWithAuthor) => {
+    const shareUrl = `${window.location.origin}/reviews/${review.id}`
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: `${review.authorName}'s review of ${review.destination}`,
+          text: review.review_text.substring(0, 100) + (review.review_text.length > 100 ? "..." : ""),
+          url: shareUrl,
+        })
+        .catch((err) => console.error("Error sharing:", err))
+    } else {
+      // Fallback to clipboard
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        toast({
+          title: "Link copied!",
+          description: "Review link copied to clipboard.",
+        })
+      })
+    }
+  }
+
+  // Clean up object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      previewImages.forEach((url) => URL.revokeObjectURL(url))
+      editPreviewImages.forEach((url) => {
+        if (url.startsWith("blob:")) {
+          URL.revokeObjectURL(url)
+        }
+      })
+    }
+  }, [previewImages, editPreviewImages])
+
+  // Render tagged users badges
+  const renderTaggedUserBadges = (reviewId: string) => {
+    const users = taggedUsers[reviewId] || []
+    if (users.length === 0) return null
+
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        {users.map((user) => (
+          <div key={user.id} className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full flex items-center">
+            <AtSign className="h-3 w-3 mr-1" />
+            {user.name}
+            <button
+              className="ml-1 hover:text-destructive"
+              onClick={() => {
+                setTaggedUsers((prev) => ({
+                  ...prev,
+                  [reviewId]: (prev[reviewId] || []).filter((u) => u.id !== user.id),
+                }))
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Render comment component
+  const renderComment = (comment: CommentWithAuthor, reviewId: string) => (
+    <div key={comment.id} className="border-b last:border-b-0 py-3">
+      <div className="flex items-start gap-3">
+        <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
+          {comment.authorAvatar ? (
+            <Image
+              src={comment.authorAvatar || "/placeholder.svg"}
+              alt={comment.authorName}
+              fill
+              className="object-cover"
+            />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
+              {comment.authorName.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="font-medium text-sm">{comment.authorName}</span>
+              <span className="text-xs text-muted-foreground ml-2">{comment.formattedDate}</span>
+            </div>
+            {user && user.id === comment.user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                    <span className="sr-only">Comment actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleDeleteComment(reviewId, comment.id)}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {/* Show who the comment is replying to */}
+          {comment.replyingTo && (
+            <div className="text-xs text-muted-foreground mb-1">
+              Replying to <span className="font-medium">@{comment.replyingTo}</span>
+            </div>
+          )}
+
+          <p className="text-sm mt-1">
+            {/* Render comment text with highlighted @mentions */}
+            {comment.content.split(/(@\w+)/).map((part, index) => {
+              if (part.startsWith("@")) {
+                return (
+                  <span key={index} className="text-primary font-medium">
+                    {part}
+                  </span>
+                )
+              }
+              return part
+            })}
+          </p>
+
+          {/* Tagged users */}
+          {comment.taggedUserNames.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {comment.taggedUserNames.map((name, index) => (
+                <div key={index} className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                  <AtSign className="h-2 w-2 inline mr-0.5" />
+                  {name}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mt-1">
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 px-2"
+                onClick={() => handleReplyToComment(reviewId, comment.id, comment.authorName)}
+              >
+                <Reply className="h-3 w-3 mr-1" />
+                Reply
+              </Button>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7 px-2"
+              onClick={() => handleLikeComment(reviewId, comment.id)}
+            >
+              <Heart className="h-3 w-3 mr-1" />
+              {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="rainforest-bg min-h-screen">
@@ -146,17 +907,18 @@ export default function ReviewsPage() {
 
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="destination">{t("destination")}</Label>
+                    <Label htmlFor="destination">Destination *</Label>
                     <Input
                       id="destination"
                       value={destination}
                       onChange={(e) => setDestination(e.target.value)}
                       placeholder="e.g. Bali, Indonesia"
+                      required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Rating</Label>
+                    <Label>Rating *</Label>
                     <div className="flex gap-1">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none">
@@ -171,20 +933,21 @@ export default function ReviewsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="review">Your Review</Label>
+                    <Label htmlFor="review">Your Review *</Label>
                     <Textarea
                       id="review"
                       value={reviewText}
                       onChange={(e) => setReviewText(e.target.value)}
                       placeholder="Share your experience..."
                       rows={5}
+                      required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Add Photos</Label>
+                    <Label>Add Photos (Optional)</Label>
                     <div className="grid grid-cols-3 gap-2">
-                      {reviewImages.map((img, index) => (
+                      {previewImages.map((img, index) => (
                         <div key={index} className="relative aspect-square rounded-md overflow-hidden">
                           <Image
                             src={img || "/placeholder.svg"}
@@ -195,29 +958,15 @@ export default function ReviewsPage() {
                           <button
                             type="button"
                             className="absolute top-1 right-1 bg-black/50 rounded-full p-1"
-                            onClick={() => setReviewImages(reviewImages.filter((_, i) => i !== index))}
+                            onClick={() => removeImage(index)}
                           >
                             <span className="sr-only">Remove</span>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="text-white"
-                            >
-                              <path d="M18 6 6 18" />
-                              <path d="m6 6 12 12" />
-                            </svg>
+                            <Trash2 className="h-4 w-4 text-white" />
                           </button>
                         </div>
                       ))}
 
-                      {reviewImages.length < 5 && (
+                      {previewImages.length < 5 && (
                         <label
                           htmlFor="image-upload"
                           className="aspect-square border-2 border-dashed rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors"
@@ -242,8 +991,176 @@ export default function ReviewsPage() {
                   <Button type="button" variant="outline" onClick={() => setReviewDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="button" onClick={handleSubmitReview} disabled={!rating || !destination || !reviewText}>
-                    Submit Review
+                  <Button
+                    type="button"
+                    onClick={handleSubmitReview}
+                    disabled={isSubmitting || !rating || !destination || !reviewText.trim()}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Review"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit Review Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Review</DialogTitle>
+                  <DialogDescription>Update your travel experience</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-destination">Destination *</Label>
+                    <Input
+                      id="edit-destination"
+                      value={editDestination}
+                      onChange={(e) => setEditDestination(e.target.value)}
+                      placeholder="e.g. Bali, Indonesia"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Rating *</Label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setEditRating(star)}
+                          className="focus:outline-none"
+                        >
+                          <Star
+                            className={`h-6 w-6 ${
+                              star <= editRating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-review">Your Review *</Label>
+                    <Textarea
+                      id="edit-review"
+                      value={editReviewText}
+                      onChange={(e) => setEditReviewText(e.target.value)}
+                      placeholder="Share your experience..."
+                      rows={5}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Photos</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {editPreviewImages.map((img, index) => (
+                        <div key={index} className="relative aspect-square rounded-md overflow-hidden">
+                          <Image
+                            src={img || "/placeholder.svg"}
+                            alt={`Review image ${index + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                          {!img.includes("api/files/") && (
+                            <button
+                              type="button"
+                              className="absolute top-1 right-1 bg-black/50 rounded-full p-1"
+                              onClick={() => removeEditImage(index)}
+                            >
+                              <span className="sr-only">Remove</span>
+                              <Trash2 className="h-4 w-4 text-white" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      {editPreviewImages.length < 5 && (
+                        <label
+                          htmlFor="edit-image-upload"
+                          className="aspect-square border-2 border-dashed rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors"
+                        >
+                          <Camera className="h-6 w-6 text-muted-foreground mb-1" />
+                          <span className="text-xs text-muted-foreground">Add Photo</span>
+                          <input
+                            id="edit-image-upload"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="sr-only"
+                            onChange={handleEditImageUpload}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSubmitEditReview}
+                    disabled={isEditSubmitting || !editRating || !editDestination || !editReviewText.trim()}
+                  >
+                    {isEditSubmitting ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Updating...
+                      </>
+                    ) : (
+                      "Update Review"
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -251,79 +1168,409 @@ export default function ReviewsPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="all" className="w-full mb-8">
+        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full mb-8">
           <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
             <TabsTrigger value="all">All Reviews</TabsTrigger>
-            <TabsTrigger value="recent">Recent</TabsTrigger>
             <TabsTrigger value="top">Top Rated</TabsTrigger>
+            {user && <TabsTrigger value="mine">My Reviews</TabsTrigger>}
+            {!user && <TabsTrigger value="recent">Recent</TabsTrigger>}
           </TabsList>
         </Tabs>
 
-        <div className="space-y-8">
-          {reviews.map((review) => (
-            <Card key={review.id} className="overflow-hidden">
-              <CardHeader className="flex flex-row items-start gap-4">
-                <Image
-                  src={review.avatar || "/placeholder.svg"}
-                  alt={review.name}
-                  width={50}
-                  height={50}
-                  className="rounded-full"
-                />
-                <div className="flex-1">
-                  <CardTitle className="text-lg">{review.name}</CardTitle>
-                  <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <span className="flex items-center">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      {review.destination}
-                    </span>
-                    <span className="flex items-center">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      {review.date}
-                    </span>
-                  </CardDescription>
-                </div>
-                <div className="flex">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">{review.content}</p>
-
-                {review.images.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {review.images.map((img, index) => (
-                      <div key={index} className="relative aspect-video rounded-md overflow-hidden">
+        {isLoading ? (
+          // Loading skeletons
+          <div className="space-y-8">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="overflow-hidden">
+                <CardHeader className="flex flex-row items-start gap-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="flex-1">
+                    <Skeleton className="h-6 w-40 mb-2" />
+                    <Skeleton className="h-4 w-60" />
+                  </div>
+                  <div className="flex">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-4 w-4 mx-0.5" />
+                    ))}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : error ? (
+          // Error state
+          <div className="text-center py-12">
+            <div className="bg-destructive/10 text-destructive p-4 rounded-md inline-block mb-4">
+              <p>{error}</p>
+            </div>
+            <Button onClick={loadReviews}>Try Again</Button>
+          </div>
+        ) : reviews.length === 0 ? (
+          // Empty state
+          <div className="text-center py-12">
+            <div className="bg-muted p-8 rounded-lg inline-block mb-6">
+              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No reviews found</h3>
+              <p className="text-muted-foreground mb-6">
+                {activeTab === "mine"
+                  ? "You haven't written any reviews yet."
+                  : "Be the first to share your travel experience!"}
+              </p>
+              {user && <Button onClick={() => setReviewDialogOpen(true)}>Write a Review</Button>}
+            </div>
+          </div>
+        ) : (
+          // Reviews list
+          <div className="space-y-8">
+            <TooltipProvider>
+              {reviews.map((review) => (
+                <Card key={review.id} className="overflow-hidden">
+                  <CardHeader className="flex flex-row items-start gap-4">
+                    <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
+                      {review.authorAvatar ? (
                         <Image
-                          src={img || "/placeholder.svg"}
-                          alt={`${review.name}'s travel photo ${index + 1}`}
+                          src={review.authorAvatar || "/placeholder.svg"}
+                          alt={review.authorName}
                           fill
                           className="object-cover"
                         />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
+                          {review.authorName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{review.authorName}</CardTitle>
+                      <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <span className="flex items-center">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          {review.destination}
+                        </span>
+                        <span className="flex items-center">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {review.formattedDate}
+                        </span>
+                      </CardDescription>
+                    </div>
+                    <div className="flex">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-muted-foreground">{review.review_text}</p>
+
+                    {review.photoUrl && (
+                      <div className="mt-4">
+                        <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
+                          <Image
+                            src={review.photoUrl || "/placeholder.svg"}
+                            alt={`${review.authorName}'s travel photo`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+
+                    {/* Add engagement stats */}
+                    <div className="flex items-center gap-6 pt-2">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <ThumbsUp className="h-4 w-4" />
+                        <span className="text-sm">{review.likes_count || 0} likes</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="text-sm">{review.comments_count || 0} comments</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex flex-col">
+                    <div className="flex justify-between w-full">
+                      <div className="flex gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="flex items-center gap-2"
+                              onClick={() => handleLikeReview(review.id)}
+                              disabled={userLikes[review.id]}
+                            >
+                              <Heart className={`h-4 w-4 ${userLikes[review.id] ? "fill-red-500 text-red-500" : ""}`} />
+                              <span>{userLikes[review.id] ? "Liked" : "Like"}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{userLikes[review.id] ? "You liked this review" : "Like this review"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-2"
+                          onClick={() => toggleComments(review.id)}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          <span>
+                            {showComments[review.id] ? "Hide Comments" : "Comment"}
+                            {review.comments_count > 0 && !showComments[review.id] && ` (${review.comments_count})`}
+                          </span>
+                        </Button>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="flex items-center gap-2"
+                              onClick={() => handleShareReview(review)}
+                            >
+                              <Share2 className="h-4 w-4" />
+                              <span>Share</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Share this review</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+
+                      {user && user.id === review.reviewer && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            onClick={() => handleEditReview(review)}
+                          >
+                            <Edit className="h-4 w-4" />
+                            <span>Edit</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex items-center gap-2 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteReview(review.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Delete</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Comments section */}
+                    {showComments[review.id] && (
+                      <div className="w-full mt-4 pt-4 border-t">
+                        <h4 className="font-medium text-sm mb-3">Comments</h4>
+
+                        {/* Comments list */}
+                        <div className="space-y-1 mb-4">
+                          {loadingComments[review.id] ? (
+                            <div className="py-4 flex justify-center">
+                              <svg
+                                className="animate-spin h-5 w-5 text-primary"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                            </div>
+                          ) : reviewComments[review.id]?.length > 0 ? (
+                            <div className="space-y-1">
+                              {reviewComments[review.id].map((comment) => renderComment(comment, review.id))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground py-2">
+                              No comments yet. Be the first to comment!
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Comment form */}
+                        {user ? (
+                          <div className="flex flex-col space-y-2">
+                            {replyToComment[review.id] && (
+                              <div className="flex items-center justify-between bg-muted px-3 py-1 rounded-md text-sm">
+                                <span>Replying to comment</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2"
+                                  onClick={() => handleCancelReply(review.id)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Tagged users */}
+                            {renderTaggedUserBadges(review.id)}
+
+                            <div className="relative">
+                              <Textarea
+                                id={`comment-input-${review.id}`}
+                                ref={(el) => (commentInputRefs.current[review.id] = el)}
+                                placeholder="Add a comment... Use @ to mention users"
+                                value={commentText[review.id] || ""}
+                                onChange={(e) => handleCommentInputChange(review.id, e)}
+                                onFocus={() => handleCommentInputFocus(review.id)}
+                                onBlur={() => handleCommentInputBlur(review.id)}
+                                className="min-h-[80px] pr-10"
+                              />
+
+                              <Button
+                                className="absolute bottom-2 right-2"
+                                size="sm"
+                                disabled={!commentText[review.id]?.trim()}
+                                onClick={() => handleSubmitComment(review.id)}
+                              >
+                                Post
+                              </Button>
+
+                              {/* User search results */}
+                              {showUserSearch[review.id] && userSearchResults.length > 0 && (
+                                <div className="absolute z-10 w-full max-h-60 overflow-y-auto bg-background border rounded-md shadow-md mt-1">
+                                  <Command>
+                                    <CommandList>
+                                      <CommandGroup heading="Mention a user">
+                                        {userSearchResults.map((user) => (
+                                          <CommandItem
+                                            key={user.id}
+                                            onSelect={() => handleSelectUser(review.id, user)}
+                                            className="flex items-center gap-2 p-2 cursor-pointer hover:bg-accent"
+                                          >
+                                            <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted">
+                                              {user.avatar ? (
+                                                <Image
+                                                  src={user.avatar || "/placeholder.svg"}
+                                                  alt={user.name}
+                                                  fill
+                                                  className="object-cover"
+                                                />
+                                              ) : (
+                                                <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium text-xs">
+                                                  {user.name.charAt(0).toUpperCase()}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div>
+                                              <div className="font-medium text-sm">{user.name}</div>
+                                              <div className="text-xs text-muted-foreground">@{user.username}</div>
+                                            </div>
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                      {userSearchResults.length === 0 && <CommandEmpty>No users found</CommandEmpty>}
+                                    </CommandList>
+                                  </Command>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-muted-foreground mt-1">
+                              <span className="inline-flex items-center">
+                                <AtSign className="h-3 w-3 mr-1" />
+                                Type @ to mention someone
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-2">
+                            <p className="text-sm text-muted-foreground mb-2">Please sign in to comment</p>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href="/login">Sign In</Link>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardFooter>
+                </Card>
+              ))}
+            </TooltipProvider>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-8">
+            <Pagination>
+              <PaginationContent>
+                {currentPage > 1 && (
+                  <PaginationItem>
+                    <PaginationPrevious onClick={() => handlePageChange(currentPage - 1)} />
+                  </PaginationItem>
                 )}
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  <ThumbsUp className="h-4 w-4" />
-                  <span>{review.likes}</span>
-                </Button>
-                <Button variant="ghost" size="sm">
-                  Reply
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+
+                {currentPage > 2 && (
+                  <PaginationItem>
+                    <PaginationLink onClick={() => handlePageChange(1)}>1</PaginationLink>
+                  </PaginationItem>
+                )}
+
+                {currentPage > 3 && <PaginationEllipsis />}
+
+                {currentPage > 1 && (
+                  <PaginationItem>
+                    <PaginationLink onClick={() => handlePageChange(currentPage - 1)}>{currentPage - 1}</PaginationLink>
+                  </PaginationItem>
+                )}
+
+                <PaginationItem>
+                  <PaginationLink isActive>{currentPage}</PaginationLink>
+                </PaginationItem>
+
+                {currentPage < totalPages && (
+                  <PaginationItem>
+                    <PaginationLink onClick={() => handlePageChange(currentPage + 1)}>{currentPage + 1}</PaginationLink>
+                  </PaginationItem>
+                )}
+
+                {currentPage < totalPages - 2 && <PaginationEllipsis />}
+
+                {currentPage < totalPages - 1 && (
+                  <PaginationItem>
+                    <PaginationLink onClick={() => handlePageChange(totalPages)}>{totalPages}</PaginationLink>
+                  </PaginationItem>
+                )}
+
+                {currentPage < totalPages && (
+                  <PaginationItem>
+                    <PaginationNext onClick={() => handlePageChange(currentPage + 1)} />
+                  </PaginationItem>
+                )}
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
 
       <Footer />
