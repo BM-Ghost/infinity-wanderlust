@@ -91,7 +91,7 @@ export default function GalleryPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder={t("searchGallery")}
+                  placeholder={t("search gallery")}
                   className="pl-9"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -99,7 +99,7 @@ export default function GalleryPage() {
               </div>
               {user && (
                 <Button onClick={handleUploadClick}>
-                  <Upload className="mr-2 h-4 w-4" /> {t("uploadPhotos")}
+                  <Upload className="mr-2 h-4 w-4" /> {t("Upload photos")}
                 </Button>
               )}
             </div>
@@ -117,10 +117,10 @@ export default function GalleryPage() {
                   </div>
                 ) : filteredUploads.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground mb-4">{t("noImagesFound")}</p>
+                    <p className="text-muted-foreground mb-4">{t("no images found!")}</p>
                     {user && (
                       <Button onClick={handleUploadClick}>
-                        <Upload className="mr-2 h-4 w-4" /> {t("uploadPhotos")}
+                        <Upload className="mr-2 h-4 w-4" /> {t("Upload photos")}
                       </Button>
                     )}
                   </div>

@@ -21,6 +21,7 @@ export default function ContactPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* Left Column - Contact Form */}
           <div>
             <h2 className="text-2xl font-bold mb-6">Get in Touch</h2>
             <form className="space-y-6">
@@ -51,18 +52,19 @@ export default function ContactPage() {
             </form>
           </div>
 
+          {/* Right Column - Contact Info */}
           <div>
             <h2 className="text-2xl font-bold mb-6">Contact Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
+                  <CardTitle className="flex items-center text-base">
                     <MapPin className="h-5 w-5 mr-2 text-primary" />
                     Our Location
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Infinity Wanderlust Travels
                     <br />
                     Nairobi CBD
@@ -74,13 +76,13 @@ export default function ContactPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
+                  <CardTitle className="flex items-center text-base">
                     <Mail className="h-5 w-5 mr-2 text-primary" />
                     Email Us
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     <a href="mailto:infinitywanderlusttravels@gmail.com" className="hover:text-primary">
                       infinitywanderlusttravels@gmail.com
                     </a>
@@ -90,13 +92,13 @@ export default function ContactPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
+                  <CardTitle className="flex items-center text-base">
                     <Phone className="h-5 w-5 mr-2 text-primary" />
                     Call Us
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     <a href="tel:+254706492887" className="hover:text-primary">
                       +254 706 492 887
                     </a>
@@ -106,13 +108,13 @@ export default function ContactPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
+                  <CardTitle className="flex items-center text-base">
                     <Clock className="h-5 w-5 mr-2 text-primary" />
                     Business Hours
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Monday - Friday: 9am - 5pm
                     <br />
                     Saturday: 10am - 2pm
