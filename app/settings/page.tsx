@@ -105,14 +105,11 @@ useEffect(() => {
   console.log("Type of window:", typeof window);
 
   if (typeof window === "undefined") return; // Prevent SSR issues
-  
 
-  // const authData = localStorage.getItem("pocketbase_auth");
-
-  // if (!authData && !user) {
-  //   router.push("/login");
-  //   return;
-  // }
+  if (!user) {
+    router.push("/login");
+    return;
+  }
 
   if (user) {
     setName(user.name || "");
@@ -181,85 +178,75 @@ useEffect(() => {
 
   // Update the handleSubmit function to include auth_number and handle short bio
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    // Validate URL
-    if (links && !validateUrl(links)) {
-      toast({
-        variant: "destructive",
-        title: "Invalid URL",
-        description: "Please enter a valid URL including http:// or https://",
-      })
-      return
-    }
-
-    const pb = getPocketBase()
-    if (!pb || !pb.authStore.model) {
-      toast({
-        variant: "destructive",
-        title: "Authentication error",
-        description: "Please sign in again to update your profile.",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      const userId = pb.authStore.model.id
-      const formData = new FormData()
-
-      formData.append("name", name)
-      formData.append("username", username)
-      formData.append("bio", bio)
-
-      // Combine short bio and about if short bio exists
-      const combinedAbout = shortBio ? `[${shortBio}]${about}` : about
-      formData.append("about", combinedAbout)
-
-      formData.append("Links", links)
-      formData.append("location", location)
-      formData.append("auth_number", authNumber.toString())
-
-      if (avatarFile) {
-        formData.append("avatar", avatarFile)
-      }
-
-      await pb.collection("users").update(userId, formData)
-
-      // Update local storage with new data
-      const updatedRecord = await pb.collection("users").getOne(userId)
-      localStorage.setItem(
-        "pocketbase_auth",
-        JSON.stringify({
-          token: pb.authStore.token,
-          model: updatedRecord,
-        }),
-      )
-
-      // Refresh user data
-      if (refreshUser) {
-        await refreshUser()
-      }
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
-      })
-
-      // Navigate back to profile page
-      router.push("/profile")
-    } catch (error: any) {
-      console.error("Error updating profile:", error)
-      toast({
-        variant: "destructive",
-        title: "Update failed",
-        description: error.message || "There was an error updating your profile. Please try again.",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
+  // Validate URL
+  if (links && !validateUrl(links)) {
+    toast({
+      variant: "destructive",
+      title: "Invalid URL",
+      description: "Please enter a valid URL including http:// or https://",
+    })
+    return
   }
+
+  const pb = getPocketBase()
+  if (!pb || !pb.authStore.model) {
+    toast({
+      variant: "destructive",
+      title: "Authentication error",
+      description: "Please sign in again to update your profile.",
+    })
+    return
+  }
+
+  setIsSubmitting(true)
+
+  try {
+    const userId = pb.authStore.model.id
+    const formData = new FormData()
+
+    formData.append("name", name)
+    formData.append("username", username)
+    formData.append("bio", bio)
+
+    // Combine short bio and about if short bio exists
+    const combinedAbout = shortBio ? `[${shortBio}]${about}` : about
+    formData.append("about", combinedAbout)
+
+    formData.append("Links", links)
+    formData.append("location", location)
+    formData.append("auth_number", authNumber.toString())
+
+    if (avatarFile) {
+      formData.append("avatar", avatarFile)
+    }
+
+    await pb.collection("users").update(userId, formData)
+
+    // Refresh user data
+    if (refreshUser) {
+      await refreshUser()
+    }
+
+    toast({
+      title: "Profile updated",
+      description: "Your profile has been updated successfully.",
+    })
+
+    // Navigate back to profile page
+    router.push("/profile")
+  } catch (error: any) {
+    console.error("Error updating profile:", error)
+    toast({
+      variant: "destructive",
+      title: "Update failed",
+      description: error.message || "There was an error updating your profile. Please try again.",
+    })
+  } finally {
+    setIsSubmitting(false)
+  }
+}
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -329,7 +316,7 @@ useEffect(() => {
     }
   }
 
-  if (!user && !localStorage.getItem("pocketbase_auth")) {
+  if (!user) {
     return null // Will redirect in useEffect
   }
 
