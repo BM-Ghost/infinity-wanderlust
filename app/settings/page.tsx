@@ -102,7 +102,10 @@ export default function SettingsPage() {
 
   // Redirect if not logged in
 useEffect(() => {
+  console.log("Type of window:", typeof window);
+
   if (typeof window === "undefined") return; // Prevent SSR issues
+  
 
   const authData = localStorage.getItem("pocketbase_auth");
 
