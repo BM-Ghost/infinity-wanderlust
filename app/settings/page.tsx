@@ -101,65 +101,62 @@ export default function SettingsPage() {
   }
 
   // Redirect if not logged in
-  useEffect(() => {
-    // First check localStorage directly to avoid unnecessary redirects
-    const authData = localStorage.getItem("pocketbase_auth")
+useEffect(() => {
+  if (typeof window === "undefined") return; // Prevent SSR issues
 
-    if (!authData && !user) {
-      router.push("/login")
-      return
+  const authData = localStorage.getItem("pocketbase_auth");
+
+  if (!authData && !user) {
+    router.push("/login");
+    return;
+  }
+
+  if (user) {
+    setName(user.name || "");
+    setUsername(user.username || "");
+    setEmail(user.email || "");
+    setBio(user.bio || "");
+
+    const { shortBio: extractedShortBio, fullAbout } = extractShortBio(user.about);
+    setShortBio(extractedShortBio || "");
+    setAbout(fullAbout || "");
+
+    setLinks(user.Links || "");
+    setLocation(user.location || "");
+    setAuthNumber(user.auth_number || 0);
+
+    if (user.avatarUrl) {
+      setAvatarPreview(user.avatarUrl);
     }
+  } else if (authData) {
+    try {
+      const { model } = JSON.parse(authData);
+      if (model) {
+        setName(model.name || "");
+        setUsername(model.username || "");
+        setEmail(model.email || "");
+        setBio(model.bio || "");
 
-    // If we have a user or auth data in localStorage, initialize the form
-    if (user) {
-      // Initialize form with user data
-      setName(user.name || "")
-      setUsername(user.username || "")
-      setEmail(user.email || "")
-      setBio(user.bio || "")
+        const { shortBio: extractedShortBio, fullAbout } = extractShortBio(model.about);
+        setShortBio(extractedShortBio || "");
+        setAbout(fullAbout || "");
 
-      // Handle about field with potential short bio in brackets
-      const { shortBio: extractedShortBio, fullAbout } = extractShortBio(user.about)
-      setShortBio(extractedShortBio || "")
-      setAbout(fullAbout || "")
+        setLinks(model.Links || "");
+        setLocation(model.location || "");
+        setAuthNumber(model.auth_number || 0);
 
-      setLinks(user.Links || "")
-      setLocation(user.location || "")
-      setAuthNumber(user.auth_number || 0)
-
-      if (user.avatarUrl) {
-        setAvatarPreview(user.avatarUrl)
-      }
-    } else if (authData) {
-      // Try to get user data from localStorage
-      try {
-        const { model } = JSON.parse(authData)
-        if (model) {
-          setName(model.name || "")
-          setUsername(model.username || "")
-          setEmail(model.email || "")
-          setBio(model.bio || "")
-
-          // Handle about field with potential short bio in brackets
-          const { shortBio: extractedShortBio, fullAbout } = extractShortBio(model.about)
-          setShortBio(extractedShortBio || "")
-          setAbout(fullAbout || "")
-
-          setLinks(model.Links || "")
-          setLocation(model.location || "")
-          setAuthNumber(model.auth_number || 0)
-
-          if (model.avatar) {
-            setAvatarPreview(
-              `https://remain-faceghost.pockethost.io/api/files/${model.collectionId}/${model.id}/${model.avatar}`,
-            )
-          }
+        if (model.avatar) {
+          setAvatarPreview(
+            `https://remain-faceghost.pockethost.io/api/files/${model.collectionId}/${model.id}/${model.avatar}`
+          );
         }
-      } catch (error) {
-        console.error("Error parsing auth data:", error)
       }
+    } catch (error) {
+      console.error("Error parsing auth data:", error);
     }
-  }, [user, router])
+  }
+}, [user, router]);
+
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
