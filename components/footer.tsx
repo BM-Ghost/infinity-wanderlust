@@ -6,14 +6,14 @@ import { useTranslation } from "@/lib/translations"
 
 export function Footer() {
   const { t } = useTranslation()
-
   const currentYear = new Date().getFullYear()
 
   return (
     <footer className="bg-primary/10 border-t">
       <div className="container py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+          {/* Brand and Socials */}
+          <div className="space-y-4 break-words">
             <h3 className="text-lg font-bold text-primary">Infinity Wanderlust</h3>
             <p className="text-sm text-muted-foreground">{t("footerTagline")}</p>
             <div className="flex space-x-4">
@@ -37,36 +37,22 @@ export function Footer() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          {/* Quick Links */}
+          <div className="space-y-4 break-words">
             <h3 className="text-lg font-bold">{t("quickLinks")}</h3>
             <ul className="space-y-2">
-              <li>
-                <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t("home")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t("gallery")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/events" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t("events")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/reviews" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  {t("reviews")}
-                </Link>
-              </li>
+              <li><Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("home")}</Link></li>
+              <li><Link href="/gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("gallery")}</Link></li>
+              <li><Link href="/events" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("events")}</Link></li>
+              <li><Link href="/reviews" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("reviews")}</Link></li>
             </ul>
           </div>
 
-          <div className="space-y-4">
+          {/* Contact Info */}
+          <div className="space-y-4 break-words">
             <h3 className="text-lg font-bold">{t("contact")}</h3>
             <ul className="space-y-3">
-              <li className="flex items-start">
+              <li className="flex items-start break-all">
                 <Mail className="h-5 w-5 mr-2 text-primary" />
                 <a
                   href="mailto:infinitywanderlusttravels@gmail.com"
@@ -77,7 +63,7 @@ export function Footer() {
               </li>
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-2 text-primary" />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground break-words">
                   Infinity Wanderlust Travels
                   <br />
                   Nairobi CBD
@@ -97,14 +83,15 @@ export function Footer() {
             </ul>
           </div>
 
-          <div className="space-y-4">
+          {/* Newsletter */}
+          <div className="space-y-4 break-words">
             <h3 className="text-lg font-bold">{t("newsletter")}</h3>
             <p className="text-sm text-muted-foreground">{t("newsletterText")}</p>
-            <form className="flex flex-col space-y-2">
+            <form className="flex flex-col space-y-2 w-full">
               <input
                 type="email"
                 placeholder={t("emailPlaceholder")}
-                className="px-3 py-2 bg-background border rounded-md text-sm"
+                className="px-3 py-2 bg-background border rounded-md text-sm w-full break-words"
                 required
               />
               <button
