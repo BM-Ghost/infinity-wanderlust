@@ -101,62 +101,52 @@ export default function SettingsPage() {
   }
 
   // Redirect if not logged in
-useEffect(() => {
-  console.log("Type of window:", typeof window);
+  useEffect(() => {
+  const pb = getPocketBase()
+  const currentUser = user || pb?.authStore?.model
 
-  if (typeof window === "undefined") return; // Prevent SSR issues
-
-  if (!user) {
-    router.push("/login");
-    return;
+  if (!currentUser) {
+    router.push("/login")
+    return
   }
 
-  if (user) {
-    setName(user.name || "");
-    setUsername(user.username || "");
-    setEmail(user.email || "");
-    setBio(user.bio || "");
-
-    const { shortBio: extractedShortBio, fullAbout } = extractShortBio(user.about);
-    setShortBio(extractedShortBio || "");
-    setAbout(fullAbout || "");
-
-    setLinks(user.Links || "");
-    setLocation(user.location || "");
-    setAuthNumber(user.auth_number || 0);
-
-    if (user.avatarUrl) {
-      setAvatarPreview(user.avatarUrl);
-    }
-  } else if (authData) {
-    try {
-      const { model } = JSON.parse(authData);
-      if (model) {
-        setName(model.name || "");
-        setUsername(model.username || "");
-        setEmail(model.email || "");
-        setBio(model.bio || "");
-
-        const { shortBio: extractedShortBio, fullAbout } = extractShortBio(model.about);
-        setShortBio(extractedShortBio || "");
-        setAbout(fullAbout || "");
-
-        setLinks(model.Links || "");
-        setLocation(model.location || "");
-        setAuthNumber(model.auth_number || 0);
-
-        if (model.avatar) {
-          setAvatarPreview(
-            `https://remain-faceghost.pockethost.io/api/files/${model.collectionId}/${model.id}/${model.avatar}`
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error parsing auth data:", error);
-    }
+  // Cast to your custom user type
+  const typedUser = currentUser as {
+    id: string
+    collectionId: string
+    collectionName: string
+    username: string
+    email: string
+    name: string
+    avatar?: string
+    about?: string
+    Links?: string
+    location?: string
+    bio?: string
+    auth_number?: number
+    avatarUrl?: string
   }
-}, [user, router]);
 
+  setName(typedUser.name || "")
+  setUsername(typedUser.username || "")
+  setEmail(typedUser.email || "")
+  setBio(typedUser.bio || "")
+
+  const { shortBio: extractedShortBio, fullAbout } = extractShortBio(typedUser.about || "")
+  setShortBio(extractedShortBio || "")
+  setAbout(fullAbout || "")
+
+  setLinks(typedUser.Links || "")
+  setLocation(typedUser.location || "")
+  setAuthNumber(typedUser.auth_number || 0)
+
+  if (typedUser.avatar) {
+    const avatarUrl = typedUser.avatarUrl
+      ? typedUser.avatarUrl
+      : `https://remain-faceghost.pockethost.io/api/files/${typedUser.collectionId}/${typedUser.id}/${typedUser.avatar}`
+    setAvatarPreview(avatarUrl)
+  }
+}, [user, router])
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
