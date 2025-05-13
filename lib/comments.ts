@@ -1,5 +1,4 @@
 import { getPocketBase } from "@/lib/pocketbase"
-import { updateReviewCommentsCount } from "@/lib/reviews"
 
 export type Comment = {
   id: string
@@ -27,6 +26,7 @@ export type Comment = {
       avatar?: string
     }>
     parent_comment?: Comment
+    replies?: Comment[]
   }
 }
 
@@ -36,6 +36,8 @@ export type CommentWithAuthor = Comment & {
   formattedDate: string
   taggedUserNames: string[]
   replyingTo?: string
+  replies?: CommentWithAuthor[]
+  replyCount?: number
 }
 
 // Fetch comments for a specific review
@@ -47,23 +49,113 @@ export async function fetchComments(
   const pb = getPocketBase()
 
   try {
-    const resultList = await pb.collection("comments").getList(page, perPage, {
+    // First fetch all parent comments (comments without a parent)
+    const parentComments = await pb.collection("comments").getList(page, perPage, {
       sort: "created",
-      filter: `review = "${reviewId}"`,
-      expand: "user,tagged_users,parent_comment.user",
+      filter: `review = "${reviewId}" && parent_comment = null`,
+      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
     })
 
-    // Format comments
-    const formattedComments = resultList.items.map(formatComment)
+    // Debug: Log the first parent comment to see its structure
+    if (parentComments.items.length > 0) {
+      console.log("First parent comment:", JSON.stringify(parentComments.items[0], null, 2))
+      console.log("User data:", parentComments.items[0].expand?.user)
+    }
+
+    // Then fetch all replies
+    const replies = await pb.collection("comments").getList(1, 200, {
+      sort: "created",
+      filter: `review = "${reviewId}" && parent_comment != null`,
+      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
+    })
+
+    // Since expand isn't working for comments, we need to fetch user data separately
+    const userIds = new Set<string>()
+
+    // Collect all user IDs from parent comments
+    parentComments.items.forEach((comment) => {
+      if (comment.user) userIds.add(comment.user)
+    })
+
+    // Collect all user IDs from replies
+    replies.items.forEach((reply) => {
+      if (reply.user) userIds.add(reply.user)
+    })
+
+    // Fetch user data for all collected IDs
+    const userMap = await fetchUserData(Array.from(userIds))
+
+    // Format parent comments with the fetched user data
+    const formattedParentComments = parentComments.items.map((comment) => {
+      // Find all replies for this comment
+      const commentReplies = replies.items
+        .filter((reply) => reply.parent_comment === comment.id)
+        .map((reply) => formatComment(reply, userMap))
+
+      // Format the parent comment and add replies
+      const formattedComment = formatComment(comment, userMap)
+      formattedComment.replies = commentReplies
+      formattedComment.replyCount = commentReplies.length
+
+      return formattedComment
+    })
 
     return {
-      items: formattedComments,
-      totalItems: resultList.totalItems,
-      totalPages: resultList.totalPages,
+      items: formattedParentComments,
+      totalItems: parentComments.totalItems,
+      totalPages: parentComments.totalPages,
     }
   } catch (error) {
     console.error("Error fetching comments:", error)
     return { items: [], totalItems: 0, totalPages: 0 }
+  }
+}
+
+// Helper function to fetch user data for multiple user IDs
+async function fetchUserData(userIds: string[]): Promise<Map<string, any>> {
+  if (!userIds.length) return new Map()
+
+  const pb = getPocketBase()
+  const userMap = new Map<string, any>()
+
+  try {
+    // Fetch users in batches of 100 (PocketBase limit)
+    const batchSize = 100
+    for (let i = 0; i < userIds.length; i += batchSize) {
+      const batch = userIds.slice(i, i + batchSize)
+      const filter = batch.map((id) => `id = "${id}"`).join(" || ")
+
+      const users = await pb.collection("users").getList(1, batch.length, {
+        filter,
+      })
+
+      users.items.forEach((user) => {
+        userMap.set(user.id, user)
+      })
+    }
+
+    console.log(`Fetched ${userMap.size} users for ${userIds.length} IDs`)
+    return userMap
+  } catch (error) {
+    console.error("Error fetching user data:", error)
+    return userMap
+  }
+}
+
+// Add this function to update the comment count on a review
+export async function updateReviewCommentCount(reviewId: string, increment = true): Promise<boolean> {
+  const pb = getPocketBase()
+
+  try {
+    const review = await pb.collection("reviews").getOne(reviewId)
+    const currentCount = review.comments_count || 0
+    const newCount = increment ? currentCount + 1 : Math.max(0, currentCount - 1)
+
+    await pb.collection("reviews").update(reviewId, { comments_count: newCount })
+    return true
+  } catch (error: any) {
+    console.error(`Error updating comment count for review ${reviewId}:`, error)
+    return false
   }
 }
 
@@ -98,13 +190,25 @@ export async function createComment(
     }
 
     const record = await pb.collection("comments").create(data, {
-      expand: "user,tagged_users,parent_comment.user",
+      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
     })
 
-    // Increment the review's comment count
-    await updateReviewCommentsCount(reviewId, 1)
+    // Debug: Log the created comment
+    console.log("Created comment:", JSON.stringify(record, null, 2))
+    console.log("User data:", record.expand?.user)
 
-    return formatComment(record)
+    // Since expand might not work, fetch the current user data
+    const currentUser = pb.authStore.model
+    const userMap = new Map<string, any>()
+
+    if (currentUser) {
+      userMap.set(currentUser.id, currentUser)
+    }
+
+    // Update the review's comment count
+    await updateReviewCommentCount(reviewId, true)
+
+    return formatComment(record, userMap)
   } catch (error: any) {
     console.error("Error creating comment:", error)
 
@@ -116,7 +220,7 @@ export async function createComment(
   }
 }
 
-// Update an existing comment
+// Update a comment
 export async function updateComment(
   commentId: string,
   content: string,
@@ -135,9 +239,7 @@ export async function updateComment(
       throw new Error("You can only edit your own comments")
     }
 
-    const data: any = {
-      content,
-    }
+    const data: any = { content }
 
     // Update tagged users if provided
     if (taggedUserIds.length > 0) {
@@ -145,10 +247,18 @@ export async function updateComment(
     }
 
     const record = await pb.collection("comments").update(commentId, data, {
-      expand: "user,tagged_users,parent_comment.user",
+      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
     })
 
-    return formatComment(record)
+    // Since expand might not work, fetch the current user data
+    const currentUser = pb.authStore.model
+    const userMap = new Map<string, any>()
+
+    if (currentUser) {
+      userMap.set(currentUser.id, currentUser)
+    }
+
+    return formatComment(record, userMap)
   } catch (error: any) {
     console.error(`Error updating comment with ID ${commentId}:`, error)
 
@@ -160,7 +270,7 @@ export async function updateComment(
   }
 }
 
-// Delete a comment
+// Update the deleteComment function to decrement the comment count
 export async function deleteComment(commentId: string): Promise<boolean> {
   const pb = getPocketBase()
 
@@ -177,10 +287,31 @@ export async function deleteComment(commentId: string): Promise<boolean> {
 
     const reviewId = existingComment.review
 
+    // Check if this is a parent comment with replies
+    const replies = await pb.collection("comments").getList(1, 1, {
+      filter: `parent_comment = "${commentId}"`,
+    })
+
+    // If this comment has replies, delete them first
+    if (replies.totalItems > 0) {
+      // Get all replies
+      const allReplies = await pb.collection("comments").getList(1, 100, {
+        filter: `parent_comment = "${commentId}"`,
+      })
+
+      // Delete each reply
+      for (const reply of allReplies.items) {
+        await pb.collection("comments").delete(reply.id)
+        // Update comment count for each deleted reply
+        await updateReviewCommentCount(reviewId, false)
+      }
+    }
+
+    // Now delete the comment itself
     await pb.collection("comments").delete(commentId)
 
-    // Decrement the review's comment count
-    await updateReviewCommentsCount(reviewId, -1)
+    // Update the review's comment count
+    await updateReviewCommentCount(reviewId, false)
 
     return true
   } catch (error: any) {
@@ -255,7 +386,7 @@ export function extractMentions(text: string): string[] {
 }
 
 // Helper function to format a comment record
-function formatComment(record: any): CommentWithAuthor {
+function formatComment(record: any, userMap?: Map<string, any>): CommentWithAuthor {
   const baseUrl = "https://remain-faceghost.pockethost.io/api/files/"
 
   // Format the date
@@ -270,34 +401,78 @@ function formatComment(record: any): CommentWithAuthor {
   let authorName = "Unknown User"
   let authorAvatar = null
 
+  // Debug: Log the comment structure to see what we're working with
+  console.log("Formatting comment:", record.id)
+  console.log("Comment expand:", record.expand)
+  console.log("User ID:", record.user)
+
+  // First try to get user info from the expanded data
   if (record.expand?.user) {
-    authorName = record.expand.user.name || record.expand.user.username
+    console.log("Found expanded user:", record.expand.user)
+
+    // Use the name or username from the expanded relation
+    if (record.expand.user.name) {
+      authorName = record.expand.user.name
+      console.log("Using user name from expand:", authorName)
+    } else if (record.expand.user.username) {
+      authorName = record.expand.user.username
+      console.log("Using username from expand:", authorName)
+    }
+
+    // Get avatar if available
     if (record.expand.user.avatar) {
       authorAvatar = `${baseUrl}${record.expand.user.collectionId}/${record.expand.user.id}/${record.expand.user.avatar}`
     }
+  }
+  // If expand didn't work, try to get user info from the userMap
+  else if (userMap && record.user && userMap.has(record.user)) {
+    const user = userMap.get(record.user)
+    console.log("Found user in userMap:", user)
+
+    if (user.name) {
+      authorName = user.name
+      console.log("Using user name from userMap:", authorName)
+    } else if (user.username) {
+      authorName = user.username
+      console.log("Using username from userMap:", authorName)
+    }
+
+    if (user.avatar) {
+      authorAvatar = `${baseUrl}${user.collectionId}/${user.id}/${user.avatar}`
+    }
+  } else {
+    console.log("No user data found for comment:", record.id)
   }
 
   // Get tagged users
   const taggedUserNames: string[] = []
   if (record.expand?.tagged_users && Array.isArray(record.expand.tagged_users)) {
     record.expand.tagged_users.forEach((user: any) => {
-      taggedUserNames.push(user.name || user.username)
+      // Use the actual user name from the expanded tagged_users
+      const userName = user.name || user.username || "Unknown User"
+      taggedUserNames.push(userName)
     })
   }
 
   // Get who this comment is replying to
   let replyingTo: string | undefined
   if (record.parent_comment && record.expand?.parent_comment?.expand?.user) {
-    replyingTo = record.expand.parent_comment.expand.user.name || record.expand.parent_comment.expand.user.username
+    // Use the actual user name from the expanded parent_comment.user
+    const parentUser = record.expand.parent_comment.expand.user
+    replyingTo = parentUser.name || parentUser.username || "Unknown User"
   }
 
-  return {
+  const formattedComment = {
     ...record,
     authorName,
     authorAvatar,
     formattedDate,
     taggedUserNames,
     replyingTo,
+    replies: [],
+    replyCount: 0,
   }
-}
 
+  console.log("Formatted comment author:", formattedComment.authorName)
+  return formattedComment
+}

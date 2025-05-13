@@ -1,18 +1,24 @@
 "use client"
 
-import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import PocketBase from "pocketbase"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { getPocketBase } from "@/lib/pocketbase"
 
-// Define types
+// Update the User type to include all fields from the API
 type User = {
   id: string
   email: string
   username: string
   name?: string
   avatarUrl?: string
+  bio?: string
+  about?: string
+  Links?: string
+  location?: string
+  auth_number?: number
+  followers?: string[]
+  followers_count?: number
+  created: string
+  updated: string
 }
 
 type AuthContextType = {
@@ -22,91 +28,94 @@ type AuthContextType = {
     email: string,
     password: string,
   ) => Promise<{ success: boolean; needsVerification?: boolean; error?: string }>
-  signUp: (username: string, email: string, password: string, passwordConfirm: string, name: string) => Promise<void>
+  signUp: (username: string, email: string, password: string, passwordConfirm: string, name?: string) => Promise<void>
   signOut: () => void
-  resetPassword: (email: string) => Promise<void>
-  resendVerification: (email: string) => Promise<boolean>
+  requestPasswordReset: (email: string) => Promise<void>
+  resetPassword: (password: string, passwordConfirm: string, resetToken: string) => Promise<void>
+  refreshUser: () => Promise<void>
+  requestVerification: (email: string) => Promise<void>
 }
 
-// Create context
-const AuthContext = createContext<AuthContextType | null>(null)
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Create PocketBase instance (client-side only)
-const createPocketBase = () => {
-  if (typeof window === "undefined") return null
-  return new PocketBase("https://remain-faceghost.pockethost.io")
-}
-
-// Auth Provider Component
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
-  const { toast } = useToast()
-  const [pb, setPb] = useState<PocketBase | null>(null)
 
-  // Initialize PocketBase on client-side only
+  // Initialize auth state from PocketBase
   useEffect(() => {
-    const pb = createPocketBase()
-    setPb(pb)
+    const pb = getPocketBase()
 
-    if (!pb) {
-      setIsLoading(false)
-      return
-    }
-
-    // Try to load auth from localStorage
-    try {
-      const authData = localStorage.getItem("pocketbase_auth")
-      if (authData) {
-        const { token, model } = JSON.parse(authData)
-        pb.authStore.save(token, model)
+    // Set initial user state
+    if (pb.authStore.isValid) {
+      const authModel = pb.authStore.model
+      if (authModel) {
+        setUser({
+          id: authModel.id,
+          email: authModel.email,
+          username: authModel.username,
+          name: authModel.name,
+          avatarUrl: authModel.avatar
+            ? `https://remain-faceghost.pockethost.io/api/files/${authModel.collectionId}/${authModel.id}/${authModel.avatar}`
+            : undefined,
+          bio: authModel.bio,
+          about: authModel.about,
+          Links: authModel.Links,
+          location: authModel.location,
+          auth_number: authModel.auth_number,
+          followers: authModel.followers,
+          followers_count: authModel.followers_count,
+          created: authModel.created,
+          updated: authModel.updated,
+        })
       }
-    } catch (e) {
-      console.error("Error loading auth data:", e)
-      localStorage.removeItem("pocketbase_auth")
-    }
-
-    // Set initial user
-    if (pb.authStore.isValid && pb.authStore.model) {
-      const model = pb.authStore.model
-      setUser({
-        id: model.id,
-        email: model.email,
-        username: model.username,
-        name: model.name,
-        avatarUrl: model.avatar
-          ? `https://remain-faceghost.pockethost.io/api/files/${model.collectionId}/${model.id}/${model.avatar}`
-          : undefined,
-      })
     }
 
     setIsLoading(false)
+
+    // Listen for auth state changes
+    pb.authStore.onChange(() => {
+      if (pb.authStore.isValid && pb.authStore.model) {
+        const authModel = pb.authStore.model
+        setUser({
+          id: authModel.id,
+          email: authModel.email,
+          username: authModel.username,
+          name: authModel.name,
+          avatarUrl: authModel.avatar
+            ? `https://remain-faceghost.pockethost.io/api/files/${authModel.collectionId}/${authModel.id}/${authModel.avatar}`
+            : undefined,
+          bio: authModel.bio,
+          about: authModel.about,
+          Links: authModel.Links,
+          location: authModel.location,
+          auth_number: authModel.auth_number,
+          followers: authModel.followers,
+          followers_count: authModel.followers_count,
+          created: authModel.created,
+          updated: authModel.updated,
+        })
+      } else {
+        setUser(null)
+      }
+    })
   }, [])
 
-  // Sign in function
-  const signIn = async (email: string, password: string) => {
-    if (!pb) return { success: false, error: "Authentication service unavailable" }
+  // Sign in with email and password
+  const signIn = async (
+    email: string,
+    password: string,
+  ): Promise<{ success: boolean; needsVerification?: boolean; error?: string }> => {
+    const pb = getPocketBase()
 
-    setIsLoading(true)
+    if (!pb) {
+      return { success: false, error: "Authentication service unavailable" }
+    }
+
     try {
-      await pb.collection("users").authWithPassword(email, password)
+      const authData = await pb.collection("users").authWithPassword(email, password)
 
-      // Check if verified
-      if (pb.authStore.model && !pb.authStore.model.verified) {
-        pb.authStore.clear()
-
-        try {
-          await pb.collection("users").requestVerification(email)
-        } catch (e) {
-          console.error("Failed to resend verification:", e)
-        }
-
-        localStorage.setItem("pendingVerificationEmail", email)
-        return { success: false, needsVerification: true }
-      }
-
-      // Save auth data
+      // Save auth data to localStorage
       localStorage.setItem(
         "pocketbase_auth",
         JSON.stringify({
@@ -115,212 +124,218 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       )
 
-      // Update user state
-      if (pb.authStore.model) {
-        const model = pb.authStore.model
-        setUser({
-          id: model.id,
-          email: model.email,
-          username: model.username,
-          name: model.name,
-          avatarUrl: model.avatar
-            ? `https://remain-faceghost.pockethost.io/api/files/${model.collectionId}/${model.id}/${model.avatar}`
-            : undefined,
-        })
-      }
-
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully signed in.",
-      })
-
-      router.push("/")
-      return { success: true }
-    } catch (error: any) {
-      console.error("Sign in error:", error)
-
-      // Check for verification errors
-      if (
-        error.message &&
-        (error.message.includes("not verified") ||
-          error.message.includes("verification") ||
-          error.message.includes("verify"))
-      ) {
-        localStorage.setItem("pendingVerificationEmail", email)
-
-        try {
-          await pb.collection("users").requestVerification(email)
-        } catch (e) {
-          console.error("Failed to resend verification:", e)
-        }
-
+      // Check if the user is verified (if your PocketBase has verification enabled)
+      if (authData.record && !authData.record.verified) {
+        pb.authStore.clear()
         return { success: false, needsVerification: true }
       }
 
-      return {
-        success: false,
-        error: error.message || "Authentication failed",
+      return { success: true }
+    } catch (error: any) {
+      console.error("Authentication error:", error)
+
+      // Check if this might be a verification issue
+      if (error.status === 400 && error.message.includes("verification")) {
+        return { success: false, needsVerification: true }
       }
-    } finally {
-      setIsLoading(false)
+
+      return { success: false, error: error.message || "Failed to sign in" }
     }
   }
 
-  // Sign up function
-  const signUp = async (username: string, email: string, password: string, passwordConfirm: string, name: string) => {
-    if (!pb) throw new Error("Authentication service unavailable")
+  // Request email verification
+  const requestVerification = async (email: string) => {
+    const pb = getPocketBase()
 
-    setIsLoading(true)
     try {
-      const userData = {
+      await pb.collection("users").requestVerification(email)
+      console.log("Verification email sent to:", email)
+    } catch (error: any) {
+      console.error("Failed to send verification email:", error)
+      throw new Error(error.message || "Failed to send verification email")
+    }
+  }
+
+  // Sign up with email and password - SIMPLIFIED to focus on essential fields
+  const signUp = async (username: string, email: string, password: string, passwordConfirm: string, name?: string) => {
+    try {
+      const pb = getPocketBase()
+
+      if (!pb) {
+        throw new Error("PocketBase connection failed")
+      }
+
+      console.log("Attempting to register with:", {
         username,
         email,
-        emailVisibility: true,
+        name: name || "",
+      })
+
+      // Create a minimal user data object with only the essential fields
+      const data = {
+        username,
+        email,
         password,
         passwordConfirm,
-        name,
+        name: name || "",
       }
 
-      const record = await pb.collection("users").create(userData)
+      console.log("Sending registration data:", JSON.stringify(data))
 
-      if (record) {
-        try {
-          await pb.collection("users").requestVerification(email)
-        } catch (e) {
-          console.error("Failed to send verification:", e)
+      try {
+        // Create the user using the SDK with minimal fields
+        const record = await pb.collection("users").create(data)
+        console.log("User created successfully:", record)
+
+        // Send verification email using the SDK method
+        await pb.collection("users").requestVerification(email)
+        console.log("Verification email sent to:", email)
+
+        // Store email in localStorage for verification page
+        localStorage.setItem("pendingVerificationEmail", email)
+      } catch (createError: any) {
+        console.error("PocketBase create error:", createError)
+
+        // Log detailed error information
+        if (createError.data) {
+          console.error("Error data:", JSON.stringify(createError.data))
         }
+
+        if (createError.response) {
+          console.error("Error response:", createError.response)
+        }
+
+        if (createError.status) {
+          console.error("Error status:", createError.status)
+        }
+
+        if (createError.url) {
+          console.error("Request URL:", createError.url)
+        }
+
+        throw new Error(createError.message || "Failed to create record")
       }
-
-      localStorage.setItem("pendingVerificationEmail", email)
-
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
-      })
     } catch (error: any) {
-      console.error("Sign up error:", error)
+      console.error("Registration error details:", error)
 
-      let errorMessage = "Registration failed. Please try again."
+      // Extract detailed error information
+      let errorMessage = "Failed to create user account"
 
-      if (error.data) {
-        const validationErrors = Object.entries(error.data)
-          .map(([field, fieldError]: [string, any]) => {
-            return `${field}: ${fieldError.message}`
-          })
+      if (error.data && error.data.data) {
+        // Extract field-specific errors
+        const fieldErrors = Object.entries(error.data.data)
+          .map(([field, message]) => `${field}: ${message}`)
           .join(", ")
 
-        if (validationErrors) {
-          errorMessage = `Validation errors: ${validationErrors}`
+        if (fieldErrors) {
+          errorMessage = fieldErrors
         }
       } else if (error.message) {
         errorMessage = error.message
       }
 
-      toast({
-        variant: "destructive",
-        title: "Sign up failed",
-        description: errorMessage,
-      })
-
-      throw error
-    } finally {
-      setIsLoading(false)
+      throw new Error(errorMessage)
     }
   }
 
-  // Sign out function
+  // Sign out
   const signOut = () => {
-    if (pb) {
-      pb.authStore.clear()
-    }
-
-    localStorage.removeItem("pocketbase_auth")
-    setUser(null)
-
-    toast({
-      title: "Signed out",
-      description: "You have been successfully signed out.",
-    })
-
-    router.push("/")
+    const pb = getPocketBase()
+    pb.authStore.clear()
   }
 
-  // Reset password function
-  const resetPassword = async (email: string) => {
-    if (!pb) throw new Error("Authentication service unavailable")
+  // Request password reset
+  const requestPasswordReset = async (email: string) => {
+    const pb = getPocketBase()
 
-    setIsLoading(true)
     try {
       await pb.collection("users").requestPasswordReset(email)
+    } catch (error: any) {
+      console.error("Password reset request error:", error)
+      throw new Error(error.message || "Failed to request password reset")
+    }
+  }
 
-      toast({
-        title: "Password reset email sent",
-        description: "Check your email for instructions to reset your password.",
-      })
+  // Reset password with token
+  const resetPassword = async (password: string, passwordConfirm: string, resetToken: string) => {
+    const pb = getPocketBase()
+
+    try {
+      await pb.collection("users").confirmPasswordReset(resetToken, password, passwordConfirm)
     } catch (error: any) {
       console.error("Password reset error:", error)
-
-      toast({
-        variant: "destructive",
-        title: "Password reset failed",
-        description: error.message || "Please try again later.",
-      })
-
-      throw error
-    } finally {
-      setIsLoading(false)
+      throw new Error(error.message || "Failed to reset password")
     }
   }
 
-  // Resend verification function
-  const resendVerification = async (email: string) => {
-    if (!pb) throw new Error("Authentication service unavailable")
+  // Update the refreshUser function to better handle user data
+  const refreshUser = async () => {
+    const pb = getPocketBase()
 
-    setIsLoading(true)
-    try {
-      await pb.collection("users").requestVerification(email)
+    if (pb.authStore.isValid && pb.authStore.model) {
+      try {
+        const userId = pb.authStore.model.id
+        const updatedUser = await pb.collection("users").getOne(userId)
 
-      toast({
-        title: "Verification email sent",
-        description: "Please check your email for the verification link.",
-      })
+        // Update the auth store with the latest user data
+        pb.authStore.save(pb.authStore.token, updatedUser)
 
-      return true
-    } catch (error: any) {
-      console.error("Verification error:", error)
+        setUser({
+          id: updatedUser.id,
+          email: updatedUser.email,
+          username: updatedUser.username,
+          name: updatedUser.name,
+          avatarUrl: updatedUser.avatar
+            ? `https://remain-faceghost.pockethost.io/api/files/${updatedUser.collectionId}/${updatedUser.id}/${updatedUser.avatar}`
+            : undefined,
+          bio: updatedUser.bio,
+          about: updatedUser.about,
+          Links: updatedUser.Links,
+          location: updatedUser.location,
+          auth_number: updatedUser.auth_number,
+          followers: updatedUser.followers,
+          followers_count: updatedUser.followers_count,
+          created: updatedUser.created,
+          updated: updatedUser.updated,
+        })
 
-      toast({
-        variant: "destructive",
-        title: "Failed to resend verification email",
-        description: error.message || "Please try again later.",
-      })
-
-      return false
-    } finally {
-      setIsLoading(false)
+        // Also update localStorage
+        localStorage.setItem(
+          "pocketbase_auth",
+          JSON.stringify({
+            token: pb.authStore.token,
+            model: updatedUser,
+          }),
+        )
+      } catch (error) {
+        console.error("Error refreshing user data:", error)
+      }
     }
   }
 
-  // Create value object
-  const value = {
-    user,
-    isLoading,
-    signIn,
-    signUp,
-    signOut,
-    resetPassword,
-    resendVerification,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        signIn,
+        signUp,
+        signOut,
+        requestPasswordReset,
+        resetPassword,
+        refreshUser,
+        requestVerification,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
-// Export hook
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
 }
-

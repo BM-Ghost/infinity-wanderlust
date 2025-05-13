@@ -1,5 +1,7 @@
 "use client"
 
+import { DialogTrigger } from "@/components/ui/dialog"
+
 import type React from "react"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -20,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -36,7 +37,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import {
   Star,
-  ThumbsUp,
   Calendar,
   MapPin,
   Camera,
@@ -49,7 +49,10 @@ import {
   MoreVertical,
   AtSign,
   Heart,
-  Share2,
+  Check,
+  ChevronDown,
+  Search,
+  ChevronRight,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
@@ -58,8 +61,8 @@ import {
   createReview,
   updateReview,
   deleteReview,
-  likeReview,
   type ReviewWithAuthor,
+  likeReview,
 } from "@/lib/reviews"
 import {
   fetchComments,
@@ -70,8 +73,8 @@ import {
   type CommentWithAuthor,
 } from "@/lib/comments"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
+import { getPocketBase } from "@/lib/pocketbase"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
@@ -79,6 +82,9 @@ export default function ReviewsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+
+  // Use a ref to track if the component is mounted
+  const isMounted = useRef(true)
 
   // State for reviews data
   const [reviews, setReviews] = useState<ReviewWithAuthor[]>([])
@@ -94,6 +100,8 @@ export default function ReviewsPage() {
   // Filtering and sorting state
   const [activeTab, setActiveTab] = useState("all")
   const [sortOrder, setSortOrder] = useState("-created")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
 
   // Review form state
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
@@ -120,19 +128,31 @@ export default function ReviewsPage() {
   const [commentText, setCommentText] = useState<{ [reviewId: string]: string }>({})
   const [replyToComment, setReplyToComment] = useState<{ [reviewId: string]: string | null }>({})
   const [showComments, setShowComments] = useState<{ [reviewId: string]: boolean }>({})
+  const [expandedReplies, setExpandedReplies] = useState<{ [commentId: string]: boolean }>({})
   const [commentInputFocus, setCommentInputFocus] = useState<{ [reviewId: string]: boolean }>({})
   const [userSearchResults, setUserSearchResults] = useState<
     Array<{ id: string; name: string; username: string; avatar?: string }>
   >([])
   const [taggedUsers, setTaggedUsers] = useState<{ [reviewId: string]: { id: string; name: string }[] }>({})
-  const [searchQuery, setSearchQuery] = useState("")
   const [showUserSearch, setShowUserSearch] = useState<{ [reviewId: string]: boolean }>({})
   const [cursorPosition, setCursorPosition] = useState<{ [reviewId: string]: number }>({})
-  const [userLikes, setUserLikes] = useState<{ [reviewId: string]: boolean }>({})
-  const commentInputRefs = useRef<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
+  const [commentInputRefs] = useState<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
+
+  // Set isMounted to false when the component unmounts
+  useEffect(() => {
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
 
   // Get page from URL
   useEffect(() => {
+    // Get tab from URL if present
+    const tab = searchParams.get("tab")
+    if (tab && ["all", "top", "mine", "recent"].includes(tab)) {
+      setActiveTab(tab)
+    }
+
     const page = searchParams.get("page")
     if (page) {
       setCurrentPage(Number.parseInt(page, 10))
@@ -141,54 +161,107 @@ export default function ReviewsPage() {
 
   // Load reviews
   const loadReviews = useCallback(async () => {
+    if (!isMounted.current) return
+
     setIsLoading(true)
     setError(null)
 
     try {
       let filter = ""
+      const pb = getPocketBase()
 
       // Apply filters based on active tab
-      if (activeTab === "mine" && user) {
-        filter = `reviewer = "${user.id}"`
+      if (activeTab === "mine") {
+        if (!user && !pb?.authStore?.isValid) {
+          // If not authenticated but trying to view "my reviews", show a message instead of redirecting
+          if (isMounted.current) {
+            setError("Please sign in to view your reviews")
+            setIsLoading(false)
+          }
+          return
+        }
+
+        // Get the current user ID from either the user object or directly from PocketBase auth
+        const userId = user?.id || pb?.authStore?.model?.id
+        if (userId) {
+          filter = `reviewer = "${userId}"`
+        } else {
+          if (isMounted.current) {
+            setError("Unable to identify the current user")
+            setIsLoading(false)
+          }
+          return
+        }
       } else if (activeTab === "top") {
         filter = "rating >= 4"
       }
 
+      // Add search query filter if present
+      if (debouncedSearchQuery) {
+        const searchFilter = `(destination ~ "${debouncedSearchQuery}" || review_text ~ "${debouncedSearchQuery}")`
+        filter = filter ? `${filter} && ${searchFilter}` : searchFilter
+      }
+
       const result = await fetchReviews(currentPage, perPage, sortOrder, filter)
 
-      setReviews(result.items)
-      setTotalPages(result.totalPages)
-      setTotalItems(result.totalItems)
+      // Only update state if the component is still mounted
+      if (isMounted.current) {
+        setReviews(result.items)
+        setTotalPages(result.totalPages)
+        setTotalItems(result.totalItems)
+      }
     } catch (err) {
       console.error("Failed to load reviews:", err)
-      setError("Failed to load reviews. Please try again later.")
+      // Only update state if the component is still mounted
+      if (isMounted.current) {
+        setError("Failed to load reviews. Please try again later.")
+      }
     } finally {
-      setIsLoading(false)
+      // Only update state if the component is still mounted
+      if (isMounted.current) {
+        setIsLoading(false)
+      }
     }
-  }, [currentPage, perPage, sortOrder, activeTab, user])
+  }, [currentPage, perPage, sortOrder, activeTab, user, debouncedSearchQuery])
 
+  // Update the useEffect to properly handle async operations
   useEffect(() => {
     loadReviews()
   }, [loadReviews])
 
+  // Add useEffect to trigger search after typing
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 500)
+
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery])
+
   // Load comments for a review
   const loadComments = async (reviewId: string) => {
-    if (loadingComments[reviewId]) return
+    if (loadingComments[reviewId] || !isMounted.current) return
 
     setLoadingComments((prev) => ({ ...prev, [reviewId]: true }))
 
     try {
       const result = await fetchComments(reviewId)
-      setReviewComments((prev) => ({ ...prev, [reviewId]: result.items }))
+      if (isMounted.current) {
+        setReviewComments((prev) => ({ ...prev, [reviewId]: result.items }))
+      }
     } catch (err) {
       console.error(`Failed to load comments for review ${reviewId}:`, err)
-      toast({
-        variant: "destructive",
-        title: "Failed to load comments",
-        description: "Please try again later.",
-      })
+      if (isMounted.current) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load comments",
+          description: "Please try again later.",
+        })
+      }
     } finally {
-      setLoadingComments((prev) => ({ ...prev, [reviewId]: false }))
+      if (isMounted.current) {
+        setLoadingComments((prev) => ({ ...prev, [reviewId]: false }))
+      }
     }
   }
 
@@ -200,6 +273,14 @@ export default function ReviewsPage() {
     if (newValue && !reviewComments[reviewId]) {
       loadComments(reviewId)
     }
+  }
+
+  // Toggle replies visibility
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId],
+    }))
   }
 
   // Handle page change
@@ -405,100 +486,66 @@ export default function ReviewsPage() {
     }
   }
 
-  // Handle review like
-  const handleLikeReview = async (reviewId: string) => {
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Authentication required",
-        description: "Please sign in to like reviews.",
-      })
-      return
-    }
-
-    if (userLikes[reviewId]) {
-      // User already liked this review
-      toast({
-        title: "Already liked",
-        description: "You've already liked this review.",
-      })
-      return
-    }
-
-    try {
-      const success = await likeReview(reviewId)
-
-      if (success) {
-        // Update the review in the state
-        setReviews(
-          reviews.map((review) => {
-            if (review.id === reviewId) {
-              return {
-                ...review,
-                likes_count: (review.likes_count || 0) + 1,
-              }
-            }
-            return review
-          }),
-        )
-
-        // Mark as liked by the user
-        setUserLikes((prev) => ({
-          ...prev,
-          [reviewId]: true,
-        }))
-
-        toast({
-          title: "Review liked",
-          description: "You liked this review.",
-        })
-      }
-    } catch (error) {
-      console.error("Error liking review:", error)
-      toast({
-        variant: "destructive",
-        title: "Action failed",
-        description: "Please try again later.",
-      })
-    }
-  }
-
-  // Handle comment submission
-  const handleSubmitComment = async (reviewId: string) => {
+  // Add a function to handle comment submission that updates the UI
+  const handleSubmitComment = async (reviewId: string, parentCommentId?: string) => {
     if (!commentText[reviewId]?.trim()) return
 
     try {
-      const parentCommentId = replyToComment[reviewId] || undefined
+      // Use the provided parentCommentId or the one from state
+      const actualParentId = parentCommentId || replyToComment[reviewId] || undefined
 
       // Get tagged user IDs
       const taggedUserIds = taggedUsers[reviewId]?.map((user) => user.id) || []
 
-      const result = await createComment(reviewId, commentText[reviewId], parentCommentId, taggedUserIds)
+      const result = await createComment(reviewId, commentText[reviewId], actualParentId, taggedUserIds)
 
       if (result) {
-        // Update comments list
-        setReviewComments((prev) => ({
-          ...prev,
-          [reviewId]: [...(prev[reviewId] || []), result],
-        }))
+        // Update comments list based on whether this is a reply or a top-level comment
+        if (actualParentId) {
+          // This is a reply - add it to the parent comment's replies
+          setReviewComments((prev) => {
+            const updatedComments = [...(prev[reviewId] || [])]
+            const parentIndex = updatedComments.findIndex((c) => c.id === actualParentId)
 
-        // Update the review's comment count
-        setReviews(
-          reviews.map((review) => {
-            if (review.id === reviewId) {
-              return {
-                ...review,
-                comments_count: (review.comments_count || 0) + 1,
+            if (parentIndex !== -1) {
+              // Create a new array of replies if it doesn't exist
+              const parentReplies = updatedComments[parentIndex].replies || []
+              updatedComments[parentIndex] = {
+                ...updatedComments[parentIndex],
+                replies: [...parentReplies, result],
+                replyCount: (updatedComments[parentIndex].replyCount || 0) + 1,
               }
             }
-            return review
-          }),
+
+            return { ...prev, [reviewId]: updatedComments }
+          })
+        } else {
+          // This is a top-level comment
+          setReviewComments((prev) => ({
+            ...prev,
+            [reviewId]: [...(prev[reviewId] || []), { ...result, replies: [], replyCount: 0 }],
+          }))
+        }
+
+        // Update the review's comment count in the UI
+        setReviews((prev) =>
+          prev.map((review) =>
+            review.id === reviewId ? { ...review, comments_count: (review.comments_count || 0) + 1 } : review,
+          ),
         )
 
         // Clear input and reset states
         setCommentText((prev) => ({ ...prev, [reviewId]: "" }))
         setReplyToComment((prev) => ({ ...prev, [reviewId]: null }))
         setTaggedUsers((prev) => ({ ...prev, [reviewId]: [] }))
+
+        // If this was a reply, expand the parent comment's replies
+        if (actualParentId) {
+          setExpandedReplies((prev) => ({
+            ...prev,
+            [actualParentId]: true,
+          }))
+        }
 
         toast({
           title: "Comment added",
@@ -515,30 +562,56 @@ export default function ReviewsPage() {
     }
   }
 
-  // Handle comment deletion
-  const handleDeleteComment = async (reviewId: string, commentId: string) => {
+  // Update the delete comment function to update the UI
+  const handleDeleteComment = async (
+    reviewId: string,
+    commentId: string,
+    isReply = false,
+    parentCommentId?: string,
+  ) => {
     if (confirm("Are you sure you want to delete this comment?")) {
       try {
         const success = await deleteComment(commentId)
 
         if (success) {
-          // Remove the comment from the list
-          setReviewComments((prev) => ({
-            ...prev,
-            [reviewId]: (prev[reviewId] || []).filter((comment) => comment.id !== commentId),
-          }))
+          if (isReply && parentCommentId) {
+            // This is a reply - remove it from the parent comment's replies
+            setReviewComments((prev) => {
+              const updatedComments = [...(prev[reviewId] || [])]
+              const parentIndex = updatedComments.findIndex((c) => c.id === parentCommentId)
 
-          // Update the review's comment count
-          setReviews(
-            reviews.map((review) => {
-              if (review.id === reviewId) {
-                return {
-                  ...review,
-                  comments_count: Math.max(0, (review.comments_count || 1) - 1),
+              if (parentIndex !== -1 && updatedComments[parentIndex].replies) {
+                const filteredReplies = updatedComments[parentIndex].replies!.filter((reply) => reply.id !== commentId)
+
+                updatedComments[parentIndex] = {
+                  ...updatedComments[parentIndex],
+                  replies: filteredReplies,
+                  replyCount: filteredReplies.length,
                 }
               }
-              return review
-            }),
+
+              return { ...prev, [reviewId]: updatedComments }
+            })
+          } else {
+            // This is a top-level comment - remove it and all its replies
+            setReviewComments((prev) => ({
+              ...prev,
+              [reviewId]: (prev[reviewId] || []).filter((comment) => comment.id !== commentId),
+            }))
+          }
+
+          // Update the review's comment count in the UI
+          // For a parent comment, we need to subtract 1 + number of replies
+          const commentToDelete = isReply ? null : reviewComments[reviewId]?.find((c) => c.id === commentId)
+          const replyCount = commentToDelete?.replyCount || 0
+          const decrementAmount = isReply ? 1 : 1 + replyCount
+
+          setReviews((prev) =>
+            prev.map((review) =>
+              review.id === reviewId
+                ? { ...review, comments_count: Math.max(0, (review.comments_count || 0) - decrementAmount) }
+                : review,
+            ),
           )
 
           toast({
@@ -558,25 +631,52 @@ export default function ReviewsPage() {
   }
 
   // Handle liking a comment
-  const handleLikeComment = async (reviewId: string, commentId: string) => {
+  const handleLikeComment = async (reviewId: string, commentId: string, isReply = false, parentCommentId?: string) => {
     try {
       const success = await likeComment(commentId)
 
       if (success) {
-        // Update the comment's like count
-        setReviewComments((prev) => {
-          const updatedComments = [...(prev[reviewId] || [])]
-          const commentIndex = updatedComments.findIndex((c) => c.id === commentId)
+        if (isReply && parentCommentId) {
+          // This is a reply - update its like count within the parent comment
+          setReviewComments((prev) => {
+            const updatedComments = [...(prev[reviewId] || [])]
+            const parentIndex = updatedComments.findIndex((c) => c.id === parentCommentId)
 
-          if (commentIndex !== -1) {
-            updatedComments[commentIndex] = {
-              ...updatedComments[commentIndex],
-              likes_count: updatedComments[commentIndex].likes_count + 1,
+            if (parentIndex !== -1 && updatedComments[parentIndex].replies) {
+              const replyIndex = updatedComments[parentIndex].replies!.findIndex((reply) => reply.id === commentId)
+
+              if (replyIndex !== -1) {
+                const updatedReplies = [...updatedComments[parentIndex].replies!]
+                updatedReplies[replyIndex] = {
+                  ...updatedReplies[replyIndex],
+                  likes_count: (updatedReplies[replyIndex].likes_count || 0) + 1,
+                }
+
+                updatedComments[parentIndex] = {
+                  ...updatedComments[parentIndex],
+                  replies: updatedReplies,
+                }
+              }
             }
-          }
 
-          return { ...prev, [reviewId]: updatedComments }
-        })
+            return { ...prev, [reviewId]: updatedComments }
+          })
+        } else {
+          // This is a top-level comment
+          setReviewComments((prev) => {
+            const updatedComments = [...(prev[reviewId] || [])]
+            const commentIndex = updatedComments.findIndex((c) => c.id === commentId)
+
+            if (commentIndex !== -1) {
+              updatedComments[commentIndex] = {
+                ...updatedComments[commentIndex],
+                likes_count: (updatedComments[commentIndex].likes_count || 0) + 1,
+              }
+            }
+
+            return { ...prev, [reviewId]: updatedComments }
+          })
+        }
       }
     } catch (err: any) {
       console.error("Error liking comment:", err)
@@ -593,7 +693,7 @@ export default function ReviewsPage() {
     setReplyToComment((prev) => ({ ...prev, [reviewId]: commentId }))
 
     // Add the author to tagged users
-    const comment = reviewComments[reviewId]?.find((c) => c.id === commentId)
+    const comment = findComment(reviewId, commentId)
     if (comment) {
       setTaggedUsers((prev) => ({
         ...prev,
@@ -605,10 +705,29 @@ export default function ReviewsPage() {
     setCommentText((prev) => ({ ...prev, [reviewId]: `@${authorName} ` }))
 
     // Focus the comment input
-    const commentInput = commentInputRefs.current[reviewId]
+    const commentInput = commentInputRefs[reviewId]
     if (commentInput) {
       commentInput.focus()
     }
+  }
+
+  // Helper function to find a comment by ID (either parent or reply)
+  const findComment = (reviewId: string, commentId: string): CommentWithAuthor | undefined => {
+    const comments = reviewComments[reviewId] || []
+
+    // First check if it's a parent comment
+    const parentComment = comments.find((c) => c.id === commentId)
+    if (parentComment) return parentComment
+
+    // If not, check if it's a reply
+    for (const parent of comments) {
+      if (parent.replies) {
+        const reply = parent.replies.find((r) => r.id === commentId)
+        if (reply) return reply
+      }
+    }
+
+    return undefined
   }
 
   // Cancel reply
@@ -636,15 +755,20 @@ export default function ReviewsPage() {
 
       if (query.length >= 1) {
         // Search for users
-        setSearchQuery(query)
         const results = await searchUsers(query)
-        setUserSearchResults(results)
-        setShowUserSearch((prev) => ({ ...prev, [reviewId]: true }))
+        if (isMounted.current) {
+          setUserSearchResults(results)
+          setShowUserSearch((prev) => ({ ...prev, [reviewId]: true }))
+        }
       } else {
-        setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+        if (isMounted.current) {
+          setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+        }
       }
     } else {
-      setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+      if (isMounted.current) {
+        setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+      }
     }
   }
 
@@ -674,7 +798,7 @@ export default function ReviewsPage() {
 
       // Focus back on input and set cursor position after the inserted username
       setTimeout(() => {
-        const input = commentInputRefs.current[reviewId]
+        const input = commentInputRefs[reviewId]
         if (input) {
           const newCursorPos = atIndex + user.username.length + 2 // +2 for @ and space
           input.focus()
@@ -693,32 +817,11 @@ export default function ReviewsPage() {
   const handleCommentInputBlur = (reviewId: string) => {
     // Delay hiding the user search to allow for clicking on results
     setTimeout(() => {
-      setCommentInputFocus((prev) => ({ ...prev, [reviewId]: false }))
-      setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+      if (isMounted.current) {
+        setCommentInputFocus((prev) => ({ ...prev, [reviewId]: false }))
+        setShowUserSearch((prev) => ({ ...prev, [reviewId]: false }))
+      }
     }, 200)
-  }
-
-  // Share review
-  const handleShareReview = (review: ReviewWithAuthor) => {
-    const shareUrl = `${window.location.origin}/reviews/${review.id}`
-
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `${review.authorName}'s review of ${review.destination}`,
-          text: review.review_text.substring(0, 100) + (review.review_text.length > 100 ? "..." : ""),
-          url: shareUrl,
-        })
-        .catch((err) => console.error("Error sharing:", err))
-    } else {
-      // Fallback to clipboard
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        toast({
-          title: "Link copied!",
-          description: "Review link copied to clipboard.",
-        })
-      })
-    }
   }
 
   // Clean up object URLs when component unmounts
@@ -762,8 +865,8 @@ export default function ReviewsPage() {
   }
 
   // Render comment component
-  const renderComment = (comment: CommentWithAuthor, reviewId: string) => (
-    <div key={comment.id} className="border-b last:border-b-0 py-3">
+  const renderComment = (comment: CommentWithAuthor, reviewId: string, isReply = false, parentCommentId?: string) => (
+    <div key={comment.id} className={`${isReply ? "ml-8 mt-2" : "border-b last:border-b-0"} py-3`}>
       <div className="flex items-start gap-3">
         <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
           {comment.authorAvatar ? (
@@ -794,7 +897,7 @@ export default function ReviewsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleDeleteComment(reviewId, comment.id)}>
+                  <DropdownMenuItem onClick={() => handleDeleteComment(reviewId, comment.id, isReply, parentCommentId)}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
                   </DropdownMenuItem>
@@ -853,16 +956,176 @@ export default function ReviewsPage() {
               variant="ghost"
               size="sm"
               className="text-xs h-7 px-2"
-              onClick={() => handleLikeComment(reviewId, comment.id)}
+              onClick={() => handleLikeComment(reviewId, comment.id, isReply, parentCommentId)}
             >
               <Heart className="h-3 w-3 mr-1" />
               {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
             </Button>
           </div>
+
+          {/* Show view replies button for parent comments with replies */}
+          {!isReply && comment.replies && comment.replies.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs mt-2 pl-0 flex items-center text-muted-foreground hover:text-foreground"
+              onClick={() => toggleReplies(comment.id)}
+            >
+              {expandedReplies[comment.id] ? "Hide" : "View"} {comment.replyCount}{" "}
+              {comment.replyCount === 1 ? "reply" : "replies"}
+              <ChevronRight
+                className={`h-3 w-3 ml-1 transition-transform ${expandedReplies[comment.id] ? "rotate-90" : ""}`}
+              />
+            </Button>
+          )}
+
+          {/* Show replies if expanded */}
+          {!isReply && expandedReplies[comment.id] && comment.replies && (
+            <div className="mt-2 space-y-3">
+              {comment.replies.map((reply) => renderComment(reply, reviewId, true, comment.id))}
+
+              {/* Reply input for this specific comment */}
+              {user && expandedReplies[comment.id] && (
+                <div className="ml-8 mt-3">
+                  <div className="flex gap-2">
+                    <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                      {user.avatarUrl ? (
+                        <Image
+                          src={user.avatarUrl || "/placeholder.svg"}
+                          alt={user.name || user.email}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
+                          {(user.name?.charAt(0) || user.email.charAt(0)).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <Textarea
+                        placeholder={`Reply to ${comment.authorName}...`}
+                        className="min-h-[60px] text-sm"
+                        value={commentText[`${reviewId}-reply-${comment.id}`] || ""}
+                        onChange={(e) =>
+                          setCommentText((prev) => ({
+                            ...prev,
+                            [`${reviewId}-reply-${comment.id}`]: e.target.value,
+                          }))
+                        }
+                      />
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          size="sm"
+                          disabled={!commentText[`${reviewId}-reply-${comment.id}`]?.trim()}
+                          onClick={() => {
+                            if (commentText[`${reviewId}-reply-${comment.id}`]?.trim()) {
+                              // Set the comment text for the review
+                              setCommentText((prev) => ({
+                                ...prev,
+                                [reviewId]: commentText[`${reviewId}-reply-${comment.id}`] || "",
+                              }))
+
+                              // Submit the comment as a reply to this specific comment
+                              handleSubmitComment(reviewId, comment.id)
+
+                              // Clear the reply input
+                              setCommentText((prev) => ({
+                                ...prev,
+                                [`${reviewId}-reply-${comment.id}`]: "",
+                              }))
+                            }
+                          }}
+                        >
+                          Reply
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
+
+  // Add this function to handle liking a review
+  const handleLikeReview = async (reviewId: string) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please sign in to like reviews.",
+      })
+      return
+    }
+
+    try {
+      const success = await likeReview(reviewId)
+
+      if (success) {
+        // Update the review's like count in the UI
+        setReviews((prev) =>
+          prev.map((review) =>
+            review.id === reviewId ? { ...review, likes_count: (review.likes_count || 0) + 1 } : review,
+          ),
+        )
+
+        toast({
+          title: "Review liked",
+          description: "You liked this review.",
+        })
+      }
+    } catch (err: any) {
+      console.error("Error liking review:", err)
+      toast({
+        variant: "destructive",
+        title: "Action failed",
+        description: err.message || "There was an error liking this review. Please try again.",
+      })
+    }
+  }
+
+  // Add animation to the like button
+  const renderLikeButton = (reviewId: string, likesCount: number) => {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="flex items-center gap-2 group"
+        onClick={() => handleLikeReview(reviewId)}
+      >
+        <Heart
+          className={`h-4 w-4 transition-all duration-300 ${likesCount > 0 ? "fill-red-500 text-red-500" : "group-hover:scale-110 group-hover:text-red-400"}`}
+        />
+        <span>{likesCount > 0 ? likesCount : ""}</span>
+      </Button>
+    )
+  }
+
+  // Add a stats bar to show review metrics
+  const ReviewStats = ({ review }: { review: ReviewWithAuthor }) => {
+    return (
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 rounded-md mt-4">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center">
+            <Heart className={`h-4 w-4 mr-1 ${review.likes_count > 0 ? "fill-red-500 text-red-500" : ""}`} />
+            <span className="text-sm">{review.likes_count || 0}</span>
+          </div>
+          <div className="flex items-center">
+            <MessageSquare className="h-4 w-4 mr-1" />
+            <span className="text-sm">{review.comments_count || 0}</span>
+          </div>
+        </div>
+        <div className="flex items-center">
+          <Calendar className="h-4 w-4 mr-1" />
+          <span className="text-xs text-muted-foreground">{review.formattedDate}</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rainforest-bg min-h-screen">
@@ -899,13 +1162,13 @@ export default function ReviewsPage() {
                   </CardContent>
                 </Card>
               )}
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{t("writeReview")}</DialogTitle>
                   <DialogDescription>Share your travel experience with the community</DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 overflow-y-auto flex-grow">
                   <div className="space-y-2">
                     <Label htmlFor="destination">Destination *</Label>
                     <Input
@@ -987,7 +1250,7 @@ export default function ReviewsPage() {
                   </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="sticky bottom-0 pt-2 bg-background border-t mt-auto flex justify-center items-center gap-2">
                   <Button type="button" variant="outline" onClick={() => setReviewDialogOpen(false)}>
                     Cancel
                   </Button>
@@ -1030,13 +1293,13 @@ export default function ReviewsPage() {
 
             {/* Edit Review Dialog */}
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-              <DialogContent className="sm:max-w-[600px]">
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Edit Review</DialogTitle>
                   <DialogDescription>Update your travel experience</DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 overflow-y-auto flex-grow">
                   <div className="space-y-2">
                     <Label htmlFor="edit-destination">Destination *</Label>
                     <Input
@@ -1125,7 +1388,7 @@ export default function ReviewsPage() {
                   </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="sticky bottom-0 pt-2 bg-background border-t mt-auto flex justify-center items-center gap-2">
                   <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
                     Cancel
                   </Button>
@@ -1168,14 +1431,68 @@ export default function ReviewsPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full mb-8">
-          <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
-            <TabsTrigger value="all">All Reviews</TabsTrigger>
-            <TabsTrigger value="top">Top Rated</TabsTrigger>
-            {user && <TabsTrigger value="mine">My Reviews</TabsTrigger>}
-            {!user && <TabsTrigger value="recent">Recent</TabsTrigger>}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Search reviews..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full max-w-md">
+            <TabsList className="w-full grid grid-cols-3">
+              <TabsTrigger value="all">All Reviews</TabsTrigger>
+              <TabsTrigger value="top">Top Rated</TabsTrigger>
+              <TabsTrigger
+                value="mine"
+                onClick={() => {
+                  if (!user && !getPocketBase()?.authStore?.isValid) {
+                    toast({
+                      variant: "destructive",
+                      title: "Authentication required",
+                      description: "Please sign in to view your reviews.",
+                    })
+                  }
+                }}
+              >
+                My Reviews
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Sort by <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSortOrder("-created")}>
+                Newest first
+                {sortOrder === "-created" && <Check className="ml-2 h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOrder("created")}>
+                Oldest first
+                {sortOrder === "created" && <Check className="ml-2 h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOrder("-rating")}>
+                Highest rated
+                {sortOrder === "-rating" && <Check className="ml-2 h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOrder("-likes_count")}>
+                Most liked
+                {sortOrder === "-likes_count" && <Check className="ml-2 h-4 w-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortOrder("-comments_count")}>
+                Most commented
+                {sortOrder === "-comments_count" && <Check className="ml-2 h-4 w-4" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {isLoading ? (
           // Loading skeletons
@@ -1203,12 +1520,21 @@ export default function ReviewsPage() {
             ))}
           </div>
         ) : error ? (
-          // Error state
+          // Error state with sign-in option
           <div className="text-center py-12">
             <div className="bg-destructive/10 text-destructive p-4 rounded-md inline-block mb-4">
               <p>{error}</p>
             </div>
-            <Button onClick={loadReviews}>Try Again</Button>
+            {error.includes("sign in") ? (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">You need to be signed in to view your reviews</p>
+                <Button asChild>
+                  <Link href="/login">Sign In</Link>
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={loadReviews}>Try Again</Button>
+            )}
           </div>
         ) : reviews.length === 0 ? (
           // Empty state
@@ -1222,300 +1548,261 @@ export default function ReviewsPage() {
                   : "Be the first to share your travel experience!"}
               </p>
               {user && <Button onClick={() => setReviewDialogOpen(true)}>Write a Review</Button>}
+              {!user && activeTab === "mine" && (
+                <Button asChild>
+                  <Link href="/login">Sign In</Link>
+                </Button>
+              )}
             </div>
           </div>
         ) : (
           // Reviews list
           <div className="space-y-8">
-            <TooltipProvider>
-              {reviews.map((review) => (
-                <Card key={review.id} className="overflow-hidden">
-                  <CardHeader className="flex flex-row items-start gap-4">
-                    <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
-                      {review.authorAvatar ? (
+            {reviews.map((review) => (
+              // Update the review card to include engagement stats
+              <Card key={review.id} className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="flex flex-row items-start gap-4">
+                  <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
+                    {review.authorAvatar ? (
+                      <Image
+                        src={review.authorAvatar || "/placeholder.svg"}
+                        alt={review.authorName}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
+                        {review.authorName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">{review.authorName}</CardTitle>
+                    <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="flex items-center">
+                        <MapPin className="h-3 w-3 mr-1" />
+                        {review.destination}
+                      </span>
+                      <span className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        {review.formattedDate}
+                      </span>
+                    </CardDescription>
+                  </div>
+                  <div className="flex">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${
+                          i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">{review.review_text}</p>
+
+                  {review.photoUrl && (
+                    <div className="mt-4">
+                      <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
                         <Image
-                          src={review.authorAvatar || "/placeholder.svg"}
-                          alt={review.authorName}
+                          src={review.photoUrl || "/placeholder.svg"}
+                          alt={`${review.authorName}'s travel photo`}
                           fill
                           className="object-cover"
                         />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
-                          {review.authorName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{review.authorName}</CardTitle>
-                      <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <span className="flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {review.destination}
-                        </span>
-                        <span className="flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {review.formattedDate}
-                        </span>
-                      </CardDescription>
-                    </div>
-                    <div className="flex">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">{review.review_text}</p>
-
-                    {review.photoUrl && (
-                      <div className="mt-4">
-                        <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
-                          <Image
-                            src={review.photoUrl || "/placeholder.svg"}
-                            alt={`${review.authorName}'s travel photo`}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Add engagement stats */}
-                    <div className="flex items-center gap-6 pt-2">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <ThumbsUp className="h-4 w-4" />
-                        <span className="text-sm">{review.likes_count || 0} likes</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <ReviewStats review={review} />
+                </CardContent>
+                <CardFooter className="flex flex-col">
+                  <div className="flex justify-between w-full">
+                    <div className="flex items-center gap-4">
+                      {renderLikeButton(review.id, review.likes_count || 0)}
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        onClick={() => toggleComments(review.id)}
+                      >
                         <MessageSquare className="h-4 w-4" />
-                        <span className="text-sm">{review.comments_count || 0} comments</span>
-                      </div>
+                        <span>
+                          {showComments[review.id] ? "Hide" : ""}
+                          {!showComments[review.id] && review.comments_count > 0 && review.comments_count}
+                        </span>
+                      </Button>
                     </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col">
-                    <div className="flex justify-between w-full">
-                      <div className="flex gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => handleLikeReview(review.id)}
-                              disabled={userLikes[review.id]}
-                            >
-                              <Heart className={`h-4 w-4 ${userLikes[review.id] ? "fill-red-500 text-red-500" : ""}`} />
-                              <span>{userLikes[review.id] ? "Liked" : "Like"}</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{userLikes[review.id] ? "You liked this review" : "Like this review"}</p>
-                          </TooltipContent>
-                        </Tooltip>
 
+                    {user && user.id === review.reviewer && (
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="flex items-center gap-2"
-                          onClick={() => toggleComments(review.id)}
+                          onClick={() => handleEditReview(review)}
                         >
-                          <MessageSquare className="h-4 w-4" />
-                          <span>
-                            {showComments[review.id] ? "Hide Comments" : "Comment"}
-                            {review.comments_count > 0 && !showComments[review.id] && ` (${review.comments_count})`}
-                          </span>
+                          <Edit className="h-4 w-4" />
+                          <span>Edit</span>
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-2 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteReview(review.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Delete</span>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => handleShareReview(review)}
+                  {/* Comments section */}
+                  {showComments[review.id] && (
+                    <div className="w-full mt-4 pt-4 border-t">
+                      <h4 className="font-medium text-sm mb-3">Comments</h4>
+
+                      {/* Comments list */}
+                      <div className="space-y-1 mb-4">
+                        {loadingComments[review.id] ? (
+                          <div className="py-4 flex justify-center">
+                            <svg
+                              className="animate-spin h-5 w-5 text-primary"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
                             >
-                              <Share2 className="h-4 w-4" />
-                              <span>Share</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Share this review</p>
-                          </TooltipContent>
-                        </Tooltip>
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                          </div>
+                        ) : reviewComments[review.id]?.length > 0 ? (
+                          <div className="space-y-1">
+                            {reviewComments[review.id].map((comment) => renderComment(comment, review.id))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground py-2">
+                            No comments yet. Be the first to comment!
+                          </p>
+                        )}
                       </div>
 
-                      {user && user.id === review.reviewer && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-2"
-                            onClick={() => handleEditReview(review)}
-                          >
-                            <Edit className="h-4 w-4" />
-                            <span>Edit</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-2 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteReview(review.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Delete</span>
+                      {/* Comment form */}
+                      {user ? (
+                        <div className="flex flex-col space-y-2">
+                          {replyToComment[review.id] && (
+                            <div className="flex items-center justify-between bg-muted px-3 py-1 rounded-md text-sm">
+                              <span>Replying to comment</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => handleCancelReply(review.id)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Tagged users */}
+                          {renderTaggedUserBadges(review.id)}
+
+                          <div className="relative">
+                            <Textarea
+                              id={`comment-input-${review.id}`}
+                              ref={(el) => (commentInputRefs[review.id] = el)}
+                              placeholder="Add a comment... Use @ to mention users"
+                              value={commentText[review.id] || ""}
+                              onChange={(e) => handleCommentInputChange(review.id, e)}
+                              onFocus={() => handleCommentInputFocus(review.id)}
+                              onBlur={() => handleCommentInputBlur(review.id)}
+                              className="min-h-[80px] pr-10"
+                            />
+
+                            <Button
+                              className="absolute bottom-2 right-2"
+                              size="sm"
+                              disabled={!commentText[review.id]?.trim()}
+                              onClick={() => handleSubmitComment(review.id)}
+                            >
+                              Post
+                            </Button>
+
+                            {/* User search results */}
+                            {showUserSearch[review.id] && userSearchResults.length > 0 && (
+                              <div className="absolute z-10 w-full max-h-60 overflow-y-auto bg-background border rounded-md shadow-md mt-1">
+                                <Command>
+                                  <CommandList>
+                                    <CommandGroup heading="Mention a user">
+                                      {userSearchResults.map((user) => (
+                                        <CommandItem
+                                          key={user.id}
+                                          onSelect={() => handleSelectUser(review.id, user)}
+                                          className="flex items-center gap-2 p-2 cursor-pointer hover:bg-accent"
+                                        >
+                                          <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted">
+                                            {user.avatar ? (
+                                              <Image
+                                                src={user.avatar || "/placeholder.svg"}
+                                                alt={user.name}
+                                                fill
+                                                className="object-cover"
+                                              />
+                                            ) : (
+                                              <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium text-xs">
+                                                {user.name.charAt(0).toUpperCase()}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div>
+                                            <div className="font-medium text-sm">{user.name}</div>
+                                            <div className="text-xs text-muted-foreground">@{user.username}</div>
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                    {userSearchResults.length === 0 && <CommandEmpty>No users found</CommandEmpty>}
+                                  </CommandList>
+                                </Command>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <span className="inline-flex items-center">
+                              <AtSign className="h-3 w-3 mr-1" />
+                              Type @ to mention someone
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-2">
+                          <p className="text-sm text-muted-foreground mb-2">Please sign in to comment</p>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href="/login">Sign In</Link>
                           </Button>
                         </div>
                       )}
                     </div>
-
-                    {/* Comments section */}
-                    {showComments[review.id] && (
-                      <div className="w-full mt-4 pt-4 border-t">
-                        <h4 className="font-medium text-sm mb-3">Comments</h4>
-
-                        {/* Comments list */}
-                        <div className="space-y-1 mb-4">
-                          {loadingComments[review.id] ? (
-                            <div className="py-4 flex justify-center">
-                              <svg
-                                className="animate-spin h-5 w-5 text-primary"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                ></circle>
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
-                              </svg>
-                            </div>
-                          ) : reviewComments[review.id]?.length > 0 ? (
-                            <div className="space-y-1">
-                              {reviewComments[review.id].map((comment) => renderComment(comment, review.id))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground py-2">
-                              No comments yet. Be the first to comment!
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Comment form */}
-                        {user ? (
-                          <div className="flex flex-col space-y-2">
-                            {replyToComment[review.id] && (
-                              <div className="flex items-center justify-between bg-muted px-3 py-1 rounded-md text-sm">
-                                <span>Replying to comment</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2"
-                                  onClick={() => handleCancelReply(review.id)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            )}
-
-                            {/* Tagged users */}
-                            {renderTaggedUserBadges(review.id)}
-
-                            <div className="relative">
-                              <Textarea
-                                id={`comment-input-${review.id}`}
-                                ref={(el) => (commentInputRefs.current[review.id] = el)}
-                                placeholder="Add a comment... Use @ to mention users"
-                                value={commentText[review.id] || ""}
-                                onChange={(e) => handleCommentInputChange(review.id, e)}
-                                onFocus={() => handleCommentInputFocus(review.id)}
-                                onBlur={() => handleCommentInputBlur(review.id)}
-                                className="min-h-[80px] pr-10"
-                              />
-
-                              <Button
-                                className="absolute bottom-2 right-2"
-                                size="sm"
-                                disabled={!commentText[review.id]?.trim()}
-                                onClick={() => handleSubmitComment(review.id)}
-                              >
-                                Post
-                              </Button>
-
-                              {/* User search results */}
-                              {showUserSearch[review.id] && userSearchResults.length > 0 && (
-                                <div className="absolute z-10 w-full max-h-60 overflow-y-auto bg-background border rounded-md shadow-md mt-1">
-                                  <Command>
-                                    <CommandList>
-                                      <CommandGroup heading="Mention a user">
-                                        {userSearchResults.map((user) => (
-                                          <CommandItem
-                                            key={user.id}
-                                            onSelect={() => handleSelectUser(review.id, user)}
-                                            className="flex items-center gap-2 p-2 cursor-pointer hover:bg-accent"
-                                          >
-                                            <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted">
-                                              {user.avatar ? (
-                                                <Image
-                                                  src={user.avatar || "/placeholder.svg"}
-                                                  alt={user.name}
-                                                  fill
-                                                  className="object-cover"
-                                                />
-                                              ) : (
-                                                <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium text-xs">
-                                                  {user.name.charAt(0).toUpperCase()}
-                                                </div>
-                                              )}
-                                            </div>
-                                            <div>
-                                              <div className="font-medium text-sm">{user.name}</div>
-                                              <div className="text-xs text-muted-foreground">@{user.username}</div>
-                                            </div>
-                                          </CommandItem>
-                                        ))}
-                                      </CommandGroup>
-                                      {userSearchResults.length === 0 && <CommandEmpty>No users found</CommandEmpty>}
-                                    </CommandList>
-                                  </Command>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-xs text-muted-foreground mt-1">
-                              <span className="inline-flex items-center">
-                                <AtSign className="h-3 w-3 mr-1" />
-                                Type @ to mention someone
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-2">
-                            <p className="text-sm text-muted-foreground mb-2">Please sign in to comment</p>
-                            <Button asChild variant="outline" size="sm">
-                              <Link href="/login">Sign In</Link>
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardFooter>
-                </Card>
-              ))}
-            </TooltipProvider>
+                  )}
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -1577,4 +1864,3 @@ export default function ReviewsPage() {
     </div>
   )
 }
-

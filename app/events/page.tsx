@@ -1,364 +1,218 @@
 "use client"
 
-import { useState } from "react"
-import Image from "next/image"
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { CalendarDays, MapPin, Users, Clock, DollarSign, Search } from "lucide-react"
-import { useTranslation } from "@/lib/translations"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar, MapPin, Users, Search, Filter, Plus, Loader2 } from "lucide-react"
+import { format } from "date-fns"
+import { type TravelEvent, fetchTravelEvents } from "@/lib/travel-events"
+import { useAuth } from "@/components/auth-provider"
 
 export default function EventsPage() {
-  const { t } = useTranslation()
-  const [selectedEvent, setSelectedEvent] = useState<number | null>(null)
+  const router = useRouter()
+  const { user } = useAuth()
+
+  const [events, setEvents] = useState<TravelEvent[]>([])
+  const [filteredEvents, setFilteredEvents] = useState<TravelEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [activeTab, setActiveTab] = useState("all")
 
-  // Sample events data
-  const events = [
-    {
-      id: 1,
-      title: "Tropical Island Retreat",
-      location: "Maldives",
-      date: "June 15-22, 2025",
-      duration: "8 days",
-      price: 2499,
-      image: "/placeholder.svg?height=400&width=600",
-      spots: 8,
-      description:
-        "Escape to paradise on this exclusive island retreat. Enjoy crystal clear waters, white sandy beaches, and luxurious overwater bungalows. Activities include snorkeling, sunset cruises, and beachside yoga sessions.",
-      includes: [
-        "Accommodation",
-        "Daily breakfast and dinner",
-        "Airport transfers",
-        "Guided excursions",
-        "Snorkeling equipment",
-      ],
-      itinerary: [
-        {
-          day: 1,
-          title: "Arrival",
-          description: "Welcome to the Maldives! Transfer to your overwater bungalow and enjoy a welcome dinner.",
-        },
-        {
-          day: 2,
-          title: "Island Exploration",
-          description: "After breakfast, explore the island and enjoy a guided snorkeling tour.",
-        },
-        {
-          day: 3,
-          title: "Relaxation Day",
-          description: "Free day to relax on the beach or enjoy optional spa treatments.",
-        },
-        // More days would be included in a real application
-      ],
-    },
-    {
-      id: 2,
-      title: "Safari Adventure",
-      location: "Kenya",
-      date: "August 10-20, 2025",
-      duration: "11 days",
-      price: 3299,
-      image: "/placeholder.svg?height=400&width=600",
-      spots: 6,
-      description:
-        "Experience the magic of an African safari in Kenya's most famous national parks. Witness the Big Five in their natural habitat and enjoy comfortable accommodations in luxury tented camps.",
-      includes: ["Accommodation", "All meals", "Safari drives", "Park entrance fees", "English-speaking guide"],
-      itinerary: [
-        {
-          day: 1,
-          title: "Arrival in Nairobi",
-          description: "Welcome to Kenya! Transfer to your hotel in Nairobi for an overnight stay.",
-        },
-        {
-          day: 2,
-          title: "Amboseli National Park",
-          description:
-            "Drive to Amboseli National Park, famous for its large elephant herds and views of Mount Kilimanjaro.",
-        },
-        {
-          day: 3,
-          title: "Game Drives",
-          description:
-            "Full day of game drives in Amboseli, with opportunities to see elephants, lions, cheetahs, and more.",
-        },
-        // More days would be included in a real application
-      ],
-    },
-    {
-      id: 3,
-      title: "Cultural Japan Tour",
-      location: "Japan",
-      date: "April 5-15, 2025",
-      duration: "11 days",
-      price: 2899,
-      image: "/placeholder.svg?height=400&width=600",
-      spots: 10,
-      description:
-        "Immerse yourself in Japanese culture and history on this comprehensive tour. Visit Tokyo, Kyoto, Osaka, and Hiroshima, experiencing both modern and traditional Japan. Highlights include cherry blossoms (seasonal), temple visits, and authentic culinary experiences.",
-      includes: ["Accommodation", "Breakfast daily", "Bullet train passes", "Guided tours", "Cultural activities"],
-      itinerary: [
-        {
-          day: 1,
-          title: "Arrival in Tokyo",
-          description: "Welcome to Japan! Transfer to your hotel in Tokyo and enjoy a welcome dinner.",
-        },
-        {
-          day: 2,
-          title: "Tokyo Exploration",
-          description: "Full day tour of Tokyo, including Meiji Shrine, Harajuku, and the Tokyo Skytree.",
-        },
-        {
-          day: 3,
-          title: "Day Trip to Nikko",
-          description:
-            "Day trip to the UNESCO World Heritage site of Nikko, famous for its elaborate temples and shrines.",
-        },
-        // More days would be included in a real application
-      ],
-    },
-    {
-      id: 4,
-      title: "Mediterranean Cruise",
-      location: "Greece & Italy",
-      date: "September 8-18, 2025",
-      duration: "11 days",
-      price: 2699,
-      image: "/placeholder.svg?height=400&width=600",
-      spots: 12,
-      description:
-        "Sail the beautiful Mediterranean Sea, visiting iconic destinations in Greece and Italy. Explore ancient ruins, charming coastal towns, and enjoy delicious Mediterranean cuisine.",
-      includes: ["Cruise accommodation", "All meals on board", "Port excursions", "Entertainment", "Transfers"],
-      itinerary: [
-        {
-          day: 1,
-          title: "Embarkation in Athens",
-          description: "Board your cruise ship in Athens and settle into your cabin.",
-        },
-        {
-          day: 2,
-          title: "Santorini",
-          description: "Explore the stunning island of Santorini with its white-washed buildings and blue domes.",
-        },
-        { day: 3, title: "Mykonos", description: "Discover the charming streets and beaches of Mykonos." },
-        // More days would be included in a real application
-      ],
-    },
-  ]
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const allEvents = await fetchTravelEvents()
+        setEvents(allEvents)
+        setFilteredEvents(allEvents)
+      } catch (error) {
+        console.error("Error loading events:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  // Filter events based on search query
-  const filteredEvents = events.filter(
-    (event) =>
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+    loadEvents()
+  }, [])
+
+  // Filter events based on search query and active tab
+  useEffect(() => {
+    let filtered = [...events]
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(
+        (event) =>
+          event.title.toLowerCase().includes(query) ||
+          event.description.toLowerCase().includes(query) ||
+          event.destination.toLowerCase().includes(query),
+      )
+    }
+
+    // Apply tab filter
+    if (activeTab === "upcoming") {
+      const now = new Date()
+      filtered = filtered.filter((event) => new Date(event.start_date) > now)
+    } else if (activeTab === "past") {
+      const now = new Date()
+      filtered = filtered.filter((event) => new Date(event.end_date) < now)
+    }
+
+    setFilteredEvents(filtered)
+  }, [events, searchQuery, activeTab])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    // The filtering is already handled by the useEffect
+  }
 
   return (
-    <div className="mountain-lake-bg min-h-screen">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container py-16">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h1 className="text-4xl font-bold mb-4">{t("eventsTitle")}</h1>
-          <p className="text-muted-foreground text-lg">{t("eventsSubtitle")}</p>
-        </div>
+      <div className="bg-muted py-12">
+        <div className="container">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="text-3xl font-bold mb-4">Discover Amazing Travel Events</h1>
+            <p className="text-muted-foreground mb-6">Find and join exciting travel adventures around the world</p>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search events by destination or title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+            <form onSubmit={handleSearch} className="flex w-full max-w-lg mx-auto mb-6">
+              <Input
+                type="text"
+                placeholder="Search destinations, events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rounded-r-none"
+              />
+              <Button type="submit" className="rounded-l-none">
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
+            </form>
+
+            <div className="flex justify-center">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-md">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">All Events</TabsTrigger>
+                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                  <TabsTrigger value="past">Past Events</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <Tabs defaultValue="upcoming" className="w-full md:w-auto">
-            <TabsList>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="past">Past Events</TabsTrigger>
-              <TabsTrigger value="featured">Featured</TabsTrigger>
-            </TabsList>
-          </Tabs>
+      <div className="container py-12">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold">
+            {filteredEvents.length}{" "}
+            {activeTab === "all" ? "Events" : activeTab === "upcoming" ? "Upcoming Events" : "Past Events"}
+          </h2>
+
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+
+            {user && (
+              <Button size="sm" onClick={() => router.push("/create-event")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Event
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {filteredEvents.map((event) => (
-            <Card key={event.id} className="overflow-hidden">
-              <div className="relative h-64">
-                <Image src={event.image || "/placeholder.svg"} alt={event.title} fill className="object-cover" />
-                <div className="absolute top-4 right-4">
-                  <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                    {event.spots} spots left
-                  </Badge>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+              <Calendar className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No events found</h3>
+            <p className="text-muted-foreground mb-6">
+              {searchQuery
+                ? `No events match your search for "${searchQuery}"`
+                : "There are no events available at this time"}
+            </p>
+            <Button
+              onClick={() => {
+                setSearchQuery("")
+                setActiveTab("all")
+              }}
+            >
+              Clear Filters
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredEvents.map((event) => (
+              <Card key={event.id} className="overflow-hidden flex flex-col h-full">
+                <div className="aspect-video relative overflow-hidden">
+                  <img
+                    src={event.imageUrl || "/placeholder.svg?height=200&width=400"}
+                    alt={event.title}
+                    className="w-full h-full object-cover transition-transform hover:scale-105"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
+                      {event.price} {event.currency}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              <CardHeader>
-                <CardTitle>{event.title}</CardTitle>
-                <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <span className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {event.location}
-                  </span>
-                  <span className="flex items-center">
-                    <CalendarDays className="h-4 w-4 mr-1" />
-                    {event.date}
-                  </span>
-                  <span className="flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    {event.duration}
-                  </span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground line-clamp-3">{event.description}</p>
-                <div className="mt-4 flex items-center">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  <span className="text-xl font-bold">${event.price}</span>
-                  <span className="text-muted-foreground ml-1">per person</span>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={() => setSelectedEvent(event.id)}>
-                  View Details
-                </Button>
-                <Button>Book Now</Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
 
-        {filteredEvents.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No events found matching your search.</p>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <Badge className="mb-2">{event.destination}</Badge>
+                      <CardTitle className="mb-1">{event.title}</CardTitle>
+                    </div>
+                  </div>
+                  <CardDescription className="line-clamp-2">{event.description}</CardDescription>
+                </CardHeader>
+
+                <CardContent className="pb-2 flex-grow">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                      <span>{format(new Date(event.start_date), "MMM d, yyyy")}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <MapPin className="h-4 w-4 mr-1 text-muted-foreground" />
+                      <span className="truncate">{event.destination}</span>
+                    </div>
+                    <div className="flex items-center col-span-2">
+                      <Users className="h-4 w-4 mr-1 text-muted-foreground" />
+                      <span>{event.spots_left} spots left</span>
+                    </div>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="pt-2">
+                  <Button className="w-full" onClick={() => router.push(`/events/${event.id}`)}>
+                    View Details
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         )}
-
-        <Dialog open={selectedEvent !== null} onOpenChange={() => setSelectedEvent(null)}>
-          <DialogContent className="max-w-4xl">
-            {selectedEvent && (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-2xl">{events.find((e) => e.id === selectedEvent)?.title}</DialogTitle>
-                  <DialogDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <span className="flex items-center">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {events.find((e) => e.id === selectedEvent)?.location}
-                    </span>
-                    <span className="flex items-center">
-                      <CalendarDays className="h-4 w-4 mr-1" />
-                      {events.find((e) => e.id === selectedEvent)?.date}
-                    </span>
-                    <span className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      {events.find((e) => e.id === selectedEvent)?.spots} spots left
-                    </span>
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="relative aspect-video rounded-lg overflow-hidden">
-                    <Image
-                      src={events.find((e) => e.id === selectedEvent)?.image || ""}
-                      alt={events.find((e) => e.id === selectedEvent)?.title || ""}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">About This Event</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {events.find((e) => e.id === selectedEvent)?.description}
-                    </p>
-
-                    <div className="flex items-center mb-4">
-                      <DollarSign className="h-5 w-5 text-primary mr-1" />
-                      <span className="text-xl font-bold">${events.find((e) => e.id === selectedEvent)?.price}</span>
-                      <span className="text-muted-foreground ml-1">per person</span>
-                    </div>
-
-                    <h3 className="text-lg font-medium mb-2">What's Included</h3>
-                    <ul className="grid grid-cols-2 gap-2 mb-4">
-                      {events
-                        .find((e) => e.id === selectedEvent)
-                        ?.includes.map((item, index) => (
-                          <li key={index} className="flex items-center">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="text-primary mr-2"
-                            >
-                              <path d="M20 6 9 17l-5-5" />
-                            </svg>
-                            <span className="text-sm">{item}</span>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-4">Itinerary</h3>
-                  <div className="space-y-4">
-                    {events
-                      .find((e) => e.id === selectedEvent)
-                      ?.itinerary.map((day) => (
-                        <div key={day.day} className="flex">
-                          <div className="mr-4 flex flex-col items-center">
-                            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                              {day.day}
-                            </div>
-                            {day.day < (events.find((e) => e.id === selectedEvent)?.itinerary.length || 0) && (
-                              <div className="w-0.5 h-full bg-border mt-2"></div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium">{day.title}</h4>
-                            <p className="text-muted-foreground text-sm">{day.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                <DialogFooter className="flex flex-col sm:flex-row gap-4 sm:gap-0">
-                  <div className="flex items-center text-muted-foreground mr-auto">
-                    <Users className="h-4 w-4 mr-1" />
-                    <span className="text-sm">
-                      Only {events.find((e) => e.id === selectedEvent)?.spots} spots remaining
-                    </span>
-                  </div>
-                  <Button size="lg">Book This Event</Button>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
 
       <Footer />
     </div>
   )
 }
-

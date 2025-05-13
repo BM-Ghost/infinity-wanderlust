@@ -67,19 +67,30 @@ export function Footer() {
               <li className="flex items-start">
                 <Mail className="h-5 w-5 mr-2 text-primary" />
                 <a
-                  href="mailto:basilmeshack13@gmail.com"
+                  href="mailto:infinitywanderlusttravels@gmail.com"
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
-                  basilmeshack13@gmail.com
+                  infinitywanderlusttravels@gmail.com
                 </a>
               </li>
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-2 text-primary" />
-                <span className="text-sm text-muted-foreground">{t("address")}</span>
+                <span className="text-sm text-muted-foreground">
+                  Infinity Wanderlust Travels
+                  <br />
+                  Nairobi CBD
+                  <br />
+                  Kenya
+                </span>
               </li>
               <li className="flex items-start">
                 <Phone className="h-5 w-5 mr-2 text-primary" />
-                <span className="text-sm text-muted-foreground">+1 (234) 567-8901</span>
+                <a
+                  href="tel:+254706492887"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  +254 706 492 887
+                </a>
               </li>
             </ul>
           </div>
@@ -113,4 +124,3 @@ export function Footer() {
     </footer>
   )
 }
-

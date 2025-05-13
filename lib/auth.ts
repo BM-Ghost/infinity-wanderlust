@@ -16,4 +16,3 @@ export function useAuth() {
     resendVerification: async () => false,
   }
 }
-

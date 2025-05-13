@@ -1,37 +1,65 @@
 import PocketBase from "pocketbase"
 
-// Create a PocketBase instance (client-side only)
+// Create a singleton instance of PocketBase
+let pb: PocketBase | null = null
+
+// Update the getPocketBase function to ensure it's properly initialized
 export function getPocketBase() {
-  if (typeof window === "undefined") {
-    return null
-  }
+  if (!pb) {
+    try {
+      // Create a new PocketBase instance with the correct URL
+      pb = new PocketBase("https://remain-faceghost.pockethost.io")
+      console.log("PocketBase initialized with URL:", pb.baseUrl)
 
-  const pb = new PocketBase("https://remain-faceghost.pockethost.io")
+      // Try to restore auth state from localStorage if available
+      if (typeof window !== "undefined") {
+        const authData = localStorage.getItem("pocketbase_auth")
+        if (authData) {
+          try {
+            const { token, model } = JSON.parse(authData)
+            pb.authStore.save(token, model)
+            console.log("Auth state restored from localStorage")
+          } catch (error) {
+            console.error("Failed to restore auth state:", error)
+            localStorage.removeItem("pocketbase_auth")
+          }
+        }
+      }
 
-  // Try to load auth from localStorage
-  try {
-    const authData = localStorage.getItem("pocketbase_auth")
-    if (authData) {
-      const { token, model } = JSON.parse(authData)
-      pb.authStore.save(token, model)
+      // Test the connection
+      pb.health
+        .check()
+        .then(() => console.log("PocketBase connection successful"))
+        .catch((err) => console.error("PocketBase connection test failed:", err))
+    } catch (error) {
+      console.error("Failed to initialize PocketBase:", error)
+      return null
     }
-  } catch (e) {
-    console.error("Error loading auth data:", e)
-    localStorage.removeItem("pocketbase_auth")
   }
+
+  // Log connection status for debugging
+  console.log("PocketBase connection status:", {
+    initialized: !!pb,
+    baseUrl: pb?.baseUrl,
+    authStoreValid: pb?.authStore?.isValid,
+  })
 
   return pb
 }
 
-// Helper function to get the current authenticated user
-export function getCurrentUser() {
+// For debugging purposes
+export function logPocketBaseStatus() {
   const pb = getPocketBase()
-  return pb && pb.authStore.isValid ? pb.authStore.model : null
-}
+  if (!pb) {
+    console.error("PocketBase is not initialized")
+    return null
+  }
 
-// Helper function to get the first name from a full name
-export function getFirstName(fullName: string | undefined) {
-  if (!fullName) return ""
-  return fullName.split(" ")[0]
+  console.log("PocketBase Status:", {
+    isValid: pb.authStore.isValid,
+    token: pb.authStore.token ? "exists" : "none",
+    model: pb.authStore.model ? "exists" : "none",
+    baseUrl: pb.baseUrl,
+  })
+  return pb
 }
-

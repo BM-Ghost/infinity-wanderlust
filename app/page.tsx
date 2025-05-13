@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
@@ -7,78 +8,113 @@ import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Calendar, Star, ArrowRight } from "lucide-react"
+import { MapPin, Calendar, Star, ArrowRight, ChevronRight, ChevronLeft } from "lucide-react"
 import { useTranslation } from "@/lib/translations"
+import { fetchFeaturedDestinations } from "@/lib/destinations"
+import { getUpcomingEvents } from "@/lib/travel-events"
+import { fetchLatestReviews } from "@/lib/reviews"
+import { ImageCollage } from "@/components/image-collage"
+import { Skeleton } from "@/components/ui/skeleton"
+import { motion } from "framer-motion"
 
 export default function HomePage() {
   const { t } = useTranslation()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Sample featured destinations
-  const featuredDestinations = [
-    {
-      id: 1,
-      title: "Kyoto, Japan",
-      description: "Experience traditional Japanese culture among historic temples and beautiful gardens.",
-      image: "/placeholder.svg?height=400&width=600",
-      rating: 4.9,
-    },
-    {
-      id: 2,
-      title: "Santorini, Greece",
-      description: "Enjoy breathtaking views of the Aegean Sea from white-washed buildings on volcanic cliffs.",
-      image: "/placeholder.svg?height=400&width=600",
-      rating: 4.8,
-    },
-    {
-      id: 3,
-      title: "Machu Picchu, Peru",
-      description: "Explore the ancient Incan citadel set against a backdrop of stunning mountain scenery.",
-      image: "/placeholder.svg?height=400&width=600",
-      rating: 4.9,
-    },
-  ]
+  const [featuredDestinations, setFeaturedDestinations] = useState<any[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
+  const [latestReviews, setLatestReviews] = useState<any[]>([])
+  const [isLoadingDestinations, setIsLoadingDestinations] = useState(true)
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true)
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
 
-  // Sample upcoming events
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: "Tropical Island Retreat",
-      location: "Maldives",
-      date: "June 15-22, 2025",
-      image: "/placeholder.svg?height=300&width=400",
-      spots: 8,
-    },
-    {
-      id: 2,
-      title: "Safari Adventure",
-      location: "Kenya",
-      date: "August 10-20, 2025",
-      image: "/placeholder.svg?height=300&width=400",
-      spots: 6,
-    },
-  ]
+  useEffect(() => {
+    async function loadDestinations() {
+      try {
+        setIsLoadingDestinations(true)
+        const destinations = await fetchFeaturedDestinations(10)
+        setFeaturedDestinations(destinations)
+      } catch (error) {
+        console.error("Error loading destinations:", error)
+      } finally {
+        setIsLoadingDestinations(false)
+      }
+    }
 
-  // Sample reviews
-  const latestReviews = [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      destination: "Japan Tour",
-      date: "March 10, 2025",
-      content:
-        "The Japan tour was absolutely incredible! Our guide was knowledgeable and the itinerary was perfect. We visited Tokyo, Kyoto, and Osaka, experiencing both modern city life and traditional Japanese culture.",
-      rating: 5,
-    },
-    {
-      id: 2,
-      name: "Michael Chen",
-      destination: "Peru Expedition",
-      date: "February 22, 2025",
-      content:
-        "Machu Picchu was a dream come true. The local experiences arranged by Infinity Wanderlust made this trip special and authentic. We stayed with a local family in the Sacred Valley and learned about traditional weaving techniques.",
-      rating: 4,
-    },
-  ]
+    async function loadEvents() {
+      try {
+        const events = await getUpcomingEvents(2)
+        setUpcomingEvents(events)
+      } catch (error) {
+        console.error("Error loading events:", error)
+      } finally {
+        setIsLoadingEvents(false)
+      }
+    }
+
+    async function loadReviews() {
+      try {
+        const reviews = await fetchLatestReviews(2)
+        setLatestReviews(reviews)
+      } catch (error) {
+        console.error("Error loading reviews:", error)
+      } finally {
+        setIsLoadingReviews(false)
+      }
+    }
+
+    loadDestinations()
+    loadEvents()
+    loadReviews()
+  }, [])
+
+  // Check scroll position to update navigation buttons
+  const checkScrollPosition = () => {
+    if (!scrollContainerRef.current) return
+
+    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current
+    setCanScrollLeft(scrollLeft > 0)
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10) // 10px buffer
+  }
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current
+    if (scrollContainer) {
+      scrollContainer.addEventListener("scroll", checkScrollPosition)
+      // Initial check
+      checkScrollPosition()
+
+      return () => {
+        scrollContainer.removeEventListener("scroll", checkScrollPosition)
+      }
+    }
+  }, [featuredDestinations])
+
+  const scrollLeft = () => {
+    if (!scrollContainerRef.current) return
+    scrollContainerRef.current.scrollBy({ left: -300, behavior: "smooth" })
+  }
+
+  const scrollRight = () => {
+    if (!scrollContainerRef.current) return
+    scrollContainerRef.current.scrollBy({ left: 300, behavior: "smooth" })
+  }
+
+  // Animation variants for cards
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.5,
+        ease: "easeOut",
+      },
+    }),
+  }
 
   return (
     <div className="homepage-bg min-h-screen flex flex-col">
@@ -114,32 +150,101 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredDestinations.map((destination) => (
-              <Card key={destination.id} className="overflow-hidden bg-background/90 backdrop-blur-sm">
-                <div className="relative h-64">
-                  <Image
-                    src={destination.image || "/placeholder.svg"}
-                    alt={destination.title}
-                    fill
-                    className="object-cover transition-transform hover:scale-105 duration-300"
-                  />
-                  <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm rounded-full px-2 py-1 flex items-center">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                    <span className="text-xs font-medium">{destination.rating}</span>
+          <div className="relative">
+            {/* Scroll left button */}
+            {canScrollLeft && (
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-lg bg-background/80 backdrop-blur-sm"
+                onClick={scrollLeft}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            )}
+
+            {/* Scroll right button */}
+            {canScrollRight && (
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-lg bg-background/80 backdrop-blur-sm"
+                onClick={scrollRight}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            )}
+
+            {/* Scrollable container */}
+            <div
+              ref={scrollContainerRef}
+              className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {isLoadingDestinations ? (
+                // Loading skeletons
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={`skeleton-${index}`}
+                    className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
+                  >
+                    <Card className="overflow-hidden bg-background/90 backdrop-blur-sm h-full">
+                      <Skeleton className="h-64 w-full" />
+                      <CardContent className="p-6">
+                        <Skeleton className="h-6 w-3/4 mb-2" />
+                        <Skeleton className="h-4 w-full mb-2" />
+                        <Skeleton className="h-4 w-5/6 mb-4" />
+                        <Skeleton className="h-10 w-full" />
+                      </CardContent>
+                    </Card>
                   </div>
-                </div>
-                <CardContent className="p-6">
-                  <h3 className="text-xl font-bold mb-2">{destination.title}</h3>
-                  <p className="text-muted-foreground mb-4">{destination.description}</p>
-                  <Button variant="outline" asChild className="w-full">
-                    <Link href={`/gallery?destination=${encodeURIComponent(destination.title)}`}>
-                      {t("exploreButton")}
-                    </Link>
+                ))
+              ) : featuredDestinations.length === 0 ? (
+                <div className="w-full text-center py-10">
+                  <p className="text-white text-lg">No destinations found. Be the first to review a destination!</p>
+                  <Button asChild className="mt-4">
+                    <Link href="/reviews/new">Write a Review</Link>
                   </Button>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              ) : (
+                featuredDestinations.map((destination, index) => (
+                  <motion.div
+                    key={index}
+                    custom={index}
+                    initial="hidden"
+                    animate="visible"
+                    variants={cardVariants}
+                    className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
+                  >
+                    <Card className="overflow-hidden bg-background/90 backdrop-blur-sm h-full group">
+                      <div className="relative">
+                        <ImageCollage images={destination.images} alt={destination.name} />
+                        <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm rounded-full px-2 py-1 flex items-center">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
+                          <span className="text-xs font-medium">{destination.rating}</span>
+                          <span className="text-xs text-muted-foreground ml-1">({destination.reviewCount})</span>
+                        </div>
+                      </div>
+                      <CardContent className="p-6">
+                        <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
+                          {destination.name}
+                        </h3>
+                        <p className="text-muted-foreground mb-4 line-clamp-3">{destination.description}</p>
+                        <Button asChild className="w-full">
+                          <Link
+                            href={`/reviews/${destination.topReviewId}`}
+                            className="flex items-center justify-center"
+                          >
+                            <span>Explore Destination</span>
+                            <ChevronRight className="ml-1 h-4 w-4 group-hover:ml-2 transition-all" />
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -157,40 +262,71 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {upcomingEvents.map((event) => (
-              <Card key={event.id} className="overflow-hidden bg-background/90 backdrop-blur-sm">
-                <div className="flex flex-col md:flex-row">
-                  <div className="relative w-full md:w-1/3 h-48 md:h-auto">
-                    <Image src={event.image || "/placeholder.svg"} alt={event.title} fill className="object-cover" />
+            {isLoadingEvents ? (
+              // Loading skeletons
+              Array.from({ length: 2 }).map((_, index) => (
+                <Card key={`event-skeleton-${index}`} className="overflow-hidden bg-background/90 backdrop-blur-sm">
+                  <div className="flex flex-col md:flex-row">
+                    <Skeleton className="w-full md:w-1/3 h-48" />
+                    <CardContent className="flex-1 p-6">
+                      <Skeleton className="h-6 w-3/4 mb-2" />
+                      <Skeleton className="h-4 w-1/2 mb-4" />
+                      <Skeleton className="h-4 w-full mb-2" />
+                      <Skeleton className="h-4 w-2/3 mb-4" />
+                      <Skeleton className="h-10 w-full" />
+                    </CardContent>
                   </div>
-                  <CardContent className="flex-1 p-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-xl font-bold mb-2">{event.title}</h3>
-                        <div className="flex flex-col gap-1 mb-4">
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 mr-1" />
-                            {event.location}
-                          </div>
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {event.date}
+                </Card>
+              ))
+            ) : upcomingEvents.length === 0 ? (
+              <div className="col-span-2 text-center py-10">
+                <p className="text-white text-lg">No upcoming events found.</p>
+                <Button asChild className="mt-4">
+                  <Link href="/create-event">Create an Event</Link>
+                </Button>
+              </div>
+            ) : (
+              upcomingEvents.map((event) => (
+                <Card key={event.id} className="overflow-hidden bg-background/90 backdrop-blur-sm">
+                  <div className="flex flex-col md:flex-row">
+                    <div className="relative w-full md:w-1/3 h-48 md:h-auto">
+                      <Image
+                        src={event.imageUrl || "/placeholder.svg?height=400&width=600"}
+                        alt={event.title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <CardContent className="flex-1 p-6">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-xl font-bold mb-2">{event.title}</h3>
+                          <div className="flex flex-col gap-1 mb-4">
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <MapPin className="h-4 w-4 mr-1" />
+                              {event.destination}
+                            </div>
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {new Date(event.start_date).toLocaleDateString()} -{" "}
+                              {new Date(event.end_date).toLocaleDateString()}
+                            </div>
                           </div>
                         </div>
+                        <Badge variant="outline" className="bg-primary/10">
+                          {event.spots_left} spots left
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="bg-primary/10">
-                        {event.spots} spots left
-                      </Badge>
-                    </div>
-                    <div className="mt-auto">
-                      <Button asChild className="w-full">
-                        <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </div>
-              </Card>
-            ))}
+                      <div className="mt-auto">
+                        <Button asChild className="w-full">
+                          <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -208,37 +344,64 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {latestReviews.map((review) => (
-              <Card key={review.id} className="p-6">
-                <div className="flex items-center mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium mr-3">
-                    {review.name.charAt(0)}
+            {isLoadingReviews ? (
+              // Loading skeletons
+              Array.from({ length: 2 }).map((_, index) => (
+                <Card key={`review-skeleton-${index}`} className="p-6">
+                  <div className="flex items-center mb-4">
+                    <Skeleton className="w-10 h-10 rounded-full mr-3" />
+                    <div className="flex-1">
+                      <Skeleton className="h-5 w-1/3 mb-1" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                    <Skeleton className="w-24 h-4" />
                   </div>
-                  <div>
-                    <h3 className="font-medium">{review.name}</h3>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <span>{review.destination}</span>
-                      <span className="mx-2">•</span>
-                      <span>{review.date}</span>
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-2/3 mb-4" />
+                  <Skeleton className="h-8 w-24" />
+                </Card>
+              ))
+            ) : latestReviews.length === 0 ? (
+              <div className="col-span-2 text-center py-10">
+                <p className="text-lg">No reviews found. Be the first to write a review!</p>
+                <Button asChild className="mt-4">
+                  <Link href="/reviews/new">Write a Review</Link>
+                </Button>
+              </div>
+            ) : (
+              latestReviews.map((review) => (
+                <Card key={review.id} className="p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium mr-3">
+                      {review.expand?.user?.name?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{review.expand?.user?.name || "Anonymous"}</h3>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <span>{review.destination}</span>
+                        <span className="mx-2">•</span>
+                        <span>{new Date(review.created).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="ml-auto flex">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                          }`}
+                        />
+                      ))}
                     </div>
                   </div>
-                  <div className="ml-auto flex">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-4 w-4 ${
-                          i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <p className="text-muted-foreground line-clamp-3">{review.content}</p>
-                <Button variant="link" asChild className="mt-2 px-0">
-                  <Link href={`/reviews/${review.id}`}>{t("readMore")}</Link>
-                </Button>
-              </Card>
-            ))}
+                  <p className="text-muted-foreground line-clamp-3">{review.content}</p>
+                  <Button variant="link" asChild className="mt-2 px-0">
+                    <Link href={`/reviews/${review.id}`}>{t("readMore")}</Link>
+                  </Button>
+                </Card>
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -247,4 +410,3 @@ export default function HomePage() {
     </div>
   )
 }
-

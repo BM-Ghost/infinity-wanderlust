@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
+import { getPocketBase } from "@/lib/pocketbase"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -32,18 +33,38 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const result = await signIn(email, password)
-
-      if (!result.success) {
-        if (result.needsVerification) {
-          router.push("/verify")
-          return
-        }
-
-        throw new Error(result.error || "Authentication failed")
+      // Direct PocketBase authentication
+      const pb = getPocketBase()
+      if (!pb) {
+        throw new Error("Authentication service unavailable")
       }
 
-      // Success is handled in the auth provider (redirect to home)
+      console.log("Attempting to sign in with:", email)
+
+      // Authenticate directly with PocketBase
+      await pb.collection("users").authWithPassword(email, password)
+
+      // Save auth data to localStorage
+      localStorage.setItem(
+        "pocketbase_auth",
+        JSON.stringify({
+          token: pb.authStore.token,
+          model: pb.authStore.model,
+        }),
+      )
+
+      console.log("Authentication successful")
+
+      // Show success message
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully signed in.",
+      })
+
+      // Use router.push instead of window.location for smoother transition
+      setTimeout(() => {
+        router.push("/")
+      }, 300)
     } catch (error: any) {
       console.error("Login error:", error)
 
@@ -127,4 +148,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

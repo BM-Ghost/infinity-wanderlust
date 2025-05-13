@@ -4,12 +4,11 @@ export type Review = {
   id: string
   created: string
   updated: string
-  photos: string | null
-  reviewer: string
   destination: string
   rating: number
   review_text: string
-  tagged_users: string[]
+  reviewer: string
+  photo?: string
   likes_count: number
   comments_count: number
   expand?: {
@@ -20,23 +19,17 @@ export type Review = {
       avatar?: string
       email: string
     }
-    tagged_users?: Array<{
-      id: string
-      username: string
-      name?: string
-    }>
   }
 }
 
 export type ReviewWithAuthor = Review & {
   authorName: string
   authorAvatar: string | null
-  photoUrl: string | null
   formattedDate: string
-  hasLiked?: boolean
+  photoUrl: string | null
 }
 
-// Fetch reviews with pagination
+// Update the fetchReviews function to handle auto-cancellation properly and properly expand relations
 export async function fetchReviews(
   page = 1,
   perPage = 10,
@@ -44,14 +37,36 @@ export async function fetchReviews(
   filter = "",
 ): Promise<{ items: ReviewWithAuthor[]; totalItems: number; totalPages: number }> {
   const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
 
   try {
+    // Add proper error handling for authentication
+    if (filter.includes("reviewer =") && !pb?.authStore?.isValid) {
+      console.log("User not authenticated but trying to fetch their reviews")
+      return { items: [], totalItems: 0, totalPages: 0 }
+    }
+
+    // Create a custom options object with a unique AbortController signal
+    const options = {
+      signal: new AbortController().signal,
+      $autoCancel: false, // Disable auto-cancellation for this specific request
+    }
+
+    // Explicitly request the reviewer expansion
     const resultList = await pb.collection("reviews").getList(page, perPage, {
       sort,
       filter,
-      expand: "reviewer,tagged_users",
+      expand: "reviewer", // Make sure reviewer relation is expanded
+      ...options,
     })
 
+    // Debug: Log the first item to see its structure
+    if (resultList.items.length > 0) {
+      console.log("First review item:", JSON.stringify(resultList.items[0], null, 2))
+      console.log("Reviewer data:", resultList.items[0].expand?.reviewer)
+    }
+
+    // Format reviews
     const formattedReviews = resultList.items.map(formatReview)
 
     return {
@@ -59,40 +74,25 @@ export async function fetchReviews(
       totalItems: resultList.totalItems,
       totalPages: resultList.totalPages,
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Check if this is an auto-cancellation error
+    if (error.name === "AbortError" || error.message?.includes("autocancelled")) {
+      console.log("Request was cancelled, likely due to component unmounting or new request starting")
+      return { items: [], totalItems: 0, totalPages: 0 }
+    }
+
     console.error("Error fetching reviews:", error)
-    // Return empty data instead of fallback data
     return { items: [], totalItems: 0, totalPages: 0 }
   }
 }
 
-// Fetch a single review by ID
-export async function fetchReviewById(id: string): Promise<ReviewWithAuthor | null> {
-  const pb = getPocketBase()
-
-  try {
-    const record = await pb.collection("reviews").getOne(id, {
-      expand: "reviewer,tagged_users",
-    })
-
-    return formatReview(record)
-  } catch (error) {
-    console.error(`Error fetching review with ID ${id}:`, error)
-    return null
-  }
-}
-
-// Create a new review - requires authentication
+// Create a new review
 export async function createReview(
-  data: {
-    destination: string
-    rating: number
-    review_text: string
-    tagged_users?: string[]
-  },
+  data: { destination: string; rating: number; review_text: string },
   photos?: File[],
 ): Promise<ReviewWithAuthor | null> {
   const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
 
   if (!pb?.authStore?.isValid) {
     throw new Error("You must be signed in to create a review")
@@ -104,48 +104,41 @@ export async function createReview(
     formData.append("rating", data.rating.toString())
     formData.append("review_text", data.review_text)
     formData.append("reviewer", pb.authStore.model?.id)
-
-    if (data.tagged_users && data.tagged_users.length > 0) {
-      data.tagged_users.forEach((userId) => {
-        formData.append("tagged_users", userId)
-      })
-    }
+    formData.append("likes_count", "0")
+    formData.append("comments_count", "0")
 
     if (photos && photos.length > 0) {
-      // PocketBase supports multiple files for a single field
-      photos.forEach((photo) => {
-        formData.append("photos", photo)
-      })
+      formData.append("photo", photos[0])
     }
 
     const record = await pb.collection("reviews").create(formData, {
-      expand: "reviewer,tagged_users",
+      expand: "reviewer", // Make sure to expand reviewer relation
     })
+
+    // Debug: Log the created record
+    console.log("Created review:", JSON.stringify(record, null, 2))
+    console.log("Reviewer data:", record.expand?.reviewer)
 
     return formatReview(record)
   } catch (error: any) {
     console.error("Error creating review:", error)
 
     if (error.status === 401 || error.status === 403) {
-      throw new Error("You don't have permission to create reviews. Please sign in first.")
+      throw new Error("You don't have permission to create a review. Please sign in first.")
     }
 
     throw new Error(error.message || "Failed to create review. Please try again.")
   }
 }
 
-// Update an existing review - requires authentication and ownership
+// Update a review
 export async function updateReview(
   id: string,
-  data: {
-    destination?: string
-    rating?: number
-    review_text?: string
-    tagged_users?: string[]
-  },
+  data: { destination: string; rating: number; review_text: string },
   photos?: File[],
 ): Promise<ReviewWithAuthor | null> {
   const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
 
   if (!pb?.authStore?.isValid) {
     throw new Error("You must be signed in to update a review")
@@ -159,25 +152,16 @@ export async function updateReview(
     }
 
     const formData = new FormData()
-
-    if (data.destination) formData.append("destination", data.destination)
-    if (data.rating) formData.append("rating", data.rating.toString())
-    if (data.review_text) formData.append("review_text", data.review_text)
-
-    if (data.tagged_users) {
-      data.tagged_users.forEach((userId) => {
-        formData.append("tagged_users", userId)
-      })
-    }
+    formData.append("destination", data.destination)
+    formData.append("rating", data.rating.toString())
+    formData.append("review_text", data.review_text)
 
     if (photos && photos.length > 0) {
-      photos.forEach((photo) => {
-        formData.append("photos", photo)
-      })
+      formData.append("photo", photos[0])
     }
 
     const record = await pb.collection("reviews").update(id, formData, {
-      expand: "reviewer,tagged_users",
+      expand: "reviewer", // Make sure to expand reviewer relation
     })
 
     return formatReview(record)
@@ -192,9 +176,10 @@ export async function updateReview(
   }
 }
 
-// Delete a review - requires authentication and ownership
+// Delete a review
 export async function deleteReview(id: string): Promise<boolean> {
   const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
 
   if (!pb?.authStore?.isValid) {
     throw new Error("You must be signed in to delete a review")
@@ -220,9 +205,10 @@ export async function deleteReview(id: string): Promise<boolean> {
   }
 }
 
-// Add a function to like a review
+// Like a review
 export async function likeReview(reviewId: string): Promise<boolean> {
   const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
 
   if (!pb?.authStore?.isValid) {
     throw new Error("You must be signed in to like a review")
@@ -234,29 +220,13 @@ export async function likeReview(reviewId: string): Promise<boolean> {
 
     await pb.collection("reviews").update(reviewId, { likes_count: likesCount })
     return true
-  } catch (error) {
-    console.error("Error liking review:", error)
-    return false
+  } catch (error: any) {
+    console.error(`Error liking review with ID ${reviewId}:`, error)
+    throw new Error(error.message || "Failed to like review. Please try again.")
   }
 }
 
-// Update the comments count of a review
-export async function updateReviewCommentsCount(reviewId: string, increment = 1): Promise<boolean> {
-  const pb = getPocketBase()
-
-  try {
-    const review = await pb.collection("reviews").getOne(reviewId)
-    const commentsCount = (review.comments_count || 0) + increment
-
-    await pb.collection("reviews").update(reviewId, { comments_count: Math.max(0, commentsCount) })
-    return true
-  } catch (error) {
-    console.error("Error updating comments count:", error)
-    return false
-  }
-}
-
-// Helper function to format a review record
+// Update the formatReview function to correctly use the reviewer field
 function formatReview(record: any): ReviewWithAuthor {
   const baseUrl = "https://remain-faceghost.pockethost.io/api/files/"
 
@@ -268,31 +238,83 @@ function formatReview(record: any): ReviewWithAuthor {
     day: "numeric",
   })
 
-  // Get author info
+  // Get author info - ensure we always get the best available name
   let authorName = "Unknown User"
   let authorAvatar = null
 
+  // Debug: Log the record structure to see what we're working with
+  console.log("Formatting review:", record.id)
+  console.log("Record expand:", record.expand)
+
+  // Try multiple approaches to get the reviewer information
   if (record.expand?.reviewer) {
-    authorName = record.expand.reviewer.name || record.expand.reviewer.username
+    console.log("Found expanded reviewer:", record.expand.reviewer)
+
+    // Use the name or username from the expanded relation
+    if (record.expand.reviewer.name) {
+      authorName = record.expand.reviewer.name
+      console.log("Using reviewer name:", authorName)
+    } else if (record.expand.reviewer.username) {
+      authorName = record.expand.reviewer.username
+      console.log("Using reviewer username:", authorName)
+    }
+
+    // Get avatar if available
     if (record.expand.reviewer.avatar) {
       authorAvatar = `${baseUrl}${record.expand.reviewer.collectionId}/${record.expand.reviewer.id}/${record.expand.reviewer.avatar}`
+    }
+  } else {
+    console.log("No expanded reviewer found for review:", record.id)
+
+    // Try to get the reviewer ID at least
+    if (record.reviewer) {
+      console.log("Reviewer ID:", record.reviewer)
     }
   }
 
   // Get photo URL
   let photoUrl = null
-  if (record.photos) {
-    photoUrl = `${baseUrl}${record.collectionId}/${record.id}/${record.photos}`
+  if (record.photo) {
+    photoUrl = `${baseUrl}${record.collectionId}/${record.id}/${record.photo}`
   }
 
-  return {
+  const formattedReview = {
     ...record,
     authorName,
     authorAvatar,
-    photoUrl,
     formattedDate,
+    photoUrl,
     likes_count: record.likes_count || 0,
     comments_count: record.comments_count || 0,
   }
+
+  console.log("Formatted review author:", formattedReview.authorName)
+  return formattedReview
 }
 
+// Add the fetchLatestReviews function after the existing functions
+
+// Fetch latest reviews
+export async function fetchLatestReviews(limit = 2) {
+  const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
+
+  try {
+    const reviews = await pb.collection("reviews").getList(1, limit, {
+      sort: "-created",
+      expand: "user",
+    })
+
+    return reviews.items.map((review: any) => ({
+      id: review.id,
+      destination: review.destination,
+      content: review.review_text,
+      rating: review.rating,
+      created: review.created,
+      expand: review.expand,
+    }))
+  } catch (error) {
+    console.error("Error fetching latest reviews:", error)
+    return []
+  }
+}

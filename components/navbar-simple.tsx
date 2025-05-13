@@ -9,13 +9,29 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10)
     }
     window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+
+    // Check login status
+    const checkLoginStatus = () => {
+      const authData = localStorage.getItem("pocketbase_auth")
+      setIsLoggedIn(!!authData)
+    }
+
+    checkLoginStatus()
+
+    // Set up an interval to check login status periodically
+    const interval = setInterval(checkLoginStatus, 1000)
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      clearInterval(interval)
+    }
   }, [])
 
   const navLinks = [
@@ -26,8 +42,11 @@ export function Navbar() {
     { href: "/contact", label: "Contact" },
   ]
 
-  // Check if user is logged in
-  const isLoggedIn = typeof window !== "undefined" && localStorage.getItem("pocketbase_auth") !== null
+  const handleSignOut = () => {
+    localStorage.removeItem("pocketbase_auth")
+    setIsLoggedIn(false)
+    window.location.href = "/"
+  }
 
   return (
     <header
@@ -53,13 +72,7 @@ export function Navbar() {
           <ThemeToggle />
 
           {isLoggedIn ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                localStorage.removeItem("pocketbase_auth")
-                window.location.href = "/"
-              }}
-            >
+            <Button variant="outline" onClick={handleSignOut}>
               Sign Out
             </Button>
           ) : (
@@ -92,14 +105,7 @@ export function Navbar() {
                 ))}
 
                 {isLoggedIn ? (
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => {
-                      localStorage.removeItem("pocketbase_auth")
-                      window.location.href = "/"
-                    }}
-                  >
+                  <Button variant="outline" className="mt-4" onClick={handleSignOut}>
                     Sign Out
                   </Button>
                 ) : (
@@ -115,4 +121,3 @@ export function Navbar() {
     </header>
   )
 }
-

@@ -3,7 +3,9 @@ import { getPocketBase } from "@/lib/pocketbase"
 export type GalleryImage = {
   id: string
   src: string
+  url?: string
   alt: string
+  title?: string
   location: string
   date: string
   likes: number
@@ -11,6 +13,9 @@ export type GalleryImage = {
   isInstagram: boolean
   instagramUrl?: string
   userId?: string
+  tags?: string[]
+  type?: string
+  description?: string
 }
 
 // Update the fetchGalleryImages function to handle the case where the collection doesn't exist
@@ -29,7 +34,9 @@ export async function fetchGalleryImages(): Promise<GalleryImage[]> {
       return records.map((record) => ({
         id: record.id,
         src: `https://remain-faceghost.pockethost.io/api/files/${record.collectionId}/${record.id}/${record.image}`,
+        url: `https://remain-faceghost.pockethost.io/api/files/${record.collectionId}/${record.id}/${record.image}`,
         alt: record.title || "Gallery image",
+        title: record.title || "Gallery image",
         location: record.location || "Unknown location",
         date: new Date(record.created).toLocaleDateString("en-US", {
           year: "numeric",
@@ -41,6 +48,9 @@ export async function fetchGalleryImages(): Promise<GalleryImage[]> {
         isInstagram: record.isInstagram || false,
         instagramUrl: record.instagramUrl,
         userId: record.user,
+        tags: record.tags || [],
+        type: record.isInstagram ? "instagram" : "upload",
+        description: record.description || "",
       }))
     } catch (error) {
       console.log("Gallery collection might not exist yet, using fallback data")
@@ -49,35 +59,50 @@ export async function fetchGalleryImages(): Promise<GalleryImage[]> {
         {
           id: "fallback_1",
           src: "/placeholder.svg?height=600&width=800",
+          url: "/placeholder.svg?height=600&width=800",
           alt: "Beautiful mountain landscape",
+          title: "Beautiful mountain landscape",
           location: "Rocky Mountains, USA",
           date: "March 15, 2025",
           likes: 45,
           comments: 7,
           isInstagram: false,
           userId: "system",
+          tags: ["mountains", "nature", "landscape"],
+          type: "upload",
+          description: "A breathtaking view of the Rocky Mountains during spring.",
         },
         {
           id: "fallback_2",
           src: "/placeholder.svg?height=600&width=800",
+          url: "/placeholder.svg?height=600&width=800",
           alt: "Tropical beach sunset",
+          title: "Tropical beach sunset",
           location: "Maldives",
           date: "February 28, 2025",
           likes: 72,
           comments: 12,
           isInstagram: false,
           userId: "system",
+          tags: ["beach", "sunset", "tropical"],
+          type: "upload",
+          description: "Golden sunset over the crystal clear waters of the Maldives.",
         },
         {
           id: "fallback_3",
           src: "/placeholder.svg?height=600&width=800",
+          url: "/placeholder.svg?height=600&width=800",
           alt: "Historic city streets",
+          title: "Historic city streets",
           location: "Prague, Czech Republic",
           date: "January 10, 2025",
           likes: 38,
           comments: 5,
           isInstagram: false,
           userId: "system",
+          tags: ["city", "history", "architecture"],
+          type: "upload",
+          description: "Walking through the charming historic streets of Prague.",
         },
       ]
     }
@@ -246,4 +271,3 @@ export async function addGalleryComment(imageId: string, comment: string): Promi
     return false
   }
 }
-

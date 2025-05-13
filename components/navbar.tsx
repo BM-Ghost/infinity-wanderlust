@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageToggle } from "@/components/language-toggle"
-import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getPocketBase } from "@/lib/pocketbase"
 
 // Helper function to get first name
 function getFirstName(fullName: string | undefined) {
@@ -21,17 +21,73 @@ function getFirstName(fullName: string | undefined) {
 
 export function Navbar() {
   const pathname = usePathname()
-  const { user, signOut } = useAuth()
   const { t } = useTranslation()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
 
+  // Update the handleSignOut function to use router for smoother transitions
+  const handleSignOut = () => {
+    const pb = getPocketBase()
+    if (pb) {
+      pb.authStore.clear()
+    }
+    localStorage.removeItem("pocketbase_auth")
+    setUser(null)
+
+    // Use a small delay before redirecting to allow UI to update
+    setTimeout(() => {
+      window.location.href = "/"
+    }, 100)
+  }
+
+  // Update the useEffect hook to improve user data loading
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10)
     }
     window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+
+    // Check for user data
+    const checkUserData = () => {
+      try {
+        const pb = getPocketBase()
+        if (pb && pb.authStore.isValid) {
+          setUser(pb.authStore.model)
+        } else {
+          // Try to get user data from localStorage as fallback
+          const authData = localStorage.getItem("pocketbase_auth")
+          if (authData) {
+            try {
+              const { model } = JSON.parse(authData)
+              if (model) {
+                setUser(model)
+              } else {
+                setUser(null)
+              }
+            } catch (e) {
+              console.error("Error parsing auth data:", e)
+              setUser(null)
+            }
+          } else {
+            setUser(null)
+          }
+        }
+      } catch (error) {
+        console.error("Error checking user data:", error)
+        setUser(null)
+      }
+    }
+
+    checkUserData()
+
+    // Set up an interval to check user data periodically
+    const interval = setInterval(checkUserData, 1000)
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      clearInterval(interval)
+    }
   }, [])
 
   const navLinks = [
@@ -78,8 +134,17 @@ export function Navbar() {
                 <Button variant="ghost" className="flex items-center gap-2 px-3">
                   <span className="font-medium">Hi, {getFirstName(user.name)}</span>
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
-                    <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarImage
+                      src={
+                        user.avatar
+                          ? `https://remain-faceghost.pockethost.io/api/files/${user.collectionId}/${user.id}/${user.avatar}`
+                          : ""
+                      }
+                      alt={user.name || user.username}
+                    />
+                    <AvatarFallback>
+                      {(user.name?.charAt(0) || user.username?.charAt(0) || user.email?.charAt(0) || "U").toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -93,7 +158,7 @@ export function Navbar() {
                 <DropdownMenuItem asChild>
                   <Link href="/my-bookings">{t("myBookings")}</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => signOut()}>{t("signOut")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>{t("signOut")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
@@ -142,11 +207,25 @@ export function Navbar() {
                     <>
                       <div className="flex items-center gap-3 mb-4">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
-                          <AvatarFallback>{user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                          <AvatarImage
+                            src={
+                              user.avatar
+                                ? `https://remain-faceghost.pockethost.io/api/files/${user.collectionId}/${user.id}/${user.avatar}`
+                                : ""
+                            }
+                            alt={user.name || user.username}
+                          />
+                          <AvatarFallback>
+                            {(
+                              user.name?.charAt(0) ||
+                              user.username?.charAt(0) ||
+                              user.email?.charAt(0) ||
+                              "U"
+                            ).toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-medium">Hi, {getFirstName(user.name)}</p>
+                          <p className="text-sm font-medium">Hi, {getFirstName(user.name || user.username)}</p>
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                         </div>
                       </div>
@@ -170,7 +249,7 @@ export function Navbar() {
                       <Button
                         variant="outline"
                         onClick={() => {
-                          signOut()
+                          handleSignOut()
                           setIsMobileMenuOpen(false)
                         }}
                       >
@@ -191,4 +270,3 @@ export function Navbar() {
     </header>
   )
 }
-
