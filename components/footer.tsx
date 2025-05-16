@@ -42,6 +42,7 @@ export function Footer() {
             <h3 className="text-lg font-bold">{t("quickLinks")}</h3>
             <ul className="space-y-2">
               <li><Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("home")}</Link></li>
+              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("about")}</Link></li>
               <li><Link href="/gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("gallery")}</Link></li>
               <li><Link href="/events" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("events")}</Link></li>
               <li><Link href="/reviews" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("reviews")}</Link></li>
