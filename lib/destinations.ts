@@ -74,6 +74,11 @@ export async function fetchFeaturedDestinations(limit = 10): Promise<FeaturedDes
           }
         })
 
+        // Skip destination if no images found
+        if (images.length === 0) {
+          continue
+        }
+
         // Use the highest rated review's text as the description and store its ID
         let description = ""
         let topReviewId = ""
@@ -81,16 +86,11 @@ export async function fetchFeaturedDestinations(limit = 10): Promise<FeaturedDes
         if (reviews.items.length > 0) {
           const topReview = reviews.items[0] as any
           topReviewId = topReview.id
-          // Extract a short description from the review text
+           // Extract a short description from the review text
           description =
             topReview.review_text && topReview.review_text.length > 120
               ? topReview.review_text.substring(0, 120) + "..."
               : topReview.review_text || ""
-        }
-
-        // If no images were found, use a placeholder
-        if (images.length === 0) {
-          images.push(`/placeholder.svg?height=400&width=600&text=${encodeURIComponent(dest.name)}`)
         }
 
         featuredDestinations.push({

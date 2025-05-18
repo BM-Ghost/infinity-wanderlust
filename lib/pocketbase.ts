@@ -38,11 +38,11 @@ export function getPocketBase() {
   }
 
   // Log connection status for debugging
-  console.log("PocketBase connection status:", {
-    initialized: !!pb,
-    baseUrl: pb?.baseUrl,
-    authStoreValid: pb?.authStore?.isValid,
-  })
+  // console.log("PocketBase connection status:", {
+  //   initialized: !!pb,
+  //   baseUrl: pb?.baseUrl,
+  //   authStoreValid: pb?.authStore?.isValid,
+  // })
 
   return pb
 }
