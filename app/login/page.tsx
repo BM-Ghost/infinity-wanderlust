@@ -5,8 +5,6 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -80,8 +78,6 @@ export default function LoginPage() {
 
   return (
     <div className="forest-bg min-h-screen">
-      <Navbar />
-
       <div className="container py-16 flex flex-col items-center">
         <div className="w-full max-w-md">
           <Card>
@@ -143,8 +139,6 @@ export default function LoginPage() {
           </Card>
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }

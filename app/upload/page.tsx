@@ -4,8 +4,6 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +13,7 @@ import { useAuth } from "@/components/auth-provider"
 import { createUpload } from "@/lib/uploads"
 import Image from "next/image"
 import { Upload, MapPin, X } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function UploadPage() {
   const router = useRouter()
@@ -26,18 +25,7 @@ export default function UploadPage() {
   const [caption, setCaption] = useState("")
   const [destination, setDestination] = useState("")
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to upload images",
-        variant: "destructive",
-      })
-      router.push("/login")
-    }
-  }, [user, router, toast])
+  const queryClient = useQueryClient()
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -83,6 +71,7 @@ export default function UploadPage() {
 
     try {
       await createUpload(uploadFile, caption, destination)
+      queryClient.invalidateQueries({ queryKey: ["all-uploads"] })
 
       toast({
         title: "Upload successful",
@@ -105,8 +94,6 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
-
       <main className="flex-1 py-12 forest-bg">
         <div className="container max-w-2xl">
           <Card className="bg-background/90 backdrop-blur-sm">
@@ -211,8 +198,6 @@ export default function UploadPage() {
           </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

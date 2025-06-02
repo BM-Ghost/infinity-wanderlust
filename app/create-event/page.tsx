@@ -4,8 +4,6 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -19,7 +17,6 @@ import {
   MapPin,
   Info,
   Users,
-  DollarSign,
   Clock,
   Tag,
   Compass,
@@ -37,6 +34,18 @@ import { createEvent } from "@/lib/travel-events"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useUsers } from "@/hooks/useUsers"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"; // Assuming you have these
+import { useDebounce } from "use-debounce"; // Install via: npm install use-debounce
+import axios from 'axios';
+import { addDays } from "date-fns"; // ensure this is imported
+
+// Initialize Fuse.js with SSR fallback
+let fuseInstance: any = null;
+
+if (typeof window !== 'undefined') {
+  fuseInstance = require('fuse.js').default;
+}
 
 // Activity options for the event
 const ACTIVITY_OPTIONS = [
@@ -68,6 +77,32 @@ export default function CreateEventPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  type CurrencyOption = { label: string; code: string; symbol: string; countryName: string };
+  const [currencySymbol, setCurrencySymbol] = useState("$");
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("$");
+
+  // Users state
+  const [userQuery, setUserQuery] = useState("");
+  const [taggedUsers, setTaggedUsers] = useState<string[]>([]);
+
+  const { data, isLoading: isUsersLoading } = useUsers(1);
+  const users = data?.users ?? [];
+
+  const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const OPENWEATHER_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_KEY;
+
+  const handleTagUser = (username: string) => {
+    if (!taggedUsers.includes(username)) {
+      setTaggedUsers([...taggedUsers, username]);
+    }
+    setUserQuery(""); // Reset input
+  };
+
+  // Inside your component
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const tomorrow = addDays(new Date(), 1);
 
   // Form state
   const [title, setTitle] = useState("")
@@ -96,7 +131,6 @@ export default function CreateEventPage() {
   const [weatherInfo, setWeatherInfo] = useState<any>(null)
   const [packingList, setPackingList] = useState<string[]>([])
   const [nearbyAttractions, setNearbyAttractions] = useState<any[]>([])
-  const [showDebugInfo, setShowDebugInfo] = useState(false)
 
   // Check if user is authenticated
   useEffect(() => {
@@ -110,11 +144,64 @@ export default function CreateEventPage() {
     }
   }, [user, isAuthLoading, router, toast])
 
+  // Fetch countries & currencies from API
+  type Country = {
+    name: { common: string };
+    currencies?: {
+      [code: string]: {
+        name: string;
+        symbol?: string;
+      };
+    };
+  };
+
+  const [fuse, setFuse] = useState<Fuse<CurrencyOption> | null>(null);
+
+  useEffect(() => {
+    const fetchCurrencyData = async () => {
+      try {
+        const res = await fetch("https://restcountries.com/v3.1/all");
+        const data: Country[] = await res.json();
+
+        const currencyOptions: CurrencyOption[] = data
+          .filter((country) => country.currencies)
+          .map((country) => {
+            const [code, currency] = Object.entries(country.currencies!)[0]; // Get first currency only
+            return {
+              code,
+              symbol: currency.symbol || "",
+              label: `${country.name.common} (${code}) - ${currency.symbol || ""}`,
+              countryName: country.name.common.toLowerCase(),
+            };
+          });
+
+        setCurrencies(currencyOptions);
+
+        if (fuseInstance) {
+          setFuse(
+            new fuseInstance(currencyOptions, {
+              keys: ["countryName"],
+              threshold: 0.3,
+            })
+          );
+        } else {
+          console.warn('Fuse.js not available in this environment');
+        }
+      } catch (error) {
+        console.error("Failed to fetch currencies:", error);
+      }
+    };
+
+    fetchCurrencyData();
+  }, []);
+
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
       setSelectedFile(file)
+
+      console.log("📂 Selected file:", file)
 
       // Create preview
       const reader = new FileReader()
@@ -123,93 +210,6 @@ export default function CreateEventPage() {
       }
       reader.readAsDataURL(file)
     }
-  }
-
-  // Handle manual location input
-  const handleLocationInput = () => {
-    // For demo purposes, set a default location if none is provided
-    if (!location.address) {
-      const defaultLocation = {
-        address: "Nairobi, Kenya",
-        latitude: -1.2921,
-        longitude: 36.8219,
-      }
-      setLocation(defaultLocation)
-      setDestination("Nairobi") // Make sure this is set
-
-      // Simulate fetching weather and attractions for the location
-      simulateWeatherForecast(defaultLocation.latitude, defaultLocation.longitude)
-      simulateNearbyAttractions(defaultLocation.latitude, defaultLocation.longitude)
-
-      toast({
-        title: "Location set",
-        description: "Default location set to Nairobi, Kenya.",
-      })
-    } else {
-      // Simulate geocoding the address to get coordinates
-      const geocodedLocation = {
-        ...location,
-        latitude: location.latitude || (Math.random() * 180 - 90) % 90, // Ensure within -90 to 90
-        longitude: location.longitude || Math.random() * 360 - 180, // Ensure within -180 to 180
-      }
-      setLocation(geocodedLocation)
-
-      // Extract destination from address - use the first part of the address
-      const destinationPart = location.address.split(",")[0].trim()
-      setDestination(destinationPart)
-
-      // Simulate fetching weather and attractions for the location
-      simulateWeatherForecast(geocodedLocation.latitude, geocodedLocation.longitude)
-      simulateNearbyAttractions(geocodedLocation.latitude, geocodedLocation.longitude)
-
-      toast({
-        title: "Location set",
-        description: `Location set to ${location.address}.`,
-      })
-    }
-  }
-
-  // Simulate getting weather forecast
-  const simulateWeatherForecast = (lat: number, lng: number) => {
-    // In a real app, this would call a weather API
-    setTimeout(() => {
-      const month = startDate ? startDate.getMonth() : new Date().getMonth()
-      let forecast
-
-      // Generate seasonal weather based on month
-      if (month >= 2 && month <= 4) {
-        // Spring
-        forecast = { condition: "Partly Cloudy", high: 75, low: 55, precipitation: 20 }
-      } else if (month >= 5 && month <= 7) {
-        // Summer
-        forecast = { condition: "Sunny", high: 85, low: 65, precipitation: 10 }
-      } else if (month >= 8 && month <= 10) {
-        // Fall
-        forecast = { condition: "Cloudy", high: 65, low: 45, precipitation: 30 }
-      } else {
-        // Winter
-        forecast = { condition: "Rainy", high: 55, low: 35, precipitation: 60 }
-      }
-
-      setWeatherInfo(forecast)
-
-      // Update packing list based on weather and activities
-      updatePackingList(forecast, selectedActivities)
-    }, 500)
-  }
-
-  // Simulate getting nearby attractions
-  const simulateNearbyAttractions = (lat: number, lng: number) => {
-    // In a real app, this would call a places API
-    setTimeout(() => {
-      const attractions = [
-        { name: "Local Museum", type: "museum", distance: 1.2 },
-        { name: "City Park", type: "park", distance: 0.8 },
-        { name: "Historic Building", type: "landmark", distance: 1.5 },
-        { name: "Popular Restaurant", type: "food", distance: 0.5 },
-      ]
-      setNearbyAttractions(attractions)
-    }, 700)
   }
 
   // Update packing list based on weather and activities
@@ -235,19 +235,6 @@ export default function CreateEventPage() {
     }
 
     setPackingList(suggestions)
-  }
-
-  // Handle adding a new tag
-  const handleAddTag = () => {
-    if (newTag && !tags.includes(newTag)) {
-      setTags([...tags, newTag])
-      setNewTag("")
-    }
-  }
-
-  // Handle removing a tag
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove))
   }
 
   // Handle activity selection
@@ -332,46 +319,36 @@ export default function CreateEventPage() {
       // Prepare event data
       const eventData = {
         title,
-        description,
         destination,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        price: Number.parseFloat(price),
-        total_spots: Number.parseInt(totalSpots),
-        duration: duration || `${Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days`,
-        location_address: location.address,
+        description,
+        start_date: startDate ? startDate.toISOString() : "",
+        end_date: endDate ? endDate.toISOString() : "",
+        spots_left: Number.parseInt(totalSpots, 10),
+        currency: selectedCurrency,
+        status: activeTab === "upcoming" ? "upcoming" : "past",
+        slug: title.toLowerCase().replace(/\s+/g, "-"),
+        event_url: "https://example.com/events/" + title.toLowerCase().replace(/\s+/g, "-"),
         latitude: location.latitude,
         longitude: location.longitude,
+        creator: user.id,
+        collaborators: taggedUsers,
+        location_address: location.address,
+        location_name: destination,
         tags,
         activities: selectedActivities,
         difficulty_level: difficultyLevel,
+        packing_list: packingList,
+        images: selectedFile instanceof File ? [selectedFile] : [],
       }
-
-      console.log("📋 Event data prepared:", eventData)
-      console.log(
-        "🖼️ Image:",
-        selectedFile
-          ? {
-              name: selectedFile.name,
-              type: selectedFile.type,
-              size: `${(selectedFile.size / 1024).toFixed(2)} KB`,
-            }
-          : "None",
-      )
-
       // Create the event
-      console.log("🔄 Calling createEvent function...")
-      const result = await createEvent(eventData, selectedFile ? [selectedFile] : undefined)
-
+      const result = await createEvent(eventData)
       if (result) {
-        console.log("✅ Event created successfully:", result)
         toast({
           title: "Event created",
           description: "Your event has been created successfully.",
         })
         router.push(`/events`)
       } else {
-        console.error("❌ Event creation failed: No result returned")
         toast({
           title: "Error creating event",
           description: "No response from server. Please try again.",
@@ -380,8 +357,6 @@ export default function CreateEventPage() {
       }
     } catch (error: any) {
       console.error("❌ Error in event submission:", error)
-      console.error("  Error message:", error.message)
-      console.error("  Error stack:", error.stack)
 
       toast({
         title: "Error creating event",
@@ -395,80 +370,174 @@ export default function CreateEventPage() {
     }
   }
 
-  // Handle location selection
-  const handleLocationSelect = (selectedLocation: {
-    address: string
-    latitude: number
-    longitude: number
-  }) => {
-    // Ensure latitude is within valid range
-    const validLatitude = Math.max(-90, Math.min(90, selectedLocation.latitude))
+  const [weather, setWeather] = useState<WeatherData | null>(null);
 
-    setLocation({
-      ...selectedLocation,
-      latitude: validLatitude,
-    })
-    setDestination(selectedLocation.address.split(",")[0]) // Use the first part of the address as destination
+  const handleLocationInput = async () => {
+    if (!location.address) {
+      setFormErrors({ location: 'Please enter an address.' });
+      return;
+    }
 
-    // Simulate fetching weather and attractions for the location
-    simulateWeatherForecast(validLatitude, selectedLocation.longitude)
-    simulateNearbyAttractions(validLatitude, selectedLocation.longitude)
+    try {
+      const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location.address)}.json?access_token=${MAPBOX_TOKEN}`;
+      const geocodeRes = await axios.get(geocodeUrl);
+      const [lon, lat] = geocodeRes.data.features[0].center;
+
+      setLocation((prev) => ({
+        ...prev,
+        latitude: lat,
+        longitude: lon,
+      }));
+
+      const placeName = geocodeRes.data.features[0].place_name;
+      setDestination(placeName);
+
+      fetchWeather(lat, lon);
+      fetchNearbyAttractions(lat, lon);
+    } catch (error) {
+      console.error('Error fetching location data:', error);
+      setFormErrors({ location: 'Unable to fetch location data.' });
+    }
+  };
+
+  interface WeatherMain {
+    temp: number;
+    humidity: number;
   }
+
+  interface WeatherWeather {
+    description: string;
+    icon: string;
+  }
+
+  interface WeatherWind {
+    speed: number;
+  }
+
+  interface WeatherData {
+    main: WeatherMain;
+    weather: WeatherWeather[];
+    wind: WeatherWind;
+    [key: string]: any; // For any additional fields
+  }
+
+  const fetchWeather = async (lat: number, lon: number): Promise<void> => {
+    try {
+      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}&units=metric`;
+      const weatherRes = await axios.get<WeatherData>(weatherUrl);
+      setWeather(weatherRes.data);
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+    }
+  };
+
+  interface AttractionFeatureProperties {
+    category?: string;
+    distance?: number;
+    [key: string]: any;
+  }
+
+  interface AttractionFeature {
+    text: string;
+    properties: AttractionFeatureProperties;
+    [key: string]: any;
+  }
+
+  interface AttractionsResponse {
+    features: AttractionFeature[];
+    [key: string]: any;
+  }
+
+  interface NearbyAttraction {
+    name: string;
+    type: string;
+    distance: string;
+  }
+
+  const fetchNearbyAttractions = async (lat: number, lon: number): Promise<void> => {
+    try {
+      const attractionsUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/poi.json?proximity=${lon},${lat}&access_token=${MAPBOX_TOKEN}`;
+      const attractionsRes = await axios.get<AttractionsResponse>(attractionsUrl);
+      const attractions: NearbyAttraction[] = attractionsRes.data.features.map((feature) => ({
+        name: feature.text,
+        type: feature.properties.category || 'landmark',
+        distance: (feature.properties.distance || 0).toFixed(2),
+      }));
+      setNearbyAttractions(attractions);
+    } catch (error) {
+      console.error('Error fetching nearby attractions:', error);
+    }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: 'Geolocation not supported',
+        description: 'Your browser does not support geolocation.',
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const reverseGeocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${MAPBOX_TOKEN}`;
+          const reverseGeocodeRes = await axios.get(reverseGeocodeUrl);
+          const address = reverseGeocodeRes.data.features[0].place_name;
+
+          setLocation({
+            address,
+            latitude,
+            longitude,
+          });
+          setDestination(address);
+
+          fetchWeather(latitude, longitude);
+          fetchNearbyAttractions(latitude, longitude);
+
+          toast({
+            title: 'Location set',
+            description: `Current location set to ${address}.`,
+          });
+        } catch (error) {
+          console.error('Error fetching current location:', error);
+          toast({
+            title: 'Error',
+            description: 'Unable to fetch current location.',
+          });
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        toast({
+          title: 'Error',
+          description: 'Unable to retrieve your location.',
+        });
+      }
+    );
+  };
 
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container py-12">
           <div className="flex justify-center items-center h-[60vh]">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <div className="container py-12">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-2">Create a New Event</h1>
           <p className="text-muted-foreground mb-8">
             Share your travel plans and invite others to join your adventure.
           </p>
-
-          <div className="mb-6">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDebugInfo(!showDebugInfo)}
-              className="flex items-center gap-1"
-            >
-              <AlertCircle className="h-4 w-4" />
-              {showDebugInfo ? "Hide Debug Info" : "Show Debug Info"}
-            </Button>
-
-            {showDebugInfo && (
-              <Alert className="mt-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Debug Information</AlertTitle>
-                <AlertDescription>
-                  <div className="text-xs mt-2 font-mono">
-                    <p>
-                      Required fields: title, subtitle, description, destination, start_date, end_date, duration_days,
-                      spots_left, price, currency, latitude, longitude, creator
-                    </p>
-                    <p>Latitude must be between -90 and 90 degrees</p>
-                    <p>Longitude must be between -180 and 180 degrees</p>
-                    <p>Current latitude: {location.latitude}</p>
-                    <p>Current longitude: {location.longitude}</p>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
 
           <form onSubmit={handleSubmit}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -535,7 +604,7 @@ export default function CreateEventPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className={formErrors.startDate ? "text-destructive" : ""}>Start Date *</Label>
-                        <Popover>
+                        <Popover open={startOpen} onOpenChange={setStartOpen}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -553,9 +622,13 @@ export default function CreateEventPage() {
                             <Calendar
                               mode="single"
                               selected={startDate}
-                              onSelect={setStartDate}
+                              onSelect={(date) => {
+                                setStartDate(date);
+                                setStartOpen(false); // close on select
+                              }}
                               initialFocus
                               disabled={(date) => date < new Date()}
+                              month={tomorrow}
                             />
                           </PopoverContent>
                         </Popover>
@@ -564,7 +637,7 @@ export default function CreateEventPage() {
 
                       <div className="space-y-2">
                         <Label className={formErrors.endDate ? "text-destructive" : ""}>End Date *</Label>
-                        <Popover>
+                        <Popover open={endOpen} onOpenChange={setEndOpen}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -582,9 +655,13 @@ export default function CreateEventPage() {
                             <Calendar
                               mode="single"
                               selected={endDate}
-                              onSelect={setEndDate}
+                              onSelect={(date) => {
+                                setEndDate(date);
+                                setEndOpen(false); // close on select
+                              }}
                               initialFocus
                               disabled={(date) => date < (startDate || new Date())}
+                              month={startDate || tomorrow}
                             />
                           </PopoverContent>
                         </Popover>
@@ -592,28 +669,137 @@ export default function CreateEventPage() {
                       </div>
                     </div>
 
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Currency Selector with Search */}
+                      <div className="space-y-2">
+                        <Label htmlFor="currency">Select Currency</Label>
+
+                        <Input
+                          id="currency-search"
+                          type="text"
+                          placeholder="Search by currency or country..."
+                          onChange={(e) => {
+                            const query = e.target.value.toLowerCase().trim();
+
+                            if (fuse && query !== "") {
+                              try {
+                                const results = fuse.search(query, { limit: 5 });
+                                if (results.length > 0) {
+                                  const matched = results[0].item;
+                                  setSelectedCurrency(matched.code);
+                                  setCurrencySymbol(matched.symbol);
+                                } else {
+                                  setSelectedCurrency("");
+                                  setCurrencySymbol("");
+                                  toast({
+                                    title: "No matching country found",
+                                    description: "Try a different name.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Error searching currencies:', error);
+                                toast({
+                                  title: "Search error",
+                                  description: "There was an error searching currencies.",
+                                  variant: "destructive",
+                                });
+                              }
+                            } else {
+                              // Clear selection if search input is empty
+                              setSelectedCurrency("");
+                              setCurrencySymbol("");
+                            }
+                          }}
+                          className="w-full border px-2 py-2 rounded-md"
+                        />
+
+                        <select
+                          id="currency"
+                          value={selectedCurrency}
+                          onChange={(e) => {
+                            const query = e.target.value.toLowerCase().trim();
+
+                            if (fuse && query !== "") {
+                              const results = fuse.search(query);
+
+                              if (results.length > 0) {
+                                const matched = results[0].item;
+                                setSelectedCurrency(matched.code);
+                                setCurrencySymbol(matched.symbol);
+                              } else {
+                                setSelectedCurrency("");
+                                setCurrencySymbol("");
+                                toast({
+                                  title: "No matching country found",
+                                  description: "Try a different name.",
+                                  variant: "destructive",
+                                });
+                              }
+                            } else {
+                              setSelectedCurrency("");
+                              setCurrencySymbol("");
+                            }
+                          }}
+                          className="w-full border px-2 py-2 rounded-md"
+                        >
+                          <option value="">-- Choose --</option>
+                          {Array.from(new Map(currencies.map((c) => [c.code, c])).values()).map(
+                            (c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.label}
+                              </option>
+                            )
+                          )}
+                        </select>
+
+                        <p className="text-xs text-muted-foreground">
+                          Selected currency: {selectedCurrency || "None"} ({currencySymbol || "-"})
+                        </p>
+                      </div>
+
+
+
+                      {/* Price per Person */}
                       <div className="space-y-2">
                         <Label
                           htmlFor="price"
                           className={cn("flex items-center", formErrors.price && "text-destructive")}
                         >
-                          <DollarSign className="h-4 w-4 mr-1" />
+                          <span className="mr-1">{currencySymbol}</span>
                           Price per Person *
                         </Label>
                         <Input
                           id="price"
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
                           placeholder="0.00"
                           value={price}
-                          onChange={(e) => setPrice(e.target.value)}
+                          onChange={(e) => {
+                            // Allow user to type freely
+                            const input = e.target.value.replace(/[^0-9.]/g, ""); // strip anything not number or dot
+                            setPrice(input);
+                          }}
+                          onBlur={() => {
+                            // Format on blur only
+                            const number = parseFloat(price.replace(/,/g, ""));
+                            if (!isNaN(number)) {
+                              const formatted = number.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              });
+                              setPrice(formatted);
+                            }
+                          }}
                           className={formErrors.price ? "border-destructive" : ""}
                         />
-                        {formErrors.price && <p className="text-xs text-destructive">{formErrors.price}</p>}
+                        {formErrors.price && (
+                          <p className="text-xs text-destructive">{formErrors.price}</p>
+                        )}
                       </div>
 
+
+                      {/* Total Spots */}
                       <div className="space-y-2">
                         <Label
                           htmlFor="totalSpots"
@@ -631,9 +817,12 @@ export default function CreateEventPage() {
                           onChange={(e) => setTotalSpots(e.target.value)}
                           className={formErrors.totalSpots ? "border-destructive" : ""}
                         />
-                        {formErrors.totalSpots && <p className="text-xs text-destructive">{formErrors.totalSpots}</p>}
+                        {formErrors.totalSpots && (
+                          <p className="text-xs text-destructive">{formErrors.totalSpots}</p>
+                        )}
                       </div>
 
+                      {/* Duration */}
                       <div className="space-y-2">
                         <Label htmlFor="duration" className="flex items-center">
                           <Clock className="h-4 w-4 mr-1" />
@@ -645,9 +834,12 @@ export default function CreateEventPage() {
                           value={duration}
                           onChange={(e) => setDuration(e.target.value)}
                         />
-                        <p className="text-xs text-muted-foreground">Leave blank to calculate from dates</p>
+                        <p className="text-xs text-muted-foreground">
+                          Leave blank to calculate from dates
+                        </p>
                       </div>
                     </div>
+
 
                     <div className="space-y-2">
                       <Label htmlFor="image">Event Image</Label>
@@ -682,47 +874,60 @@ export default function CreateEventPage() {
                       </div>
                     </div>
 
-                    {/* Tags Section */}
-                    <div className="space-y-2">
-                      <Label htmlFor="tags" className="flex items-center">
+                    {/* User Tagging Autocomplete */}
+                    <div className="space-y-1">
+                      <Label htmlFor="user-search" className="flex items-center">
                         <Tag className="h-4 w-4 mr-1" />
-                        Tags
+                        Tag Users
                       </Label>
-                      <div className="flex space-x-2">
-                        <Input
-                          id="tags"
-                          placeholder="Add tags (e.g., family-friendly, weekend)"
-                          value={newTag}
-                          onChange={(e) => setNewTag(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              handleAddTag()
-                            }
-                          }}
-                          className="flex-1"
-                        />
-                        <Button type="button" onClick={handleAddTag} variant="secondary">
-                          Add
-                        </Button>
-                      </div>
-                      {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveTag(tag)}
-                                className="rounded-full h-4 w-4 inline-flex items-center justify-center text-xs hover:bg-muted"
-                              >
-                                ×
-                              </button>
-                            </Badge>
+                      <Input
+                        id="user-search"
+                        placeholder="Search users to tag"
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        className="flex-1"
+                      />
+
+                      {/* Suggestions dropdown */}
+                      {userQuery && users.length > 0 && (
+                        <div className="border bg-white shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
+                          {users.map((user) => (
+                            <div
+                              key={user.id}
+                              className="flex items-center px-3 py-2 hover:bg-muted cursor-pointer"
+                              onClick={() => handleTagUser(user.username)}
+                            >
+                              <Avatar className="h-6 w-6 mr-2">
+                                <AvatarImage src={user.avatar ?? "/default-avatar.png"} alt={user.username} />
+                              </Avatar>
+                              <span className="text-sm">{user.username}</span>
+                            </div>
                           ))}
                         </div>
                       )}
                     </div>
+
+                    {/* Display tagged users as badges */}
+                    {taggedUsers.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {taggedUsers.map((username) => (
+                          <Badge key={username} variant="secondary" className="flex items-center gap-1">
+                            @{username}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTaggedUsers(taggedUsers.filter((u) => u !== username))
+                              }
+                              className="rounded-full h-4 w-4 inline-flex items-center justify-center text-xs hover:bg-muted"
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+
                   </CardContent>
                   <CardFooter className="flex justify-between">
                     <Button variant="outline" type="button" onClick={() => router.back()}>
@@ -744,7 +949,7 @@ export default function CreateEventPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="location-address" className={formErrors.location ? "text-destructive" : ""}>
+                      <Label htmlFor="location-address" className={formErrors.location ? 'text-destructive' : ''}>
                         Location Address *
                       </Label>
                       <div className="flex space-x-2">
@@ -753,7 +958,7 @@ export default function CreateEventPage() {
                           placeholder="e.g., Nairobi, Kenya"
                           value={location.address}
                           onChange={(e) => setLocation({ ...location, address: e.target.value })}
-                          className={cn("flex-1", formErrors.location && "border-destructive")}
+                          className={cn('flex-1', formErrors.location && 'border-destructive')}
                         />
                         <Button type="button" onClick={handleLocationInput}>
                           Set Location
@@ -763,7 +968,7 @@ export default function CreateEventPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="destination" className={formErrors.destination ? "text-destructive" : ""}>
+                      <Label htmlFor="destination" className={formErrors.destination ? 'text-destructive' : ''}>
                         Destination *
                       </Label>
                       <Input
@@ -771,7 +976,7 @@ export default function CreateEventPage() {
                         placeholder="e.g., Nairobi"
                         value={destination}
                         onChange={(e) => setDestination(e.target.value)}
-                        className={formErrors.destination ? "border-destructive" : ""}
+                        className={formErrors.destination ? 'border-destructive' : ''}
                       />
                       {formErrors.destination && <p className="text-xs text-destructive">{formErrors.destination}</p>}
                       <p className="text-xs text-muted-foreground">
@@ -800,6 +1005,18 @@ export default function CreateEventPage() {
                       </div>
                     )}
 
+                    {weather && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-medium mb-3">Current Weather</h3>
+                        <div className="p-4 border rounded-md bg-muted/30">
+                          <p className="text-sm">Temperature: {weather.main.temp}°C</p>
+                          <p className="text-sm">Weather: {weather.weather[0].description}</p>
+                          <p className="text-sm">Humidity: {weather.main.humidity}%</p>
+                          <p className="text-sm">Wind Speed: {weather.wind.speed} m/s</p>
+                        </div>
+                      </div>
+                    )}
+
                     {nearbyAttractions.length > 0 && (
                       <div className="mt-6">
                         <h3 className="text-lg font-medium mb-3">Nearby Attractions</h3>
@@ -807,10 +1024,13 @@ export default function CreateEventPage() {
                           {nearbyAttractions.map((attraction, index) => (
                             <div key={index} className="flex items-start p-3 border rounded-md">
                               <div className="mr-3 mt-1">
-                                {attraction.type === "museum" && <span className="text-xl">🏛️</span>}
-                                {attraction.type === "park" && <span className="text-xl">🌳</span>}
-                                {attraction.type === "landmark" && <span className="text-xl">🗿</span>}
-                                {attraction.type === "food" && <span className="text-xl">🍽️</span>}
+                                {attraction.type.includes('museum') && <span className="text-xl">🏛️</span>}
+                                {attraction.type.includes('park') && <span className="text-xl">🌳</span>}
+                                {attraction.type.includes('landmark') && <span className="text-xl">🗿</span>}
+                                {attraction.type.includes('food') && <span className="text-xl">🍽️</span>}
+                                {!['museum', 'park', 'landmark', 'food'].some((type) => attraction.type.includes(type)) && (
+                                  <span className="text-xl">📍</span>
+                                )}
                               </div>
                               <div>
                                 <h4 className="font-medium">{attraction.name}</h4>
@@ -823,41 +1043,18 @@ export default function CreateEventPage() {
                     )}
 
                     <div className="flex justify-center">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          // Simulate getting current location
-                          const nairobi = {
-                            address: "Nairobi, Kenya",
-                            latitude: -1.2921,
-                            longitude: 36.8219,
-                          }
-                          setLocation(nairobi)
-                          setDestination("Nairobi")
-
-                          // Simulate fetching weather and attractions
-                          simulateWeatherForecast(nairobi.latitude, nairobi.longitude)
-                          simulateNearbyAttractions(nairobi.latitude, nairobi.longitude)
-
-                          toast({
-                            title: "Location set",
-                            description: "Current location set to Nairobi, Kenya.",
-                          })
-                        }}
-                        className="mt-2"
-                      >
+                      <Button type="button" variant="outline" onClick={handleUseCurrentLocation} className="mt-2">
                         <MapPin className="h-4 w-4 mr-2" />
                         Use Current Location
                       </Button>
                     </div>
                   </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button variant="outline" type="button" onClick={() => setActiveTab("details")}>
-                      Back
+                  <CardFooter className="flex justify-end gap-4">
+                    <Button type="button" variant="outline">
+                      Cancel
                     </Button>
-                    <Button type="button" onClick={() => setActiveTab("activities")}>
-                      Next: Activities
+                    <Button type="submit">
+                      Save Location
                     </Button>
                   </CardFooter>
                 </Card>
@@ -1047,7 +1244,6 @@ export default function CreateEventPage() {
           </form>
         </div>
       </div>
-      <Footer />
     </div>
   )
 }

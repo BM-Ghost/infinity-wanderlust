@@ -1,15 +1,16 @@
-import type React from "react"
-import type { Metadata } from "next"
+'use client'
+
 import { Inter } from "next/font/google"
 import "./globals.css"
+import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
 
 const inter = Inter({ subsets: ["latin"] })
-
-export const metadata: Metadata = {
-  title: "Infinity Wanderlust | Travel Blog",
-  description: "Share your travel experiences and join exciting adventures",
-    generator: 'v0.dev'
-}
+// Instantiate the query client once
+const queryClient = new QueryClient();
 
 export default function RootLayout({
   children,
@@ -18,7 +19,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <QueryClientProvider client={queryClient}>
+          <Navbar />
+          {children}
+          <ReactQueryDevtools/>
+          <Footer />
+        </QueryClientProvider>
+      </body>
     </html>
   )
 }

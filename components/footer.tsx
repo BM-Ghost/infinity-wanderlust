@@ -10,7 +10,7 @@ export function Footer() {
 
   return (
     <footer className="bg-primary/10 border-t">
-      <div className="container py-12 md:py-16">
+      <div className="container py-2 md:py-2">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand and Socials */}
           <div className="space-y-4 break-words">
@@ -105,7 +105,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
+        <div className="mt-2 pt-2 border-t text-center text-sm text-muted-foreground">
           <p>
             © {currentYear} Infinity Wanderlust. {t("allRightsReserved")}
           </p>

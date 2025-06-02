@@ -8,8 +8,6 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -75,6 +73,8 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
 import { getPocketBase } from "@/lib/pocketbase"
+import { useReviews } from "@/hooks/useReviews"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
@@ -86,10 +86,9 @@ export default function ReviewsPage() {
   // Use a ref to track if the component is mounted
   const isMounted = useRef(true)
 
-  // State for reviews data
-  const [reviews, setReviews] = useState<ReviewWithAuthor[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const { data: reviews, isLoading, isError } = useReviews(1)
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -138,6 +137,11 @@ export default function ReviewsPage() {
   const [cursorPosition, setCursorPosition] = useState<{ [reviewId: string]: number }>({})
   const [commentInputRefs] = useState<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
 
+
+
+  const queryClient = useQueryClient()
+
+
   // Set isMounted to false when the component unmounts
   useEffect(() => {
     return () => {
@@ -163,7 +167,6 @@ export default function ReviewsPage() {
   const loadReviews = useCallback(async () => {
     if (!isMounted.current) return
 
-    setIsLoading(true)
     setError(null)
 
     try {
@@ -176,7 +179,7 @@ export default function ReviewsPage() {
           // If not authenticated but trying to view "my reviews", show a message instead of redirecting
           if (isMounted.current) {
             setError("Please sign in to view your reviews")
-            setIsLoading(false)
+
           }
           return
         }
@@ -188,7 +191,7 @@ export default function ReviewsPage() {
         } else {
           if (isMounted.current) {
             setError("Unable to identify the current user")
-            setIsLoading(false)
+
           }
           return
         }
@@ -206,7 +209,7 @@ export default function ReviewsPage() {
 
       // Only update state if the component is still mounted
       if (isMounted.current) {
-        setReviews(result.items)
+
         setTotalPages(result.totalPages)
         setTotalItems(result.totalItems)
       }
@@ -219,7 +222,7 @@ export default function ReviewsPage() {
     } finally {
       // Only update state if the component is still mounted
       if (isMounted.current) {
-        setIsLoading(false)
+
       }
     }
   }, [currentPage, perPage, sortOrder, activeTab, user, debouncedSearchQuery])
@@ -339,6 +342,7 @@ export default function ReviewsPage() {
 
   // Handle review submission
   const handleSubmitReview = async () => {
+    queryClient.invalidateQueries({ queryKey: ["all-reviews"] })
     if (!rating || !destination || !reviewText.trim()) {
       toast({
         variant: "destructive",
@@ -376,6 +380,9 @@ export default function ReviewsPage() {
 
         // Reload reviews to show the new one
         loadReviews()
+
+
+
       } else {
         throw new Error("Failed to create review")
       }
@@ -432,9 +439,6 @@ export default function ReviewsPage() {
           description: "Your review has been updated successfully.",
         })
 
-        // Update the review in the list
-        setReviews(reviews.map((review) => (review.id === editReviewId ? { ...result } : review)))
-
         // Reset form and close dialog
         setEditReviewId(null)
         setEditRating(0)
@@ -443,6 +447,9 @@ export default function ReviewsPage() {
         setEditReviewImages([])
         setEditPreviewImages([])
         setEditDialogOpen(false)
+
+
+        queryClient.invalidateQueries({ queryKey: ["all-reviews"] })
       } else {
         throw new Error("Failed to update review")
       }
@@ -470,8 +477,6 @@ export default function ReviewsPage() {
             description: "Your review has been deleted successfully.",
           })
 
-          // Remove the deleted review from the list
-          setReviews(reviews.filter((review) => review.id !== id))
         } else {
           throw new Error("Failed to delete review")
         }
@@ -527,12 +532,6 @@ export default function ReviewsPage() {
           }))
         }
 
-        // Update the review's comment count in the UI
-        setReviews((prev) =>
-          prev.map((review) =>
-            review.id === reviewId ? { ...review, comments_count: (review.comments_count || 0) + 1 } : review,
-          ),
-        )
 
         // Clear input and reset states
         setCommentText((prev) => ({ ...prev, [reviewId]: "" }))
@@ -605,14 +604,6 @@ export default function ReviewsPage() {
           const commentToDelete = isReply ? null : reviewComments[reviewId]?.find((c) => c.id === commentId)
           const replyCount = commentToDelete?.replyCount || 0
           const decrementAmount = isReply ? 1 : 1 + replyCount
-
-          setReviews((prev) =>
-            prev.map((review) =>
-              review.id === reviewId
-                ? { ...review, comments_count: Math.max(0, (review.comments_count || 0) - decrementAmount) }
-                : review,
-            ),
-          )
 
           toast({
             title: "Comment deleted",
@@ -1066,12 +1057,6 @@ export default function ReviewsPage() {
       const success = await likeReview(reviewId)
 
       if (success) {
-        // Update the review's like count in the UI
-        setReviews((prev) =>
-          prev.map((review) =>
-            review.id === reviewId ? { ...review, likes_count: (review.likes_count || 0) + 1 } : review,
-          ),
-        )
 
         toast({
           title: "Review liked",
@@ -1129,8 +1114,6 @@ export default function ReviewsPage() {
 
   return (
     <div className="rainforest-bg min-h-screen">
-      <Navbar />
-
       <div className="container py-16">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <h1 className="text-4xl font-bold mb-4">{t("reviewsTitle")}</h1>
@@ -1186,9 +1169,8 @@ export default function ReviewsPage() {
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none">
                           <Star
-                            className={`h-6 w-6 ${
-                              star <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                            }`}
+                            className={`h-6 w-6 ${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                              }`}
                           />
                         </button>
                       ))}
@@ -1256,7 +1238,7 @@ export default function ReviewsPage() {
                   </Button>
                   <Button
                     type="button"
-                    onClick={handleSubmitReview}
+                    onClick={() => handleSubmitReview()}
                     disabled={isSubmitting || !rating || !destination || !reviewText.trim()}
                   >
                     {isSubmitting ? (
@@ -1322,9 +1304,8 @@ export default function ReviewsPage() {
                           className="focus:outline-none"
                         >
                           <Star
-                            className={`h-6 w-6 ${
-                              star <= editRating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                            }`}
+                            className={`h-6 w-6 ${star <= editRating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                              }`}
                           />
                         </button>
                       ))}
@@ -1536,7 +1517,7 @@ export default function ReviewsPage() {
               <Button onClick={loadReviews}>Try Again</Button>
             )}
           </div>
-        ) : reviews.length === 0 ? (
+        ) : reviews?.length === 0 && isError ? (
           // Empty state
           <div className="text-center py-12">
             <div className="bg-muted p-8 rounded-lg inline-block mb-6">
@@ -1558,21 +1539,21 @@ export default function ReviewsPage() {
         ) : (
           // Reviews list
           <div className="space-y-8">
-            {reviews.map((review) => (
+            {reviews?.map((review) => (
               // Update the review card to include engagement stats
-              <Card key={review.id} className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+              <Card key={review?.id} className="overflow-hidden hover:shadow-md transition-shadow duration-200">
                 <CardHeader className="flex flex-row items-start gap-4">
                   <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
                     {review.authorAvatar ? (
                       <Image
-                        src={review.authorAvatar || "/placeholder.svg"}
-                        alt={review.authorName}
+                        src={review?.authorAvatar || "/placeholder.svg"}
+                        alt={review?.authorName}
                         fill
                         className="object-cover"
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
-                        {review.authorName.charAt(0).toUpperCase()}
+                        {review?.authorName.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
@@ -1593,9 +1574,8 @@ export default function ReviewsPage() {
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
                         key={i}
-                        className={`h-4 w-4 ${
-                          i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                        }`}
+                        className={`h-4 w-4 ${i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                          }`}
                       />
                     ))}
                   </div>
@@ -1860,7 +1840,6 @@ export default function ReviewsPage() {
         )}
       </div>
 
-      <Footer />
     </div>
   )
 }

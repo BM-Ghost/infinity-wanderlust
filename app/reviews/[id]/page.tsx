@@ -179,7 +179,6 @@ export default function ReviewDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container py-8 md:py-12">
           <div className="mb-8">
             <Skeleton className="h-8 w-40" />
@@ -218,7 +217,6 @@ export default function ReviewDetailPage() {
   if (error || !review) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container py-16 text-center">
           <div className="max-w-md mx-auto">
             <div className="bg-muted p-8 rounded-lg">
@@ -233,7 +231,6 @@ export default function ReviewDetailPage() {
             </div>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -512,8 +509,6 @@ export default function ReviewDetailPage() {
           </div>
         </motion.div>
       </div>
-
-      <Footer />
     </div>
   )
 }

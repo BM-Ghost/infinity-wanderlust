@@ -1,4 +1,5 @@
 import { getPocketBase } from "@/lib/pocketbase"
+import { useQuery } from "@tanstack/react-query"
 
 export type Review = {
   id: string
@@ -299,22 +300,43 @@ export async function fetchLatestReviews(limit = 2) {
   const pb = getPocketBase()
   if (!pb) throw new Error("Failed to connect to PocketBase")
 
-  try {
-    const reviews = await pb.collection("reviews").getList(1, limit, {
-      sort: "-created",
-      expand: "user",
-    })
+try {
+  const reviews = await pb.collection("reviewsView").getList(1, limit, {
+    sort: "-created",
+  });
 
-    return reviews.items.map((review: any) => ({
+  return {
+    page: reviews.page,
+    perPage: reviews.perPage,
+    totalItems: reviews.totalItems,
+    totalPages: reviews.totalPages,
+    items: reviews.items.map((review: any) => ({
       id: review.id,
       destination: review.destination,
+      collectionId: review.collectionId,
       content: review.review_text,
       rating: review.rating,
       created: review.created,
       expand: review.expand,
-    }))
-  } catch (error) {
-    console.error("Error fetching latest reviews:", error)
-    return []
-  }
+      comments_count: review.comments_count,
+      likes_count: review.likes_count,
+      photos: review.photos,
+      reviewer_avatar: review.reviewer_avatar,
+      reviewer_email: review.reviewer_email,
+      reviewer_name: review.reviewer_name,
+      tagged_users: review.tagged_users,
+      updated: review.updated,
+      user_id: review.user_id,
+    })),
+  };
+} catch (error) {
+  console.error("Error fetching latest reviews:", error);
+  return {
+    page: 1,
+    perPage: limit,
+    totalItems: 0,
+    totalPages: 0,
+    items: [],
+  };
+}
 }

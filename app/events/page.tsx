@@ -1,88 +1,74 @@
-"use client"
+'use client'
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, MapPin, Users, Search, Filter, Plus, Loader2 } from "lucide-react"
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Search,
+  Filter,
+  Plus,
+  Loader2,
+} from "lucide-react"
 import { format } from "date-fns"
-import { type TravelEvent, fetchTravelEvents } from "@/lib/travel-events"
 import { useAuth } from "@/components/auth-provider"
+import { useEvents } from "@/hooks/useEvents"
 
 export default function EventsPage() {
   const router = useRouter()
   const { user } = useAuth()
 
-  const [events, setEvents] = useState<TravelEvent[]>([])
-  const [filteredEvents, setFilteredEvents] = useState<TravelEvent[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
 
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const allEvents = await fetchTravelEvents()
-        setEvents(allEvents)
-        setFilteredEvents(allEvents)
-      } catch (error) {
-        console.error("Error loading events:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  const { data: events = [], isLoading } = useEvents(1) // Always fetch all and filter client-side
 
-    loadEvents()
-  }, [])
+  const now = new Date()
 
-  // Filter events based on search query and active tab
-  useEffect(() => {
-    let filtered = [...events]
+  const filteredEvents = events.filter((event) => {
+    const start = new Date(event.start_date)
+    const end = new Date(event.end_date)
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (event) =>
-          event.title.toLowerCase().includes(query) ||
-          event.description.toLowerCase().includes(query) ||
-          event.destination.toLowerCase().includes(query),
-      )
-    }
+    // Tab-based filtering
+    if (activeTab === "upcoming" && start <= now) return false
+    if (activeTab === "past" && end >= now) return false
 
-    // Apply tab filter
-    if (activeTab === "upcoming") {
-      const now = new Date()
-      filtered = filtered.filter((event) => new Date(event.start_date) > now)
-    } else if (activeTab === "past") {
-      const now = new Date()
-      filtered = filtered.filter((event) => new Date(event.end_date) < now)
-    }
-
-    setFilteredEvents(filtered)
-  }, [events, searchQuery, activeTab])
+    // Search filtering
+    const query = searchQuery.toLowerCase()
+    return (
+      event.title.toLowerCase().includes(query) ||
+      event.description.toLowerCase().includes(query) ||
+      event.destination.toLowerCase().includes(query)
+    )
+  })
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // The filtering is already handled by the useEffect
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <div className="bg-muted py-12">
         <div className="container">
           <div className="max-w-2xl mx-auto text-center">
             <h1 className="text-3xl font-bold mb-4">Discover Amazing Travel Events</h1>
-            <p className="text-muted-foreground mb-6">Find and join exciting travel adventures around the world</p>
+            <p className="text-muted-foreground mb-6">
+              Find and join exciting travel adventures around the world
+            </p>
 
             <form onSubmit={handleSearch} className="flex w-full max-w-lg mx-auto mb-6">
               <Input
@@ -211,8 +197,6 @@ export default function EventsPage() {
           </div>
         )}
       </div>
-
-      <Footer />
     </div>
   )
 }

@@ -100,11 +100,14 @@ export function Navbar() {
   ]
 
   return (
-    <header
-      className={`sticky top-0 z-50 w-full transition-all duration-200 ${
-        isScrolled ? "bg-background/95 backdrop-blur-sm shadow-md" : "bg-transparent"
-      }`}
-    >
+<header
+  className={`sticky top-0 z-50 w-full transition-all duration-200 ${
+    isScrolled
+      ? "bg-[#004d00]/30 backdrop-blur-sm shadow-md" // Dark green, slightly transparent
+      : "bg-transparent"
+  }`}
+>
+
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <span className="text-xl font-bold text-primary">Infinity Wanderlust</span>

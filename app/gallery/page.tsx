@@ -1,65 +1,37 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Search, Upload } from "lucide-react"
 import Image from "next/image"
 import { useTranslation } from "@/lib/translations"
 import { InstagramFeed } from "@/components/instagram-feed"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchUploads } from "@/lib/uploads"
+import { useUploads } from "@/hooks/useUploads"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function GalleryPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
+
   const [activeTab, setActiveTab] = useState("uploads")
   const [searchQuery, setSearchQuery] = useState("")
-  const [uploads, setUploads] = useState<any[]>([])
-  const [filteredUploads, setFilteredUploads] = useState<any[]>([])
   const [selectedUpload, setSelectedUpload] = useState<any | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    const loadUploads = async () => {
-      setIsLoading(true)
-      try {
-        const data = await fetchUploads()
-        setUploads(data)
-        setFilteredUploads(data)
-      } catch (error) {
-        console.error("Error loading uploads:", error)
-        toast({
-          variant: "destructive",
-          title: "Error loading uploads",
-          description: "Could not load uploads. Using fallback data instead.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  const { data: uploads = [], isLoading, isError } = useUploads(1)
 
-    loadUploads()
-  }, [toast])
-
-  useEffect(() => {
-    // Filter uploads based on search query
-    const filtered = uploads.filter((upload) => {
-      const caption = upload.caption?.toLowerCase() || ""
-      const destination = upload.destination?.toLowerCase() || ""
-      const query = searchQuery.toLowerCase()
-
-      return caption.includes(query) || destination.includes(query)
-    })
-
-    setFilteredUploads(filtered)
-  }, [searchQuery, uploads])
+  const filteredUploads = uploads.filter((upload) => {
+    const caption = upload.caption?.toLowerCase() || ""
+    const destination = upload.destination?.toLowerCase() || ""
+    const query = searchQuery.toLowerCase()
+    return caption.includes(query) || destination.includes(query)
+  })
 
   const handleUploadClick = () => {
     if (!user) {
@@ -77,8 +49,6 @@ export default function GalleryPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
-
       <main className="flex-1 py-12 forest-bg">
         <div className="container">
           <div className="mb-8">
@@ -181,55 +151,16 @@ export default function GalleryPage() {
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2">{selectedUpload.caption}</h2>
               <p className="text-muted-foreground mb-4">{selectedUpload.destination}</p>
-
               {selectedUpload.uploader_name && (
                 <p className="text-sm mb-4">
                   Uploaded by <span className="font-medium">{selectedUpload.uploader_name}</span>
                 </p>
               )}
 
-              <div className="flex items-center gap-2 mb-4">
-                <span className="flex items-center gap-1 text-sm">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-heart"
-                  >
-                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-                  </svg>
-                  {selectedUpload.likes_count || 0}
-                </span>
-                <span className="flex items-center gap-1 text-sm">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-message-circle"
-                  >
-                    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-                  </svg>
-                  {selectedUpload.comments_count || 0}
-                </span>
-              </div>
             </div>
           </div>
         </div>
       )}
-
-      <Footer />
     </div>
   )
 }

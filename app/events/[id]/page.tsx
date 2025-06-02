@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -182,13 +180,11 @@ export default function EventDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container py-12">
           <div className="flex justify-center items-center h-[60vh]">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -196,7 +192,6 @@ export default function EventDetailPage() {
   if (!event) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container py-12">
           <div className="flex flex-col justify-center items-center h-[60vh]">
             <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
@@ -207,7 +202,6 @@ export default function EventDetailPage() {
             <Button onClick={() => router.push("/events")}>Browse Events</Button>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -220,8 +214,6 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <div className="relative">
         {/* Hero image */}
         <div className="w-full h-[40vh] bg-muted relative overflow-hidden">
@@ -536,8 +528,6 @@ export default function EventDetailPage() {
           </div>
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }

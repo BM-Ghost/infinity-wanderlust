@@ -10,7 +10,6 @@ import { MapPin, Mail, Phone, Clock } from "lucide-react"
 export default function ContactPage() {
   return (
     <div className="min-h-screen">
-      <Navbar />
 
       <div className="container py-16">
         <div className="text-center max-w-3xl mx-auto mb-12">
@@ -143,7 +142,6 @@ export default function ContactPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   )
 }
