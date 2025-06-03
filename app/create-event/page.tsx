@@ -113,6 +113,13 @@ export default function CreateEventPage() {
   const [destination, setDestination] = useState("")
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
+
+  // Helper function to format date for PocketBase
+  const formatDateForPocketBase = (date: Date | undefined): string => {
+    if (!date) return "";
+    return date.toISOString();
+  }
+
   const [startTime, setStartTime] = useState<Date | undefined>(undefined)
   const [endTime, setEndTime] = useState<Date | undefined>(undefined)
   const [price, setPrice] = useState("")
@@ -404,8 +411,8 @@ export default function CreateEventPage() {
         title,
         destination,
         description,
-        start_date: startDate ? startDate.toISOString() : "",
-        end_date: endDate ? endDate.toISOString() : "",
+        start_date: formatDateForPocketBase(startDate),
+        end_date: formatDateForPocketBase(endDate),
         spots_left: Number.parseInt(totalSpots, 10),
         currency: selectedCurrency,
         status: activeTab === "upcoming" ? "upcoming" : "past",

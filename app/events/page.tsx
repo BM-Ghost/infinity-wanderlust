@@ -174,7 +174,7 @@ export default function EventsPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                      <span>{format(new Date(event.start_date), "MMM d, yyyy")}</span>
+                      <span>{event.start_date ? format(new Date(event.start_date), "MMM d, yyyy") : "Date not set"}</span>
                     </div>
                     <div className="flex items-center">
                       <MapPin className="h-4 w-4 mr-1 text-muted-foreground" />
