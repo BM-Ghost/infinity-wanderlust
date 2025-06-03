@@ -39,6 +39,7 @@ import { Avatar, AvatarImage } from "@/components/ui/avatar"; // Assuming you ha
 import { useDebounce } from "use-debounce"; // Install via: npm install use-debounce
 import axios from 'axios';
 import { addDays } from "date-fns"; // ensure this is imported
+import type Fuse from "fuse.js";
 
 // Initialize Fuse.js with SSR fallback
 let fuseInstance: any = null;
@@ -77,10 +78,11 @@ export default function CreateEventPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  type CurrencyOption = { label: string; code: string; symbol: string; countryName: string };
-  const [currencySymbol, setCurrencySymbol] = useState("$");
-  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("$");
+  const [currencySymbol, setCurrencySymbol] = useState("");
+  const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("");
+  const [currencyName, setCurrencyName] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("");
 
   // Users state
   const [userQuery, setUserQuery] = useState("");
@@ -110,6 +112,8 @@ export default function CreateEventPage() {
   const [destination, setDestination] = useState("")
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
+  const [startTime, setStartTime] = useState<Date | undefined>(undefined)
+  const [endTime, setEndTime] = useState<Date | undefined>(undefined)
   const [price, setPrice] = useState("")
   const [totalSpots, setTotalSpots] = useState("")
   const [duration, setDuration] = useState("")
@@ -144,7 +148,6 @@ export default function CreateEventPage() {
     }
   }, [user, isAuthLoading, router, toast])
 
-  // Fetch countries & currencies from API
   type Country = {
     name: { common: string };
     currencies?: {
@@ -155,45 +158,123 @@ export default function CreateEventPage() {
     };
   };
 
+  type CurrencyOption = {
+    label: string;
+    code: string;
+    symbol: string;
+    countryName: string;
+    currencyName: string;
+  };
+
+  // Fetch countries & currencies from API
   const [fuse, setFuse] = useState<Fuse<CurrencyOption> | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchByDemonym = async (demonym: string) => {
+    const res = await fetch(`https://restcountries.com/v3.1/demonym/${demonym}`);
+    const data = await res.json();
+    console.log(data);
+  };
 
   useEffect(() => {
-    const fetchCurrencyData = async () => {
-      try {
-        const res = await fetch("https://restcountries.com/v3.1/all");
-        const data: Country[] = await res.json();
+    if (startDate && startTime && endDate && endTime) {
+      const startHour = startTime.getHours();
+      const startMinute = startTime.getMinutes();
+      const endHour = endTime.getHours();
+      const endMinute = endTime.getMinutes();
 
-        const currencyOptions: CurrencyOption[] = data
-          .filter((country) => country.currencies)
-          .map((country) => {
-            const [code, currency] = Object.entries(country.currencies!)[0]; // Get first currency only
-            return {
-              code,
-              symbol: currency.symbol || "",
-              label: `${country.name.common} (${code}) - ${currency.symbol || ""}`,
-              countryName: country.name.common.toLowerCase(),
-            };
-          });
+      const start = new Date(startDate);
+      start.setHours(startHour, startMinute, 0, 0);
 
-        setCurrencies(currencyOptions);
+      const end = new Date(endDate);
+      end.setHours(endHour, endMinute, 0, 0);
 
-        if (fuseInstance) {
-          setFuse(
-            new fuseInstance(currencyOptions, {
-              keys: ["countryName"],
-              threshold: 0.3,
-            })
-          );
-        } else {
-          console.warn('Fuse.js not available in this environment');
-        }
-      } catch (error) {
-        console.error("Failed to fetch currencies:", error);
+      const diffMs = end.getTime() - start.getTime();
+      if (diffMs <= 0) {
+        setDuration("Invalid time range");
+        return;
       }
-    };
 
-    fetchCurrencyData();
-  }, []);
+      const totalMinutes = Math.floor(diffMs / 60000);
+      const days = Math.floor(totalMinutes / (60 * 24));
+      const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+      const minutes = totalMinutes % 60;
+
+      let formatted = "";
+      if (days > 0) formatted += `${days} day${days > 1 ? "s" : ""}`;
+      if (hours > 0) formatted += `${formatted ? ", " : ""}${hours} hour${hours > 1 ? "s" : ""}`;
+      if (minutes > 0) formatted += `${formatted ? ", " : ""}${minutes} minute${minutes > 1 ? "s" : ""}`;
+
+      setDuration(formatted || "Less than 1 minute");
+    } else {
+      setDuration(""); // Clear if inputs are incomplete
+    }
+  }, [startDate, startTime, endDate, endTime]);
+
+  const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = currencyOptions.find(opt => opt.countryName === e.target.value);
+    console.log("Selected country:", selected);
+
+    if (selected) {
+      setSelectedCurrency(selected.countryName);
+      setCurrencySymbol(selected.symbol);
+      setCurrencyName(selected.currencyName);
+      setCurrencyCode(selected.code);
+    }
+  };
+
+
+  const fetchCountriesByCurrency = async (currencyCode: string) => {
+    if (!currencyCode) return;
+
+    setLoading(true);
+    setError("");
+    setCountries([]);
+    setCurrencyOptions([]);
+    setSelectedCurrency("");
+    setCurrencySymbol("");
+
+    try {
+      const res = await fetch(`https://restcountries.com/v3.1/currency/${currencyCode}`);
+      if (!res.ok) {
+        throw new Error("Currency not found");
+      }
+
+      const data: Country[] = await res.json();
+      setCountries(data);
+      console.log("Fetched countries:", data);
+
+      const upperCurrencyCode = currencyCode.toUpperCase();
+
+      const options: CurrencyOption[] = data.map((country) => {
+        const currencies = country.currencies || {};
+
+        // Prefer the exact code, fallback to first currency
+        const currencyEntry =
+          currencies[upperCurrencyCode] || Object.values(currencies)[0];
+
+        const symbol = currencyEntry?.symbol || "";
+        const currencyName = currencyEntry?.name || "";
+
+        return {
+          label: `${country.name.common} (${currencyName})`,
+          code: country.ccn3 || "",
+          symbol,
+          countryName: country.name.common,
+          currencyName,
+        };
+      });
+
+      setCurrencyOptions(options);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -602,6 +683,7 @@ export default function CreateEventPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Start Date */}
                       <div className="space-y-2">
                         <Label className={formErrors.startDate ? "text-destructive" : ""}>Start Date *</Label>
                         <Popover open={startOpen} onOpenChange={setStartOpen}>
@@ -624,7 +706,7 @@ export default function CreateEventPage() {
                               selected={startDate}
                               onSelect={(date) => {
                                 setStartDate(date);
-                                setStartOpen(false); // close on select
+                                setStartOpen(false);
                               }}
                               initialFocus
                               disabled={(date) => date < new Date()}
@@ -633,8 +715,42 @@ export default function CreateEventPage() {
                           </PopoverContent>
                         </Popover>
                         {formErrors.startDate && <p className="text-xs text-destructive">{formErrors.startDate}</p>}
+
+                        {/* Start Time */}
+                        <Label>Start Time *</Label>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                          asChild
+                        >
+                          <input
+                            type="time"
+                            className={cn(
+                              "w-full bg-transparent cursor-pointer outline-none appearance-none",
+                              "border-none px-3 py-2 rounded-md"
+                            )}
+                            value={
+                              startTime
+                                ? `${String(startTime.getHours()).padStart(2, '0')}:${String(
+                                  startTime.getMinutes()
+                                ).padStart(2, '0')}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const [hours, minutes] = e.target.value.split(":").map(Number);
+                              if (!isNaN(hours) && !isNaN(minutes)) {
+                                const date = startDate ? new Date(startDate) : new Date();
+                                date.setHours(hours, minutes, 0, 0);
+                                setStartTime(date);
+                              } else {
+                                setStartTime(undefined);
+                              }
+                            }}
+                          />
+                        </Button>
                       </div>
 
+                      {/* End Date */}
                       <div className="space-y-2">
                         <Label className={formErrors.endDate ? "text-destructive" : ""}>End Date *</Label>
                         <Popover open={endOpen} onOpenChange={setEndOpen}>
@@ -657,7 +773,7 @@ export default function CreateEventPage() {
                               selected={endDate}
                               onSelect={(date) => {
                                 setEndDate(date);
-                                setEndOpen(false); // close on select
+                                setEndOpen(false);
                               }}
                               initialFocus
                               disabled={(date) => date < (startDate || new Date())}
@@ -666,99 +782,95 @@ export default function CreateEventPage() {
                           </PopoverContent>
                         </Popover>
                         {formErrors.endDate && <p className="text-xs text-destructive">{formErrors.endDate}</p>}
+
+                        {/* End Time */}
+                        <Label>End Time *</Label>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                          asChild
+                        >
+                          <input
+                            type="time"
+                            className={cn(
+                              "w-full bg-transparent cursor-pointer outline-none appearance-none",
+                              "border-none px-3 py-2 rounded-md"
+                            )}
+                            value={
+                              endTime
+                                ? `${String(endTime.getHours()).padStart(2, '0')}:${String(
+                                  endTime.getMinutes()
+                                ).padStart(2, '0')}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const [hours, minutes] = e.target.value.split(":").map(Number);
+                              if (!isNaN(hours) && !isNaN(minutes)) {
+                                const date = endDate ? new Date(endDate) : new Date();
+                                date.setHours(hours, minutes, 0, 0);
+                                setEndTime(date);
+                              } else {
+                                setEndTime(undefined);
+                              }
+                            }}
+                          />
+                        </Button>
                       </div>
                     </div>
 
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Currency Selector with Search */}
-                      <div className="space-y-2">
+                      <div className="space-y-4">
                         <Label htmlFor="currency">Select Currency</Label>
 
                         <Input
-                          id="currency-search"
+                          id="currency"
                           type="text"
-                          placeholder="Search by currency or country..."
-                          onChange={(e) => {
-                            const query = e.target.value.toLowerCase().trim();
-
-                            if (fuse && query !== "") {
-                              try {
-                                const results = fuse.search(query, { limit: 5 });
-                                if (results.length > 0) {
-                                  const matched = results[0].item;
-                                  setSelectedCurrency(matched.code);
-                                  setCurrencySymbol(matched.symbol);
-                                } else {
-                                  setSelectedCurrency("");
-                                  setCurrencySymbol("");
-                                  toast({
-                                    title: "No matching country found",
-                                    description: "Try a different name.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              } catch (error) {
-                                console.error('Error searching currencies:', error);
-                                toast({
-                                  title: "Search error",
-                                  description: "There was an error searching currencies.",
-                                  variant: "destructive",
-                                });
-                              }
-                            } else {
-                              // Clear selection if search input is empty
-                              setSelectedCurrency("");
-                              setCurrencySymbol("");
-                            }
+                          placeholder="e.g. usd, cop, eur..."
+                          onChange={(e) => setSearchTerm(e.target.value.trim().toLowerCase())}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") fetchCountriesByCurrency(searchTerm);
                           }}
                           className="w-full border px-2 py-2 rounded-md"
                         />
 
-                        <select
-                          id="currency"
-                          value={selectedCurrency}
-                          onChange={(e) => {
-                            const query = e.target.value.toLowerCase().trim();
-
-                            if (fuse && query !== "") {
-                              const results = fuse.search(query);
-
-                              if (results.length > 0) {
-                                const matched = results[0].item;
-                                setSelectedCurrency(matched.code);
-                                setCurrencySymbol(matched.symbol);
-                              } else {
-                                setSelectedCurrency("");
-                                setCurrencySymbol("");
-                                toast({
-                                  title: "No matching country found",
-                                  description: "Try a different name.",
-                                  variant: "destructive",
-                                });
-                              }
-                            } else {
-                              setSelectedCurrency("");
-                              setCurrencySymbol("");
-                            }
-                          }}
-                          className="w-full border px-2 py-2 rounded-md"
+                        <Button
+                          onClick={() => fetchCountriesByCurrency(searchTerm)}
+                          disabled={!searchTerm}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md"
                         >
-                          <option value="">-- Choose --</option>
-                          {Array.from(new Map(currencies.map((c) => [c.code, c])).values()).map(
-                            (c) => (
-                              <option key={c.code} value={c.code}>
-                                {c.label}
-                              </option>
-                            )
-                          )}
-                        </select>
+                          Search
+                        </Button>
 
-                        <p className="text-xs text-muted-foreground">
-                          Selected currency: {selectedCurrency || "None"} ({currencySymbol || "-"})
-                        </p>
+                        {loading && <p>Loading...</p>}
+                        {error && <p className="text-red-600">❌ {error}</p>}
+
+                        {currencyOptions.length > 0 && (
+                          <div className="space-y-2">
+                            <Label htmlFor="country-select">Select a Country</Label>
+                            <select
+                              id="country-select"
+                              className="w-full border px-2 py-2 rounded-md"
+                              onChange={handleCountrySelect}
+                              value={selectedCurrency}
+                            >
+                              <option value="">-- Choose a country using {searchTerm} --</option>
+                              {currencyOptions.map((opt) => (
+                                <option key={opt.countryName} value={opt.countryName}>
+                                  {opt.countryName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {selectedCurrency && (
+                          <p className="text-green-700 font-medium">
+                            ✅ Selected: {selectedCurrency} — Symbol: <strong>{currencySymbol}</strong>
+                          </p>
+                        )}
                       </div>
-
 
 
                       {/* Price per Person */}
@@ -822,23 +934,26 @@ export default function CreateEventPage() {
                         )}
                       </div>
 
-                      {/* Duration */}
+                    </div>
+
+                    {/* Duration */}
+                    {startDate && startTime && endDate && endTime && (
                       <div className="space-y-2">
                         <Label htmlFor="duration" className="flex items-center">
                           <Clock className="h-4 w-4 mr-1" />
-                          Duration (optional)
+                          Duration
                         </Label>
                         <Input
                           id="duration"
                           placeholder="e.g., 3 days, 2 nights"
                           value={duration}
-                          onChange={(e) => setDuration(e.target.value)}
+                          readOnly
                         />
                         <p className="text-xs text-muted-foreground">
-                          Leave blank to calculate from dates
+                          Automatically calculated from selected start and end time
                         </p>
                       </div>
-                    </div>
+                    )}
 
 
                     <div className="space-y-2">
