@@ -83,6 +83,7 @@ export default function CreateEventPage() {
   const [selectedCurrency, setSelectedCurrency] = useState<string>("");
   const [currencyName, setCurrencyName] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
+  const [isEditing, setIsEditing] = useState(true);
 
   // Users state
   const [userQuery, setUserQuery] = useState("");
@@ -223,6 +224,7 @@ export default function CreateEventPage() {
       setCurrencySymbol(selected.symbol);
       setCurrencyName(selected.currencyName);
       setCurrencyCode(selected.code);
+      setIsEditing(false);
     }
   };
 
@@ -818,66 +820,83 @@ export default function CreateEventPage() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      {/* Currency Selector with Search or Result */}
+                      <div className="flex flex-col justify-end">
+                        <Label htmlFor="currency" className="block mb-1">Select Currency</Label>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Currency Selector with Search */}
-                      <div className="space-y-4">
-                        <Label htmlFor="currency">Select Currency</Label>
-
-                        <Input
-                          id="currency"
-                          type="text"
-                          placeholder="e.g. usd, cop, eur..."
-                          onChange={(e) => setSearchTerm(e.target.value.trim().toLowerCase())}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") fetchCountriesByCurrency(searchTerm);
-                          }}
-                          className="w-full border px-2 py-2 rounded-md"
-                        />
-
-                        <Button
-                          onClick={() => fetchCountriesByCurrency(searchTerm)}
-                          disabled={!searchTerm}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-md"
-                        >
-                          Search
-                        </Button>
-
-                        {loading && <p>Loading...</p>}
-                        {error && <p className="text-red-600">❌ {error}</p>}
-
-                        {currencyOptions.length > 0 && (
-                          <div className="space-y-2">
-                            <Label htmlFor="country-select">Select a Country</Label>
-                            <select
-                              id="country-select"
-                              className="w-full border px-2 py-2 rounded-md"
-                              onChange={handleCountrySelect}
-                              value={selectedCurrency}
-                            >
-                              <option value="">-- Choose a country using {searchTerm} --</option>
-                              {currencyOptions.map((opt) => (
-                                <option key={opt.countryName} value={opt.countryName}>
-                                  {opt.countryName}
-                                </option>
-                              ))}
-                            </select>
+                        <div className="flex gap-2 items-center">
+                          <div className="w-full">
+                            {isEditing && currencyOptions.length > 0 && !selectedCurrency ? (
+                              <select
+                                id="country-select"
+                                className="w-full border px-2 py-2 rounded-md bg-background text-foreground"
+                                onChange={handleCountrySelect}
+                                value={selectedCurrency}
+                              >
+                                <option value="">-- Choose a country using {searchTerm} --</option>
+                                {currencyOptions.map((opt) => (
+                                  <option key={opt.countryName} value={opt.countryName}>
+                                    {opt.countryName}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : isEditing ? (
+                              <div className="flex gap-2">
+                                <Input
+                                  id="currency"
+                                  type="text"
+                                  placeholder="e.g. usd, cop, eur..."
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value.trim().toLowerCase())}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") fetchCountriesByCurrency(searchTerm);
+                                  }}
+                                  className="w-full border px-2 py-2 rounded-md"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => fetchCountriesByCurrency(searchTerm)}
+                                  disabled={!searchTerm}
+                                  className="px-4 py-2 bg-muted text-foreground border rounded-md hover:bg-green-600 hover:text-white text-sm"
+                                >
+                                  Search
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <div className="flex-1 border px-2 py-2 rounded-md bg-background text-foreground truncate text-sm font-medium">
+                                  {currencyName || "No currency selected"}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEditing(true);
+                                    setSelectedCurrency("");
+                                    setCurrencySymbol("");
+                                    setCurrencyName("");
+                                    setSearchTerm("");
+                                    setCurrencyOptions([]);
+                                    setError("");
+                                  }}
+                                  className="px-4 py-2 bg-muted text-foreground border rounded-md hover:bg-green-600 hover:text-white text-sm"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
 
-                        {selectedCurrency && (
-                          <p className="text-green-700 font-medium">
-                            ✅ Selected: {selectedCurrency} — Symbol: <strong>{currencySymbol}</strong>
-                          </p>
-                        )}
+                        {loading && <p className="text-sm mt-1 text-gray-600">Loading...</p>}
+                        {error && <p className="text-sm mt-1 text-red-600">❌ {error}</p>}
                       </div>
 
-
                       {/* Price per Person */}
-                      <div className="space-y-2">
+                      <div className="flex flex-col justify-end">
                         <Label
                           htmlFor="price"
-                          className={cn("flex items-center", formErrors.price && "text-destructive")}
+                          className={cn("flex items-center mb-1", formErrors.price && "text-destructive")}
                         >
                           <span className="mr-1">{currencySymbol}</span>
                           Price per Person *
@@ -888,12 +907,10 @@ export default function CreateEventPage() {
                           placeholder="0.00"
                           value={price}
                           onChange={(e) => {
-                            // Allow user to type freely
-                            const input = e.target.value.replace(/[^0-9.]/g, ""); // strip anything not number or dot
+                            const input = e.target.value.replace(/[^0-9.]/g, "");
                             setPrice(input);
                           }}
                           onBlur={() => {
-                            // Format on blur only
                             const number = parseFloat(price.replace(/,/g, ""));
                             if (!isNaN(number)) {
                               const formatted = number.toLocaleString("en-US", {
@@ -906,16 +923,15 @@ export default function CreateEventPage() {
                           className={formErrors.price ? "border-destructive" : ""}
                         />
                         {formErrors.price && (
-                          <p className="text-xs text-destructive">{formErrors.price}</p>
+                          <p className="text-xs text-destructive mt-1">{formErrors.price}</p>
                         )}
                       </div>
 
-
                       {/* Total Spots */}
-                      <div className="space-y-2">
+                      <div className="flex flex-col justify-end">
                         <Label
                           htmlFor="totalSpots"
-                          className={cn("flex items-center", formErrors.totalSpots && "text-destructive")}
+                          className={cn("flex items-center mb-1", formErrors.totalSpots && "text-destructive")}
                         >
                           <Users className="h-4 w-4 mr-1" />
                           Total Spots *
@@ -930,10 +946,9 @@ export default function CreateEventPage() {
                           className={formErrors.totalSpots ? "border-destructive" : ""}
                         />
                         {formErrors.totalSpots && (
-                          <p className="text-xs text-destructive">{formErrors.totalSpots}</p>
+                          <p className="text-xs text-destructive mt-1">{formErrors.totalSpots}</p>
                         )}
                       </div>
-
                     </div>
 
                     {/* Duration */}
