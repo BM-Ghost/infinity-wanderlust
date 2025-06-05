@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import type React from "react"
 import { useState } from "react"
@@ -31,23 +31,19 @@ import { useEvents } from "@/hooks/useEvents"
 export default function EventsPage() {
   const router = useRouter()
   const { user } = useAuth()
-
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
 
-  const { data: events = [], isLoading } = useEvents(1) // Always fetch all and filter client-side
-
+  const { data: events = [], isLoading } = useEvents(1)
   const now = new Date()
 
   const filteredEvents = events.filter((event) => {
     const start = new Date(event.start_date)
     const end = new Date(event.end_date)
 
-    // Tab-based filtering
     if (activeTab === "upcoming" && start <= now) return false
     if (activeTab === "past" && end >= now) return false
 
-    // Search filtering
     const query = searchQuery.toLowerCase()
     return (
       event.title.toLowerCase().includes(query) ||
@@ -55,6 +51,14 @@ export default function EventsPage() {
       event.destination.toLowerCase().includes(query)
     )
   })
+
+  const getImageUrl = (event: any): string => {
+    if (event.imageUrl) return event.imageUrl
+    if (event.images?.length) {
+      return `https://remain-faceghost.pockethost.io/api/files/${event.collectionId}/${event.id}/${event.images[0]}`
+    }
+    return "/placeholder.svg"
+  }
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,7 +113,6 @@ export default function EventsPage() {
               <Filter className="h-4 w-4 mr-2" />
               Filter
             </Button>
-
             {user && (
               <Button size="sm" onClick={() => router.push("/create-event")}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -145,55 +148,63 @@ export default function EventsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map((event) => (
-              <Card key={event.id} className="overflow-hidden flex flex-col h-full">
-                <div className="aspect-video relative overflow-hidden">
-                  <img
-                    src={event.imageUrl || "/placeholder.svg?height=200&width=400"}
-                    alt={event.title}
-                    className="w-full h-full object-cover transition-transform hover:scale-105"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                      {event.price} {event.currency}
-                    </Badge>
-                  </div>
-                </div>
-
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <Badge className="mb-2">{event.destination}</Badge>
-                      <CardTitle className="mb-1">{event.title}</CardTitle>
+            {filteredEvents.map((event) => {
+              const currencyUsed = event.currency?.split(":")[0] || "";
+              const priceLabel = event.price ? `${currencyUsed} ${event.price}` : "Free";
+              return (
+                <Card key={event.id} className="overflow-hidden flex flex-col h-full">
+                  <div className="aspect-video relative overflow-hidden">
+                    <img
+                      src={getImageUrl(event)}
+                      alt={event.title}
+                      className="w-full h-full object-cover transition-transform hover:scale-105"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
+                        {priceLabel}
+                      </Badge>
                     </div>
                   </div>
-                  <CardDescription className="line-clamp-2">{event.description}</CardDescription>
-                </CardHeader>
 
-                <CardContent className="pb-2 flex-grow">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                      <span>{event.start_date ? format(new Date(event.start_date), "MMM d, yyyy") : "Date not set"}</span>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Badge className="mb-2">{event.destination}</Badge>
+                        <CardTitle className="mb-1">{event.title}</CardTitle>
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      <MapPin className="h-4 w-4 mr-1 text-muted-foreground" />
-                      <span className="truncate">{event.destination}</span>
-                    </div>
-                    <div className="flex items-center col-span-2">
-                      <Users className="h-4 w-4 mr-1 text-muted-foreground" />
-                      <span>{event.spots_left} spots left</span>
-                    </div>
-                  </div>
-                </CardContent>
+                    <CardDescription className="line-clamp-2">{event.description}</CardDescription>
+                  </CardHeader>
 
-                <CardFooter className="pt-2">
-                  <Button className="w-full" onClick={() => router.push(`/events/${event.id}`)}>
-                    View Details
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                  <CardContent className="pb-2 flex-grow">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                        <span>
+                          {event.start_date
+                            ? format(new Date(event.start_date), "MMM d, yyyy")
+                            : "Date not set"}
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-1 text-muted-foreground" />
+                        <span className="truncate">{event.destination}</span>
+                      </div>
+                      <div className="flex items-center col-span-2">
+                        <Users className="h-4 w-4 mr-1 text-muted-foreground" />
+                        <span>{event.spots_left} spots left</span>
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="pt-2">
+                    <Button className="w-full" onClick={() => router.push(`/events/${event.id}`)}>
+                      View Details
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>

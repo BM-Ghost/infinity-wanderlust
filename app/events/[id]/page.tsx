@@ -24,6 +24,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useEvents } from "@/hooks/useEvents"
+import Map from 'react-map-gl/mapbox';
+import { Marker} from "react-map-gl/mapbox";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 export default function EventDetailPage() {
   const params = useParams()
@@ -31,70 +35,18 @@ export default function EventDetailPage() {
   const { toast } = useToast()
   const { user, isLoading: isAuthLoading } = useAuth()
 
-  const [event, setEvent] = useState<TravelEvent | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [isBooking, setIsBooking] = useState(false)
   const [numGuests, setNumGuests] = useState(1)
   const [notes, setNotes] = useState("")
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
+  const eventId = params.id as string
+  const { data: events = [], isLoading } = useEvents(1, eventId);
+  const event = Array.isArray(events) ? events[0] : events;
 
-  useEffect(() => {
-    const fetchEventDetails = async () => {
-      try {
-        const pb = await import("@/lib/pocketbase").then((mod) => mod.getPocketBase())
-        const eventId = params.id as string
 
-        const record = await pb.collection("travel_events").getOne(eventId, {
-          expand: "creator",
-        })
-
-        // Format the event data
-        const formattedEvent: TravelEvent = {
-          id: record.id,
-          title: record.title,
-          subtitle: record.subtitle || "",
-          description: record.description,
-          destination: record.destination,
-          start_date: record.start_date,
-          end_date: record.end_date,
-          price: record.price,
-          currency: record.currency || "USD",
-          total_spots: record.total_spots || record.spots_left,
-          spots_left: record.spots_left,
-          imageUrl:
-            record.image && record.image.length > 0
-              ? `https://remain-faceghost.pockethost.io/api/files/${record.collectionId}/${record.id}/${record.image[0]}`
-              : "/placeholder.svg?height=400&width=600",
-          location_address: record.location_address || "",
-          latitude: record.latitude,
-          longitude: record.longitude,
-          creator: record.creator,
-          collaborators: record.collaborators || [],
-          created: record.created,
-          updated: record.updated,
-          expand: {
-            creator: record.expand?.creator,
-          },
-        }
-
-        setEvent(formattedEvent)
-      } catch (error) {
-        console.error("Error fetching event details:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load event details. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (params.id) {
-      fetchEventDetails()
-    }
-  }, [params.id, toast])
+  const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  console.log("Event Detail Page - Event Data:", event)
 
   const handleBookNow = async () => {
     if (!user) {
@@ -132,10 +84,6 @@ export default function EventDetailPage() {
     setIsBooking(true)
 
     try {
-      console.log("Creating booking for event:", event.id)
-      console.log("Number of guests:", numGuests)
-      console.log("Notes:", notes)
-
       const booking = await createBooking({
         event: event.id,
         num_guests: numGuests,
@@ -144,14 +92,6 @@ export default function EventDetailPage() {
 
       console.log("Booking created successfully:", booking)
 
-      // Update local event state to reflect the new spots_left count
-      setEvent((prev) => {
-        if (!prev) return null
-        return {
-          ...prev,
-          spots_left: prev.spots_left - numGuests,
-        }
-      })
 
       setBookingSuccess(true)
       toast({
@@ -206,8 +146,8 @@ export default function EventDetailPage() {
     )
   }
 
-  const startDate = new Date(event.start_date)
-  const endDate = new Date(event.end_date)
+  let startDate = new Date(event?.start_date)
+  let endDate = new Date(event?.end_date)
   const formattedStartDate = format(startDate, "MMMM d, yyyy")
   const formattedEndDate = format(endDate, "MMMM d, yyyy")
   const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -220,8 +160,11 @@ export default function EventDetailPage() {
           <div
             className="absolute inset-0 bg-center bg-cover"
             style={{
-              backgroundImage: `url(${event.imageUrl || "/placeholder.svg?height=400&width=800"})`,
+              backgroundImage: `url(${`https://remain-faceghost.pockethost.io/api/files/${event.collectionId}/${event.id}/${event.images[0]}` || "/placeholder.svg?height=400&width=800"})`,
               filter: "brightness(0.7)",
+              objectFit: "cover",
+              backgroundPosition: "center",
+              backgroundSize: "cover",
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
@@ -332,14 +275,24 @@ export default function EventDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="aspect-video bg-muted rounded-md overflow-hidden relative">
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      frameBorder="0"
-                      style={{ border: 0 }}
-                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBMH3hsoOQG5Kb9-1459-7hXNM0AY8_VEA&q=${event.latitude},${event.longitude}&zoom=13`}
-                      allowFullScreen
-                    ></iframe>
+                    <Map
+                      viewState={{
+                        longitude: event.longitude,
+                        latitude: event.latitude,
+                        zoom: 12,
+                        bearing: 0,
+                        pitch: 0,
+                        padding: { top: 0, bottom: 0, left: 0, right: 0 },
+                        width: 600, // or any default value, will be overridden by style
+                        height: 400, // or any default value, will be overridden by style
+                      }}
+                      style={{ width: "100%", height: "100%" }}
+                      mapStyle="mapbox://styles/mapbox/streets-v11"
+                      mapboxAccessToken={MAPBOX_TOKEN}
+
+                    >
+                      <Marker longitude={event.longitude} latitude={event.latitude} />
+                    </Map>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
                     {event.location_address || `${event.latitude}, ${event.longitude}`}

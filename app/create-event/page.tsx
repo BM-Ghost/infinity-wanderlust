@@ -35,10 +35,9 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useUsers } from "@/hooks/useUsers"
-import { Avatar, AvatarImage } from "@/components/ui/avatar"; // Assuming you have these
-import { useDebounce } from "use-debounce"; // Install via: npm install use-debounce
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from 'axios';
-import { addDays } from "date-fns"; // ensure this is imported
+import { addDays } from "date-fns";
 import type Fuse from "fuse.js";
 
 // Initialize Fuse.js with SSR fallback
@@ -82,23 +81,36 @@ export default function CreateEventPage() {
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState<string>("");
   const [currencyName, setCurrencyName] = useState("");
+  const [currencyCountry, setCurrencyCountry] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [isEditing, setIsEditing] = useState(true);
+
+  const currency = selectedCurrency + ":" + currencyCountry;
 
   // Users state
   const [userQuery, setUserQuery] = useState("");
   const [taggedUsers, setTaggedUsers] = useState<string[]>([]);
+  const [taggedUsersId, setTaggedUsersId] = useState<string[]>([]);
 
   const { data, isLoading: isUsersLoading } = useUsers(1);
-  const users = data?.users ?? [];
+  const users = data ?? [];
+  const baseUrl = "https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_"
+const userAvatarUrl = (user?: any): string => {
+  if (!user) return "/default-avatar.png"; // handle null or undefined
+  if (user.avatarUrl) return `${baseUrl}/${user.id}/${user.avatarUrl}`;
+  if (user.avatar) return `${baseUrl}/${user.id}/${user.avatar}`;
+  return "/default-avatar.png";
+};
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const OPENWEATHER_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_KEY;
 
-  const handleTagUser = (username: string) => {
-    if (!taggedUsers.includes(username)) {
+  const handleTagUser = (username: string, id: string) => {
+    if (!taggedUsers.includes(username) && !taggedUsersId.includes(id)) {
       setTaggedUsers([...taggedUsers, username]);
+      setTaggedUsersId([...taggedUsersId, id]);
     }
+
     setUserQuery(""); // Reset input
   };
 
@@ -113,6 +125,21 @@ export default function CreateEventPage() {
   const [destination, setDestination] = useState("")
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
+
+ type Status = "upcoming" | "ongoing" | "past" | "cancelled";
+ const getStatus = (startDate?: Date, endDate?: Date): Status => {
+  const today = new Date();
+
+  if (!startDate || !endDate) return "upcoming"; // assume default/future
+
+  if (today < startDate) return "upcoming";
+  if (today >= startDate && today <= endDate) return "ongoing";
+  if (today > endDate) return "past";
+
+  return "upcoming"; // fallback
+};
+
+const status: Status = getStatus(startDate, endDate);
 
   // Helper function to format date for PocketBase
   const formatDateForPocketBase = (date: Date | undefined): string => {
@@ -136,7 +163,7 @@ export default function CreateEventPage() {
   })
 
   // Wanderlog-inspired additional fields
-  const [tags, setTags] = useState<string[]>([])
+  const [collaborators, setCollaborators] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
   const [selectedActivities, setSelectedActivities] = useState<string[]>([])
   const [difficultyLevel, setDifficultyLevel] = useState("moderate")
@@ -166,13 +193,15 @@ export default function CreateEventPage() {
     };
   };
 
-  type CurrencyOption = {
-    label: string;
-    code: string;
-    symbol: string;
-    countryName: string;
-    currencyName: string;
-  };
+type CurrencyOption = {
+  label: string;
+  code: string;
+  symbol: string;
+  countryName: string;
+  currencyName: string;
+  currencyCode: string; // ✅ NEW
+};
+
 
   // Fetch countries & currencies from API
   const [fuse, setFuse] = useState<Fuse<CurrencyOption> | null>(null);
@@ -222,68 +251,73 @@ export default function CreateEventPage() {
     }
   }, [startDate, startTime, endDate, endTime]);
 
-  const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = currencyOptions.find(opt => opt.countryName === e.target.value);
-    console.log("Selected country:", selected);
+const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const selected = currencyOptions.find(opt => opt.countryName === e.target.value);
+  console.log("Selected country:", selected);
 
-    if (selected) {
-      setSelectedCurrency(selected.countryName);
-      setCurrencySymbol(selected.symbol);
-      setCurrencyName(selected.currencyName);
-      setCurrencyCode(selected.code);
-      setIsEditing(false);
+  if (selected) {
+    setSelectedCurrency(selected.currencyCode); // ✅ Uses matched currency
+    setCurrencySymbol(selected.symbol);
+    setCurrencyName(selected.currencyName);
+    setCurrencyCode(selected.code);
+    setCurrencyCountry(selected.countryName);
+    setIsEditing(false);
+  }
+};
+
+const fetchCountriesByCurrency = async (currencyCode: string) => {
+  if (!currencyCode) return;
+
+  setLoading(true);
+  setError("");
+  setCountries([]);
+  setCurrencyOptions([]);
+  setSelectedCurrency("");
+  setCurrencySymbol("");
+
+  try {
+    const res = await fetch(`https://restcountries.com/v3.1/currency/${currencyCode}`);
+    if (!res.ok) {
+      throw new Error("Currency not found");
     }
-  };
 
+    const data: Country[] = await res.json();
+    setCountries(data);
+    console.log("Fetched countries:", data);
 
-  const fetchCountriesByCurrency = async (currencyCode: string) => {
-    if (!currencyCode) return;
+    const upperCurrencyCode = currencyCode.toUpperCase();
 
-    setLoading(true);
-    setError("");
-    setCountries([]);
-    setCurrencyOptions([]);
-    setSelectedCurrency("");
-    setCurrencySymbol("");
+    const options: CurrencyOption[] = data.map((country) => {
+      const currencies = country.currencies || {};
 
-    try {
-      const res = await fetch(`https://restcountries.com/v3.1/currency/${currencyCode}`);
-      if (!res.ok) {
-        throw new Error("Currency not found");
-      }
+      const matchedCode = Object.keys(currencies).find(
+        (code) => code.toUpperCase() === upperCurrencyCode
+      );
 
-      const data: Country[] = await res.json();
-      setCountries(data);
-      console.log("Fetched countries:", data);
+      const currencyCode = matchedCode || Object.keys(currencies)[0]; // fallback
+      const currencyEntry = currencies[currencyCode];
 
-      const upperCurrencyCode = currencyCode.toUpperCase();
+      const symbol = currencyEntry?.symbol || "";
+      const currencyName = currencyEntry?.name || "";
 
-      const options: CurrencyOption[] = data.map((country) => {
-        const currencies = country.currencies || {};
+      return {
+        label: `${country.name.common} (${currencyCode})`,
+        code: country.ccn3 || "",
+        symbol,
+        countryName: country.name.common,
+        currencyName,
+        currencyCode, // 👈 Keep actual currency code used
+      };
+    });
 
-        // Prefer the exact code, fallback to first currency
-        const currencyEntry =
-          currencies[upperCurrencyCode] || Object.values(currencies)[0];
+    setCurrencyOptions(options);
+  } catch (err: any) {
+    setError(err.message || "Something went wrong");
+  } finally {
+    setLoading(false);
+  }
+};
 
-        const symbol = currencyEntry?.symbol || "";
-        const currencyName = currencyEntry?.name || "";
-
-        return {
-          label: `${country.name.common} (${currencyName})`,
-          code: country.ccn3 || "",
-          symbol,
-          countryName: country.name.common,
-          currencyName,
-        };
-      });
-
-      setCurrencyOptions(options);
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -401,10 +435,6 @@ export default function CreateEventPage() {
     }
 
     setIsSubmitting(true)
-    console.group("📝 EVENT SUBMISSION")
-    console.log("🔍 Starting event submission process")
-    console.log("👤 User authentication status:", user ? "Authenticated" : "Not authenticated")
-
     try {
       // Prepare event data
       const eventData = {
@@ -414,22 +444,24 @@ export default function CreateEventPage() {
         start_date: formatDateForPocketBase(startDate),
         end_date: formatDateForPocketBase(endDate),
         spots_left: Number.parseInt(totalSpots, 10),
-        currency: selectedCurrency,
-        status: activeTab === "upcoming" ? "upcoming" : "past",
+        price,
+        currency: currency,
+        status: status,
         slug: title.toLowerCase().replace(/\s+/g, "-"),
-        event_url: "https://example.com/events/" + title.toLowerCase().replace(/\s+/g, "-"),
+        event_url: "https://infinity-wanderlust.vercel.app/events/" + title.toLowerCase().replace(/\s+/g, "-"),
         latitude: location.latitude,
         longitude: location.longitude,
         creator: user.id,
-        collaborators: taggedUsers,
+        collaborators,
         location_address: location.address,
         location_name: destination,
-        tags,
+        tags: taggedUsersId,
         activities: selectedActivities,
         difficulty_level: difficultyLevel,
         packing_list: packingList,
         images: selectedFile instanceof File ? [selectedFile] : [],
       }
+      console.log("Event data prepared:", eventData)
       // Create the event
       const result = await createEvent(eventData)
       if (result) {
@@ -1012,37 +1044,57 @@ export default function CreateEventPage() {
                     </div>
 
                     {/* User Tagging Autocomplete */}
-                    <div className="space-y-1">
-                      <Label htmlFor="user-search" className="flex items-center">
-                        <Tag className="h-4 w-4 mr-1" />
-                        Tag Users
-                      </Label>
-                      <Input
-                        id="user-search"
-                        placeholder="Search users to tag"
-                        value={userQuery}
-                        onChange={(e) => setUserQuery(e.target.value)}
-                        className="flex-1"
-                      />
+<div className="space-y-1">
+  <Label htmlFor="user-search" className="flex items-center">
+    <Tag className="h-4 w-4 mr-1" />
+    Tag Users
+  </Label>
 
-                      {/* Suggestions dropdown */}
-                      {userQuery && users.length > 0 && (
-                        <div className="border bg-white shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
-                          {users.map((user) => (
-                            <div
-                              key={user.id}
-                              className="flex items-center px-3 py-2 hover:bg-muted cursor-pointer"
-                              onClick={() => handleTagUser(user.username)}
-                            >
-                              <Avatar className="h-6 w-6 mr-2">
-                                <AvatarImage src={user.avatar ?? "/default-avatar.png"} alt={user.username} />
-                              </Avatar>
-                              <span className="text-sm">{user.username}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+  <Input
+    id="user-search"
+    placeholder="Search users to tag"
+    value={userQuery}
+    onChange={(e) => setUserQuery(e.target.value)}
+    className="flex-1"
+  />
+
+  {/* Filtered Suggestions Dropdown */}
+  {userQuery && (
+    <div className="border bg-popover text-popover-foreground shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
+      {users
+        .filter((user) =>
+          user.username.toLowerCase().includes(userQuery.toLowerCase())
+        )
+        .map((user) => {
+          const avatarUrl = userAvatarUrl(user);
+          const reviewerInitial = user.username?.charAt(0)?.toUpperCase() || "?";
+          return (
+            <div
+              key={user.id}
+              className="flex items-center px-3 py-2 hover:bg-muted cursor-pointer gap-2"
+              onClick={() => handleTagUser(user.username, user.id)}
+            >
+              <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+                {avatarUrl && avatarUrl !== "/default-avatar.png" ? (
+                  <Avatar className="h-8 w-8 border">
+                    <AvatarImage src={avatarUrl} alt={user.username} />
+                    <AvatarFallback>{reviewerInitial}</AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
+                    {reviewerInitial}
+                  </div>
+                )}
+              </div>
+              <span className="text-sm truncate">{user.username}</span>
+            </div>
+          );
+        })}
+    </div>
+  )}
+</div>
+
+
 
                     {/* Display tagged users as badges */}
                     {taggedUsers.length > 0 && (

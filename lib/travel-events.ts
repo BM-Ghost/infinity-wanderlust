@@ -9,7 +9,7 @@ export interface TravelEvent {
   destination: string
   start_date: string
   end_date: string
-  price: number
+  price: String
   currency: string
   total_spots: number
   spots_left: number
@@ -48,7 +48,7 @@ export async function createEvent(
     start_date: string
     end_date: string
     spots_left?: number
-    price: number
+    price: String
     currency?: string
     status?: string
     slug?: string
@@ -69,18 +69,7 @@ export async function createEvent(
   const pb = getPocketBase()
   const formData = new FormData()
 
-  // Append all non-image fields
-  Object.entries(data).forEach(([key, value]) => {
-    if (key === "images" || value === undefined || value === null) return
-    if (Array.isArray(value) && value.length === 0) return
-    if (typeof value === "string" && value.trim() === "") return
-
-    if (typeof value === "object" && !Array.isArray(value)) {
-      formData.append(key, JSON.stringify(value))
-    } else {
-      formData.append(key, value as string | Blob)
-    }
-  })
+  
 
   // Normalize image(s) and append them
   const imageList = Array.isArray(data.images)
@@ -96,7 +85,8 @@ export async function createEvent(
   })
 
   try {
-    const record = await pb.collection("travel_events").create(formData)
+    const record = await pb.collection("travel_events").create(data)
+    console.log("📅 Creating New Event", formData)
     console.log("✅ Event created successfully:", record)
     return formatEvent(record)
   } catch (apiError: any) {

@@ -74,8 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
 
     // Listen for auth state changes
-    pb.authStore.onChange(() => {
-      if (pb.authStore.isValid && pb.authStore.model) {
+    pb?.authStore.onChange(() => {
+      if (pb && pb.authStore.isValid && pb.authStore.model) {
         const authModel = pb.authStore.model
         setUser({
           id: authModel.id,
