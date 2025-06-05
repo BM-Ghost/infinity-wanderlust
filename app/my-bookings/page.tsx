@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -50,15 +48,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { JSX } from "react"
+import { useBookings } from "@/hooks/useBookings"
+import { get } from "http"
+import { QueryClient } from "@tanstack/react-query"
+
+// Place this at the top of your file, before any components that use it
+const getImageUrl = (event: any): string => {
+  if (event.imageUrl) return event.imageUrl
+  if (event.images?.length) {
+    return `https://remain-faceghost.pockethost.io/api/files/${event.collectionId}/${event.id}/${event.images[0]}`
+  }
+  return "/placeholder.svg"
+}
+
+console.log("imageurl:", getImageUrl)
 
 export default function MyBookingsPage() {
   const { user } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
-  const isMounted = useRef(true)
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [bookings, setBookings] = useState<TravelBooking[]>([])
   const [filteredBookings, setFilteredBookings] = useState<TravelBooking[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -68,60 +77,22 @@ export default function MyBookingsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const queryClient = new QueryClient()
+  const { data: bookings = [], isLoading } = useBookings(user?.id || "")
 
-  // Set up cleanup when component unmounts
   useEffect(() => {
-    isMounted.current = true
-    return () => {
-      isMounted.current = false
+    const pb = getPocketBase()
+    if (!pb || !pb.authStore.isValid) {
+      router.push("/login?redirect=/my-bookings")
     }
-  }, [])
+  }, [router])
 
-  // Fetch bookings data
   useEffect(() => {
-    const loadBookings = async () => {
-      if (!isMounted.current) return
-      setIsLoading(true)
-
-      // Check if user is logged in
-      const pb = getPocketBase()
-      if (!pb || !pb.authStore.isValid) {
-        router.push("/login?redirect=/my-bookings")
-        return
-      }
-
-      try {
-        const userId = pb.authStore.model?.id
-
-        if (!userId) {
-          throw new Error("User ID not found")
-        }
-
-        // Fetch real bookings from PocketBase
-        const bookingsData = await fetchUserBookings(userId)
-
-        if (!isMounted.current) return
-
-        setBookings(bookingsData)
-        setFilteredBookings(bookingsData)
-      } catch (error) {
-        console.error("Error loading bookings:", error)
-        if (isMounted.current && !error.toString().includes("autocancelled")) {
-          toast({
-            variant: "destructive",
-            title: "Error loading bookings",
-            description: "Could not load your bookings. Please try again.",
-          })
-        }
-      } finally {
-        if (isMounted.current) {
-          setIsLoading(false)
-        }
-      }
+    // Only update if the array reference or length changes
+    if (filteredBookings !== bookings && filteredBookings.length !== bookings.length) {
+      setFilteredBookings(bookings)
     }
-
-    loadBookings()
-  }, [user, router, toast])
+  }, [bookings])
 
   // Filter bookings based on search query and status filter
   useEffect(() => {
@@ -160,22 +131,7 @@ export default function MyBookingsPage() {
       // Cancel booking in PocketBase
       await cancelBooking(selectedBooking.id)
 
-      // Update local state
-      const updatedBookings = bookings.map((booking) => {
-        if (booking.id === selectedBooking.id) {
-          return {
-            ...booking,
-            status: "cancelled",
-            updated: new Date().toISOString(),
-          }
-        }
-        return booking
-      })
-
-      setBookings(updatedBookings)
-      setFilteredBookings(
-        updatedBookings.filter((booking) => statusFilter === "all" || booking.status === statusFilter),
-      )
+      queryClient.invalidateQueries({ queryKey: ["all-bookings"] })
 
       toast({
         title: "Booking cancelled",
@@ -203,13 +159,7 @@ export default function MyBookingsPage() {
     try {
       // Delete booking in PocketBase
       await deleteBooking(selectedBooking.id)
-
-      // Update local state
-      const updatedBookings = bookings.filter((booking) => booking.id !== selectedBooking.id)
-      setBookings(updatedBookings)
-      setFilteredBookings(
-        updatedBookings.filter((booking) => statusFilter === "all" || booking.status === statusFilter),
-      )
+      queryClient.invalidateQueries({ queryKey: ["all-bookings"] })
 
       toast({
         title: "Booking deleted",
@@ -278,7 +228,6 @@ export default function MyBookingsPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen">
-        <Navbar />
         <div className="container py-16 flex justify-center items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
@@ -288,8 +237,6 @@ export default function MyBookingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/80">
-      <Navbar />
-
       <div className="container py-8 md:py-16">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -339,6 +286,10 @@ export default function MyBookingsPage() {
             <TabsTrigger value="upcoming" className="flex items-center gap-2">
               <CalendarCheck className="h-4 w-4" />
               <span>Upcoming</span>
+            </TabsTrigger>
+            <TabsTrigger value="ongoing" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span>Ongoing</span>
             </TabsTrigger>
             <TabsTrigger value="past" className="flex items-center gap-2">
               <CalendarX className="h-4 w-4" />
@@ -404,19 +355,83 @@ export default function MyBookingsPage() {
             )}
           </TabsContent>
 
+          {/* Ongoing Bookings */}
+          <TabsContent value="ongoing">
+            {filteredBookings.filter(
+              (booking) => {
+                const event = booking.expand?.event
+                if (!event) return false
+                const now = new Date()
+                return (
+                  new Date(event.start_date) <= now &&
+                  new Date(event.end_date) >= now &&
+                  booking.status !== "cancelled"
+                )
+              },
+            ).length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredBookings
+                  .filter((booking) => {
+                    const event = booking.expand?.event
+                    if (!event) return false
+                    const now = new Date()
+                    return (
+                      new Date(event.start_date) <= now &&
+                      new Date(event.end_date) >= now &&
+                      booking.status !== "cancelled"
+                    )
+                  })
+                  .sort(
+                    (a, b) =>
+                      new Date(a.expand?.event?.start_date || "").getTime() -
+                      new Date(b.expand?.event?.start_date || "").getTime(),
+                  )
+                  .map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      onViewDetails={() => {
+                        setSelectedBooking(booking)
+                        setShowDetailsDialog(true)
+                      }}
+                      onCancel={() => {
+                        setSelectedBooking(booking)
+                        setShowCancelDialog(true)
+                      }}
+                      onDelete={() => {
+                        setSelectedBooking(booking)
+                        setShowDeleteDialog(true)
+                      }}
+                      formatDate={formatDate}
+                      formatTime={formatTime}
+                      getStatusBadge={getStatusBadge}
+                      getDaysRemaining={getDaysRemaining}
+                    />
+                  ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No ongoing bookings"
+                description="You don't have any ongoing travel bookings."
+                buttonText="Browse Events"
+                buttonLink="/events"
+              />
+            )}
+          </TabsContent>
+
           {/* Past Bookings */}
           <TabsContent value="past">
             {filteredBookings.filter(
               (booking) =>
                 booking.expand?.event &&
-                (new Date(booking.expand.event.end_date) < new Date() || booking.status === "completed"),
+                new Date(booking.expand.event.end_date) < new Date(),
             ).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredBookings
                   .filter(
                     (booking) =>
                       booking.expand?.event &&
-                      (new Date(booking.expand.event.end_date) < new Date() || booking.status === "completed"),
+                      new Date(booking.expand.event.end_date) < new Date(),
                   )
                   .sort(
                     (a, b) =>
@@ -474,12 +489,12 @@ export default function MyBookingsPage() {
                       }}
                       onCancel={
                         booking.expand?.event &&
-                        new Date(booking.expand.event.start_date) > new Date() &&
-                        booking.status !== "cancelled"
+                          new Date(booking.expand.event.start_date) > new Date() &&
+                          booking.status !== "cancelled"
                           ? () => {
-                              setSelectedBooking(booking)
-                              setShowCancelDialog(true)
-                            }
+                            setSelectedBooking(booking)
+                            setShowCancelDialog(true)
+                          }
                           : null
                       }
                       onDelete={() => {
@@ -519,7 +534,7 @@ export default function MyBookingsPage() {
               {/* Event Image */}
               <div className="relative w-full h-48 rounded-lg overflow-hidden">
                 <Image
-                  src={selectedBooking.expand?.event?.imageUrl || "/placeholder.svg?height=400&width=600"}
+                  src={getImageUrl(selectedBooking.expand?.event) || "/placeholder.svg?height=400&width=600"}
                   alt={selectedBooking.expand?.event?.title || "Event"}
                   fill
                   className="object-cover"
@@ -567,12 +582,21 @@ export default function MyBookingsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Price per person</p>
-                    <p className="font-medium">${selectedBooking.expand?.event?.price.toFixed(2) || "0.00"}</p>
+                    <p className="font-medium">
+                      ${selectedBooking.expand?.event?.price || "0.00"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total amount</p>
                     <p className="font-bold">
-                      ${((selectedBooking.expand?.event?.price || 0) * selectedBooking.num_guests).toFixed(2)}
+                      ${(
+                        parsePrice(
+                          selectedBooking.expand?.event?.price
+                            ? selectedBooking.expand.event.price.toString()
+                            : undefined
+                        ) *
+                        (selectedBooking.num_guests || 1)
+                      ).toFixed(2)}
                     </p>
                   </div>
                   <div>
@@ -632,12 +656,15 @@ export default function MyBookingsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to cancel your booking for "{selectedBooking.expand?.event?.title || "this event"}
-                " on {formatDate(selectedBooking.expand?.event?.start_date || "")}?
+                Are you sure you want to cancel your booking for "{selectedBooking.expand?.event?.title || "this event"}"
+                on {formatDate(selectedBooking.expand?.event?.start_date || "")}?
                 {selectedBooking.expand?.event && getDaysRemaining(selectedBooking.expand.event.start_date) <= 2 && (
-                  <div className="mt-2 text-red-500 font-medium">
-                    This booking is within 48 hours of the event. A 50% cancellation fee will apply.
-                  </div>
+                  <>
+                    <br />
+                    <span className="mt-2 text-red-500 font-medium block">
+                      This booking is within 48 hours of the event. A 50% cancellation fee will apply.
+                    </span>
+                  </>
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -697,8 +724,6 @@ export default function MyBookingsPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-      <Footer />
     </div>
   )
 }
@@ -734,7 +759,7 @@ function BookingCard({
     <Card className="overflow-hidden h-full flex flex-col">
       <div className="relative h-48">
         <Image
-          src={event.imageUrl || "/placeholder.svg?height=400&width=600"}
+          src={getImageUrl(event) || "/placeholder.svg?height=400&width=600"}
           alt={event.title}
           fill
           className="object-cover"
@@ -817,4 +842,11 @@ function EmptyState({
       </Button>
     </div>
   )
+}
+
+function parsePrice(price: string | number | undefined): number {
+  if (typeof price === "number") return price
+  if (!price) return 0
+  // Remove commas and parse as float
+  return parseFloat(price.replace(/,/g, ""))
 }

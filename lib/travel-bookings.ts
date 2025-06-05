@@ -36,6 +36,8 @@ export async function fetchUserBookings(userId: string): Promise<TravelBooking[]
       expand: "event",
     })
 
+    console.log("Fetched bookings:", bookings)
+
     return bookings as unknown as TravelBooking[]
   } catch (error) {
     console.error("Error fetching user bookings:", error)

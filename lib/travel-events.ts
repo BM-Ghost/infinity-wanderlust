@@ -47,7 +47,7 @@ export async function createEvent(
     description: string
     start_date: string
     end_date: string
-    spots_left?: number
+    total_spots?: number
     price: String
     currency?: string
     status?: string

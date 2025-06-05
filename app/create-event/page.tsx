@@ -443,7 +443,7 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
         description,
         start_date: formatDateForPocketBase(startDate),
         end_date: formatDateForPocketBase(endDate),
-        spots_left: Number.parseInt(totalSpots, 10),
+        total_spots: Number.parseInt(totalSpots, 10),
         price,
         currency: currency,
         status: status,

@@ -107,6 +107,14 @@ export default function HomePage() {
     }),
   };
 
+  const getEventImageUrl = (event: any): string => {
+    if (event.imageUrl) return event.imageUrl
+    if (event.images?.length) {
+      return `https://remain-faceghost.pockethost.io/api/files/${event.collectionId}/${event.id}/${event.images[0]}`
+    }
+    return "/placeholder.svg"
+  }
+
   return (
     <>
       {/* Hero Section with Rainforest Sunset Background */}
@@ -206,7 +214,7 @@ export default function HomePage() {
                     No destinations found. Be the first to review a destination!
                   </p>
                   <Button asChild className="mt-4">
-                    <Link href="/reviews/new">Write a Review</Link>
+                    <Link href="/reviews/">Write a Review</Link>
                   </Button>
                 </div>
               ) : (
@@ -316,7 +324,7 @@ export default function HomePage() {
                     <div className="relative w-full md:w-1/3 h-48 md:h-auto">
                       <Image
                         src={
-                          event.imageUrl ||
+                          getEventImageUrl(event) ||
                           "/placeholder.svg?height=400&width=600"
                         }
                         alt={event.title}
@@ -400,7 +408,7 @@ export default function HomePage() {
                   No recent reviews. Be the first to share your experience!
                 </p>
                 <Button asChild className="mt-4">
-                  <Link href="/reviews/new">Write a Review</Link>
+                  <Link href="/reviews/">Write a Review</Link>
                 </Button>
               </div>
             ) : (

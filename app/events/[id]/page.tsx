@@ -151,6 +151,8 @@ export default function EventDetailPage() {
   const formattedStartDate = format(startDate, "MMMM d, yyyy")
   const formattedEndDate = format(endDate, "MMMM d, yyyy")
   const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+  const currencyUsed = event.currency?.split(":")[0] || "";
+  const priceLabel = event.price ? `${currencyUsed} ${event.price}` : "Free";
 
   return (
     <div className="min-h-screen bg-background">
@@ -224,7 +226,7 @@ export default function EventDetailPage() {
                     <div>
                       <h3 className="font-medium">Price</h3>
                       <p className="text-sm text-muted-foreground">
-                        {event.price} {event.currency} per person
+                        {priceLabel} {currencyUsed} per person
                       </p>
                     </div>
                   </div>
@@ -311,128 +313,164 @@ export default function EventDetailPage() {
                   {event.spots_left > 0 ? `${event.spots_left} spots remaining` : "This event is fully booked"}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 bg-muted rounded-md">
-                    <div className="flex justify-between mb-2">
-                      <span>Price per person</span>
-                      <span className="font-medium">
-                        {event.price} {event.currency}
-                      </span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between font-medium">
-                      <span>Total from</span>
-                      <span>
-                        {event.price} {event.currency}
-                      </span>
-                    </div>
-                  </div>
 
-                  <Dialog open={bookingDialogOpen} onOpenChange={setBookingDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button
-                        className="w-full"
-                        size="lg"
-                        disabled={event.spots_left <= 0 || isAuthLoading}
-                        onClick={() => {
-                          if (!user) {
-                            toast({
-                              title: "Authentication required",
-                              description: "You must be signed in to book an event.",
-                              variant: "destructive",
-                            })
-                            router.push(`/login?redirect=/events/${params.id}`)
-                            return
-                          }
-                          setBookingDialogOpen(true)
-                        }}
-                      >
-                        {event.spots_left > 0 ? "Book Now" : "Sold Out"}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>Book Your Adventure</DialogTitle>
-                        <DialogDescription>Complete your booking for {event.title}</DialogDescription>
-                      </DialogHeader>
+<CardContent>
+  <div className="space-y-4">
+    <div className="p-4 bg-muted rounded-md">
+      <div className="flex justify-between mb-2">
+        <span>Price per person</span>
+        <span className="font-medium">
+          {priceLabel} {currencyUsed}
+        </span>
+      </div>
+    </div>
 
-                      {bookingSuccess ? (
-                        <div className="py-6">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
-                            <h3 className="text-xl font-semibold mb-2">Booking Confirmed!</h3>
-                            <p className="text-muted-foreground mb-4">
-                              Your booking has been successfully created. You'll be redirected to your bookings page
-                              shortly.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="grid gap-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="num-guests">Number of Guests</Label>
-                              <Input
-                                id="num-guests"
-                                type="number"
-                                min="1"
-                                max={event.spots_left}
-                                value={numGuests}
-                                onChange={(e) => setNumGuests(Number.parseInt(e.target.value) || 1)}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Maximum {event.spots_left} guests available
-                              </p>
-                            </div>
+    <Dialog open={bookingDialogOpen} onOpenChange={setBookingDialogOpen}>
+      <DialogTrigger asChild>
+        <Button
+          className="w-full"
+          size="lg"
+          disabled={event.spots_left <= 0 || isAuthLoading}
+          onClick={() => {
+            if (!user) {
+              toast({
+                title: "Authentication required",
+                description: "You must be signed in to book an event.",
+                variant: "destructive",
+              });
+              router.push(`/login?redirect=/events/${params.id}`);
+              return;
+            }
+            setBookingDialogOpen(true);
+          }}
+        >
+          {event.spots_left > 0 ? "Book Now" : "Sold Out"}
+        </Button>
+      </DialogTrigger>
 
-                            <div className="space-y-2">
-                              <Label htmlFor="notes">Special Requests (Optional)</Label>
-                              <Textarea
-                                id="notes"
-                                placeholder="Any dietary requirements or special requests?"
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                              />
-                            </div>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Book Your Adventure</DialogTitle>
+          <DialogDescription>
+            Complete your booking for {event.title}
+          </DialogDescription>
+        </DialogHeader>
 
-                            <div className="p-3 bg-muted rounded-md">
-                              <div className="flex justify-between mb-1">
-                                <span>Price per person</span>
-                                <span>
-                                  {event.price} {event.currency}
-                                </span>
-                              </div>
-                              <div className="flex justify-between mb-1">
-                                <span>Number of guests</span>
-                                <span>× {numGuests}</span>
-                              </div>
-                              <Separator className="my-2" />
-                              <div className="flex justify-between font-medium">
-                                <span>Total</span>
-                                <span>
-                                  {event.price * numGuests} {event.currency}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button onClick={handleBookNow} disabled={isBooking} className="w-full">
-                              {isBooking ? (
-                                <>
-                                  <span className="animate-spin mr-2">⟳</span> Processing...
-                                </>
-                              ) : (
-                                "Confirm Booking"
-                              )}
-                            </Button>
-                          </DialogFooter>
-                        </>
-                      )}
-                    </DialogContent>
-                  </Dialog>
+        {bookingSuccess ? (
+          <div className="py-6">
+            <div className="flex flex-col items-center justify-center text-center">
+              <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Booking Confirmed!</h3>
+              <p className="text-muted-foreground mb-4">
+                Your booking has been successfully created. You'll be redirected
+                to your bookings page shortly.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="num-guests">Number of Guests</Label>
+                <Input
+                  id="num-guests"
+                  type="number"
+                  min={1}
+                  max={event.spots_left}
+                  value={numGuests}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setNumGuests("");
+                      return;
+                    }
+
+                    const parsed = parseInt(val);
+                    if (!isNaN(parsed)) {
+                      setNumGuests(parsed);
+                    }
+                  }}
+                  onBlur={() => {
+                    const val = Number(numGuests);
+                    if (isNaN(val) || val < 1) {
+                      setNumGuests(1);
+                    } else if (val > event.spots_left) {
+                      toast({
+                        title: "Limit exceeded",
+                        description: `Only ${event.spots_left} spots left.`,
+                        variant: "destructive",
+                      });
+                      setNumGuests(event.spots_left);
+                    }
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum {event.spots_left} guests available
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Special Requests (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any dietary requirements or special requests?"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="p-3 bg-muted rounded-md">
+                <div className="flex justify-between mb-1">
+                  <span>Price per person</span>
+                  <span>
+                    {priceLabel} {currencyUsed}
+                  </span>
                 </div>
-              </CardContent>
+                <div className="flex justify-between mb-1">
+                  <span>Number of guests</span>
+                  <span>× {numGuests || 0}</span>
+                </div>
+                <Separator className="my-2" />
+                <div className="flex justify-between font-medium">
+                  <span>Total</span>
+                  <span>
+                    {priceLabel
+                      ? `${(
+                          Number(priceLabel.replace(/[^0-9.]/g, "")) *
+                          (Number(numGuests) || 0)
+                        )
+                          .toFixed(2)
+                          .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+                      : "0"}{" "}
+                    {currencyUsed}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={handleBookNow}
+                disabled={isBooking}
+                className="w-full"
+              >
+                {isBooking ? (
+                  <>
+                    <span className="animate-spin mr-2">⟳</span> Processing...
+                  </>
+                ) : (
+                  "Confirm Booking"
+                )}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  </div>
+</CardContent>
+
+
               <CardFooter className="flex justify-center">
                 <Button
                   variant="outline"
