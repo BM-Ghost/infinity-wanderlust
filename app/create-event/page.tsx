@@ -141,10 +141,32 @@ const userAvatarUrl = (user?: any): string => {
 
 const status: Status = getStatus(startDate, endDate);
 
-  // Helper function to format date for PocketBase
+// Combine date and time into a single Date object
+const combineDateAndTime = (date?: Date, time?: Date): Date | undefined => {
+  if (!date || !time) return undefined;
+  const combined = new Date(date);
+  combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  return combined;
+};
+
+  // Format for PocketBase: "YYYY-MM-DD HH:mm:ss"
   const formatDateForPocketBase = (date: Date | undefined): string => {
     if (!date) return "";
-    return date.toISOString();
+    // Format as "YYYY-MM-DD HH:mm:ss"
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return (
+      date.getFullYear() +
+      "-" +
+      pad(date.getMonth() + 1) +
+      "-" +
+      pad(date.getDate()) +
+      " " +
+      pad(date.getHours()) +
+      ":" +
+      pad(date.getMinutes()) +
+      ":" +
+      pad(date.getSeconds())
+    );
   }
 
   const [startTime, setStartTime] = useState<Date | undefined>(undefined)
@@ -161,6 +183,9 @@ const status: Status = getStatus(startDate, endDate);
     latitude: 0,
     longitude: 0,
   })
+
+  const formattedStartDate = combineDateAndTime(startDate, startTime);
+  const formattedEndDate = combineDateAndTime(endDate, endTime);
 
   // Wanderlog-inspired additional fields
   const [collaborators, setCollaborators] = useState<string[]>([])
@@ -306,7 +331,7 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
         symbol,
         countryName: country.name.common,
         currencyName,
-        currencyCode, // 👈 Keep actual currency code used
+        currencyCode: currencyCode, // 👈 Keep actual currency code used
       };
     });
 
@@ -441,9 +466,9 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
         title,
         destination,
         description,
-        start_date: formatDateForPocketBase(startDate),
-        end_date: formatDateForPocketBase(endDate),
-        total_spots: Number.parseInt(totalSpots, 10),
+        start_date: formatDateForPocketBase(formattedStartDate),
+        end_date: formatDateForPocketBase(formattedEndDate),
+        spots_left: Number.parseInt(totalSpots),
         price,
         currency: currency,
         status: status,
@@ -460,8 +485,9 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
         difficulty_level: difficultyLevel,
         packing_list: packingList,
         images: selectedFile instanceof File ? [selectedFile] : [],
+        total_spots: Number.parseInt(totalSpots),
       }
-      console.log("Event data prepared:", eventData)
+
       // Create the event
       const result = await createEvent(eventData)
       if (result) {
