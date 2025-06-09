@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +39,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from 'axios';
 import { addDays } from "date-fns";
 import type Fuse from "fuse.js";
+import Map, { Marker } from "react-map-gl/mapbox";
+import type { MapRef } from "react-map-gl/mapbox";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 // Initialize Fuse.js with SSR fallback
 let fuseInstance: any = null;
@@ -95,12 +99,12 @@ export default function CreateEventPage() {
   const { data, isLoading: isUsersLoading } = useUsers(1);
   const users = data ?? [];
   const baseUrl = "https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_"
-const userAvatarUrl = (user?: any): string => {
-  if (!user) return "/default-avatar.png"; // handle null or undefined
-  if (user.avatarUrl) return `${baseUrl}/${user.id}/${user.avatarUrl}`;
-  if (user.avatar) return `${baseUrl}/${user.id}/${user.avatar}`;
-  return "/default-avatar.png";
-};
+  const userAvatarUrl = (user?: any): string => {
+    if (!user) return "/default-avatar.png"; // handle null or undefined
+    if (user.avatarUrl) return `${baseUrl}/${user.id}/${user.avatarUrl}`;
+    if (user.avatar) return `${baseUrl}/${user.id}/${user.avatar}`;
+    return "/default-avatar.png";
+  };
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const OPENWEATHER_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_KEY;
@@ -126,28 +130,28 @@ const userAvatarUrl = (user?: any): string => {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
 
- type Status = "upcoming" | "ongoing" | "past" | "cancelled";
- const getStatus = (startDate?: Date, endDate?: Date): Status => {
-  const today = new Date();
+  type Status = "upcoming" | "ongoing" | "past" | "cancelled";
+  const getStatus = (startDate?: Date, endDate?: Date): Status => {
+    const today = new Date();
 
-  if (!startDate || !endDate) return "upcoming"; // assume default/future
+    if (!startDate || !endDate) return "upcoming"; // assume default/future
 
-  if (today < startDate) return "upcoming";
-  if (today >= startDate && today <= endDate) return "ongoing";
-  if (today > endDate) return "past";
+    if (today < startDate) return "upcoming";
+    if (today >= startDate && today <= endDate) return "ongoing";
+    if (today > endDate) return "past";
 
-  return "upcoming"; // fallback
-};
+    return "upcoming"; // fallback
+  };
 
-const status: Status = getStatus(startDate, endDate);
+  const status: Status = getStatus(startDate, endDate);
 
-// Combine date and time into a single Date object
-const combineDateAndTime = (date?: Date, time?: Date): Date | undefined => {
-  if (!date || !time) return undefined;
-  const combined = new Date(date);
-  combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
-  return combined;
-};
+  // Combine date and time into a single Date object
+  const combineDateAndTime = (date?: Date, time?: Date): Date | undefined => {
+    if (!date || !time) return undefined;
+    const combined = new Date(date);
+    combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
+    return combined;
+  };
 
   // Format for PocketBase: "YYYY-MM-DD HH:mm:ss"
   const formatDateForPocketBase = (date: Date | undefined): string => {
@@ -195,6 +199,19 @@ const combineDateAndTime = (date?: Date, time?: Date): Date | undefined => {
   const [weatherInfo, setWeatherInfo] = useState<any>(null)
   const [packingList, setPackingList] = useState<string[]>([])
   const [nearbyAttractions, setNearbyAttractions] = useState<any[]>([])
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
+  const [viewport, setViewport] = useState({
+    latitude: location?.latitude || -1.286389,
+    longitude: location?.longitude || 36.817223,
+    zoom: 10,
+    bearing: 0,
+    pitch: 0,
+    padding: { top: 0, bottom: 0, left: 0, right: 0 },
+    width: 600, // or '100%' if supported
+    height: 400, // or '100%' if supported
+  });
+  const mapRef = useRef<MapRef>(null);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -218,14 +235,14 @@ const combineDateAndTime = (date?: Date, time?: Date): Date | undefined => {
     };
   };
 
-type CurrencyOption = {
-  label: string;
-  code: string;
-  symbol: string;
-  countryName: string;
-  currencyName: string;
-  currencyCode: string; // ✅ NEW
-};
+  type CurrencyOption = {
+    label: string;
+    code: string;
+    symbol: string;
+    countryName: string;
+    currencyName: string;
+    currencyCode: string; // ✅ NEW
+  };
 
 
   // Fetch countries & currencies from API
@@ -276,72 +293,72 @@ type CurrencyOption = {
     }
   }, [startDate, startTime, endDate, endTime]);
 
-const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-  const selected = currencyOptions.find(opt => opt.countryName === e.target.value);
-  console.log("Selected country:", selected);
+  const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = currencyOptions.find(opt => opt.countryName === e.target.value);
+    console.log("Selected country:", selected);
 
-  if (selected) {
-    setSelectedCurrency(selected.currencyCode); // ✅ Uses matched currency
-    setCurrencySymbol(selected.symbol);
-    setCurrencyName(selected.currencyName);
-    setCurrencyCode(selected.code);
-    setCurrencyCountry(selected.countryName);
-    setIsEditing(false);
-  }
-};
-
-const fetchCountriesByCurrency = async (currencyCode: string) => {
-  if (!currencyCode) return;
-
-  setLoading(true);
-  setError("");
-  setCountries([]);
-  setCurrencyOptions([]);
-  setSelectedCurrency("");
-  setCurrencySymbol("");
-
-  try {
-    const res = await fetch(`https://restcountries.com/v3.1/currency/${currencyCode}`);
-    if (!res.ok) {
-      throw new Error("Currency not found");
+    if (selected) {
+      setSelectedCurrency(selected.currencyCode); // ✅ Uses matched currency
+      setCurrencySymbol(selected.symbol);
+      setCurrencyName(selected.currencyName);
+      setCurrencyCode(selected.code);
+      setCurrencyCountry(selected.countryName);
+      setIsEditing(false);
     }
+  };
 
-    const data: Country[] = await res.json();
-    setCountries(data);
-    console.log("Fetched countries:", data);
+  const fetchCountriesByCurrency = async (currencyCode: string) => {
+    if (!currencyCode) return;
 
-    const upperCurrencyCode = currencyCode.toUpperCase();
+    setLoading(true);
+    setError("");
+    setCountries([]);
+    setCurrencyOptions([]);
+    setSelectedCurrency("");
+    setCurrencySymbol("");
 
-    const options: CurrencyOption[] = data.map((country) => {
-      const currencies = country.currencies || {};
+    try {
+      const res = await fetch(`https://restcountries.com/v3.1/currency/${currencyCode}`);
+      if (!res.ok) {
+        throw new Error("Currency not found");
+      }
 
-      const matchedCode = Object.keys(currencies).find(
-        (code) => code.toUpperCase() === upperCurrencyCode
-      );
+      const data: Country[] = await res.json();
+      setCountries(data);
+      console.log("Fetched countries:", data);
 
-      const currencyCode = matchedCode || Object.keys(currencies)[0]; // fallback
-      const currencyEntry = currencies[currencyCode];
+      const upperCurrencyCode = currencyCode.toUpperCase();
 
-      const symbol = currencyEntry?.symbol || "";
-      const currencyName = currencyEntry?.name || "";
+      const options: CurrencyOption[] = data.map((country) => {
+        const currencies = country.currencies || {};
 
-      return {
-        label: `${country.name.common} (${currencyCode})`,
-        code: country.ccn3 || "",
-        symbol,
-        countryName: country.name.common,
-        currencyName,
-        currencyCode: currencyCode, // 👈 Keep actual currency code used
-      };
-    });
+        const matchedCode = Object.keys(currencies).find(
+          (code) => code.toUpperCase() === upperCurrencyCode
+        );
 
-    setCurrencyOptions(options);
-  } catch (err: any) {
-    setError(err.message || "Something went wrong");
-  } finally {
-    setLoading(false);
-  }
-};
+        const currencyCode = matchedCode || Object.keys(currencies)[0]; // fallback
+        const currencyEntry = currencies[currencyCode];
+
+        const symbol = currencyEntry?.symbol || "";
+        const currencyName = currencyEntry?.name || "";
+
+        return {
+          label: `${country.name.common} (${currencyCode})`,
+          code: country.ccn3 || "",
+          symbol,
+          countryName: country.name.common,
+          currencyName,
+          currencyCode: currencyCode, // 👈 Keep actual currency code used
+        };
+      });
+
+      setCurrencyOptions(options);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   // Handle file selection
@@ -676,6 +693,62 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
         </div>
       </div>
     )
+  }
+
+  // 3. When a suggestion is clicked, set address, lat, lng, and recenter map
+  function handleSuggestionSelect(feature: any): void {
+    setLocation({
+      address: feature.place_name,
+      latitude: feature.center[1],
+      longitude: feature.center[0],
+    });
+    setDestination(feature.place_name);
+    setLocationSuggestions([]); // Clear all suggestions immediately
+    fetchWeather(feature.center[1], feature.center[0]);
+    fetchNearbyAttractions(feature.center[1], feature.center[0]);
+    setViewport((prev) => ({
+      ...prev,
+      latitude: feature.center[1],
+      longitude: feature.center[0],
+      zoom: 14, // or your preferred zoom level
+    }));
+  }
+
+  // 4. On map click, reverse geocode, update address, and recenter map
+  async function handleMapClick(event: any) {
+    const latitude = event.lngLat.lat;
+    const longitude = event.lngLat.lng;
+    try {
+      const reverseGeocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=${MAPBOX_TOKEN}`;
+      const res = await axios.get(reverseGeocodeUrl);
+      const address = res.data.features[0]?.place_name || "";
+      setLocation({
+        address,
+        latitude,
+        longitude,
+      });
+      setDestination(address);
+      fetchWeather(latitude, longitude);
+      fetchNearbyAttractions(latitude, longitude);
+      setViewport((prev) => ({
+        ...prev,
+        latitude,
+        longitude,
+        zoom: 14, // or your preferred zoom level
+      }));
+    } catch {
+      setLocation({
+        address: "",
+        latitude,
+        longitude,
+      });
+      setViewport((prev) => ({
+        ...prev,
+        latitude,
+        longitude,
+        zoom: 14,
+      }));
+    }
   }
 
   return (
@@ -1070,55 +1143,55 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
                     </div>
 
                     {/* User Tagging Autocomplete */}
-<div className="space-y-1">
-  <Label htmlFor="user-search" className="flex items-center">
-    <Tag className="h-4 w-4 mr-1" />
-    Tag Users
-  </Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="user-search" className="flex items-center">
+                        <Tag className="h-4 w-4 mr-1" />
+                        Tag Users
+                      </Label>
 
-  <Input
-    id="user-search"
-    placeholder="Search users to tag"
-    value={userQuery}
-    onChange={(e) => setUserQuery(e.target.value)}
-    className="flex-1"
-  />
+                      <Input
+                        id="user-search"
+                        placeholder="Search users to tag"
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        className="flex-1"
+                      />
 
-  {/* Filtered Suggestions Dropdown */}
-  {userQuery && (
-    <div className="border bg-popover text-popover-foreground shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
-      {users
-        .filter((user) =>
-          user.username.toLowerCase().includes(userQuery.toLowerCase())
-        )
-        .map((user) => {
-          const avatarUrl = userAvatarUrl(user);
-          const reviewerInitial = user.username?.charAt(0)?.toUpperCase() || "?";
-          return (
-            <div
-              key={user.id}
-              className="flex items-center px-3 py-2 hover:bg-muted cursor-pointer gap-2"
-              onClick={() => handleTagUser(user.username, user.id)}
-            >
-              <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
-                {avatarUrl && avatarUrl !== "/default-avatar.png" ? (
-                  <Avatar className="h-8 w-8 border">
-                    <AvatarImage src={avatarUrl} alt={user.username} />
-                    <AvatarFallback>{reviewerInitial}</AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
-                    {reviewerInitial}
-                  </div>
-                )}
-              </div>
-              <span className="text-sm truncate">{user.username}</span>
-            </div>
-          );
-        })}
-    </div>
-  )}
-</div>
+                      {/* Filtered Suggestions Dropdown */}
+                      {userQuery && (
+                        <div className="border bg-popover text-popover-foreground shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
+                          {users
+                            .filter((user) =>
+                              user.username.toLowerCase().includes(userQuery.toLowerCase())
+                            )
+                            .map((user) => {
+                              const avatarUrl = userAvatarUrl(user);
+                              const reviewerInitial = user.username?.charAt(0)?.toUpperCase() || "?";
+                              return (
+                                <div
+                                  key={user.id}
+                                  className="flex items-center px-3 py-2 hover:bg-muted cursor-pointer gap-2"
+                                  onClick={() => handleTagUser(user.username, user.id)}
+                                >
+                                  <div className="relative h-8 w-8 rounded-full overflow-hidden bg-muted shrink-0">
+                                    {avatarUrl && avatarUrl !== "/default-avatar.png" ? (
+                                      <Avatar className="h-8 w-8 border">
+                                        <AvatarImage src={avatarUrl} alt={user.username} />
+                                        <AvatarFallback>{reviewerInitial}</AvatarFallback>
+                                      </Avatar>
+                                    ) : (
+                                      <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
+                                        {reviewerInitial}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-sm truncate">{user.username}</span>
+                                </div>
+                            );
+                            })}
+                        </div>
+                      )}
+                    </div>
 
 
 
@@ -1160,7 +1233,12 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
                 <Card>
                   <CardHeader>
                     <CardTitle>Event Location</CardTitle>
-                    <CardDescription>Enter the location for your event.</CardDescription>
+                    <CardDescription>
+                      Enter the location for your event. <br />
+                      <span className="text-xs text-muted-foreground">
+                        You can also pick a location by clicking directly on the map below.
+                      </span>
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -1172,53 +1250,71 @@ const fetchCountriesByCurrency = async (currencyCode: string) => {
                           id="location-address"
                           placeholder="e.g., Nairobi, Kenya"
                           value={location.address}
-                          onChange={(e) => setLocation({ ...location, address: e.target.value })}
+                          onChange={(e) => {
+                            setLocation({ ...location, address: e.target.value });
+                            if (!e.target.value) setLocationSuggestions([]); // Clear suggestions if input is cleared
+                          }}
                           className={cn('flex-1', formErrors.location && 'border-destructive')}
+                          autoComplete="off"
                         />
                         <Button type="button" onClick={handleLocationInput}>
                           Set Location
                         </Button>
                       </div>
+                      {/* Suggestions dropdown */}
+                      {location.address && locationSuggestions.length > 0 && (
+                        <div className="border bg-popover text-popover-foreground shadow rounded-md max-h-48 overflow-y-auto mt-1 z-10 relative">
+                          {locationSuggestions
+                            .filter((feature) =>
+                              feature.place_name
+                                .toLowerCase()
+                                .includes(location.address.toLowerCase())
+                            )
+                            .map((feature) => (
+                              <div
+                                key={feature.id}
+                                className="px-3 py-2 hover:bg-muted cursor-pointer"
+                                onClick={() => handleSuggestionSelect(feature)}
+                              >
+                                {feature.place_name}
+                              </div>
+                            ))}
+                        </div>
+                      )}
                       {formErrors.location && <p className="text-xs text-destructive">{formErrors.location}</p>}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="destination" className={formErrors.destination ? 'text-destructive' : ''}>
-                        Destination *
-                      </Label>
-                      <Input
-                        id="destination"
-                        placeholder="e.g., Nairobi"
-                        value={destination}
-                        onChange={(e) => setDestination(e.target.value)}
-                        className={formErrors.destination ? 'border-destructive' : ''}
-                      />
-                      {formErrors.destination && <p className="text-xs text-destructive">{formErrors.destination}</p>}
-                      <p className="text-xs text-muted-foreground">
-                        This is automatically set from your location, but you can change it if needed.
-                      </p>
+                    {/* Map display */}
+                    <div className="w-full h-64 rounded-md overflow-hidden border">
+                      <Map
+                        ref={mapRef}
+                        mapboxAccessToken={MAPBOX_TOKEN}
+                        viewState={viewport}
+                        onMove={evt => setViewport(prev => ({
+                          ...prev,
+                          ...evt.viewState,
+                          padding: {
+                            top: evt.viewState.padding?.top ?? 0,
+                            bottom: evt.viewState.padding?.bottom ?? 0,
+                            left: evt.viewState.padding?.left ?? 0,
+                            right: evt.viewState.padding?.right ?? 0,
+                          }
+                        }))}
+                        style={{ width: "100%", height: "100%" }}
+                        mapStyle="mapbox://styles/mapbox/streets-v11"
+                        onClick={handleMapClick}
+                      >
+                        {typeof location.latitude === "number" &&
+ typeof location.longitude === "number" &&
+ !isNaN(location.latitude) &&
+ !isNaN(location.longitude) &&
+ (location.latitude !== 0 || location.longitude !== 0) && (
+  <Marker latitude={location.latitude} longitude={location.longitude} anchor="bottom">
+    <MapPin className="h-8 w-8 text-primary" />
+  </Marker>
+)}
+                      </Map>
                     </div>
-
-                    {location.address && (
-                      <div className="p-4 border rounded-md bg-muted/30">
-                        <div className="flex items-center justify-center mb-4">
-                          <MapPin className="h-8 w-8 text-primary" />
-                        </div>
-                        <p className="text-center font-medium">{location.address}</p>
-                        <p className="text-center text-sm text-muted-foreground mt-2">
-                          {location.latitude !== 0 && location.longitude !== 0 && (
-                            <>
-                              Coordinates: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
-                            </>
-                          )}
-                        </p>
-                        {(formErrors.latitude || formErrors.longitude) && (
-                          <p className="text-center text-xs text-destructive mt-2">
-                            {formErrors.latitude || formErrors.longitude}
-                          </p>
-                        )}
-                      </div>
-                    )}
 
                     {weather && (
                       <div className="mt-6">
