@@ -25,9 +25,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null) // Clear previous errors
     setIsLoading(true)
 
     try {
@@ -64,6 +66,7 @@ export default function LoginPage() {
         router.push("/")
       }, 300)
     } catch (error: any) {
+      setError("Invalid email or password. Please try again.")
       console.error("Login error:", error)
 
       toast({
@@ -123,6 +126,11 @@ export default function LoginPage() {
                     {t("rememberMe")}
                   </Label>
                 </div>
+                {error && (
+                  <div className="mb-4 text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? t("loading") : t("signIn")}
                 </Button>
