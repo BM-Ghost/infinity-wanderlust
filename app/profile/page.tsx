@@ -1,11 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,232 +30,70 @@ import {
   Youtube,
   Github,
 } from "lucide-react"
-import { getPocketBase } from "@/lib/pocketbase"
 import { Separator } from "@/components/ui/separator"
-import { fetchReviews } from "@/lib/reviews"
-import { fetchGalleryImages } from "@/lib/gallery"
+import { getPocketBase } from "@/lib/pocketbase"
+
+// Import hooks
+import { useUsers } from "@/hooks/useUsers"
+import { useReviews } from "@/hooks/useReviews"
+import { useUploads } from "@/hooks/useUploads"
+import { useEvents } from "@/hooks/useEvents"
+import { useBookings } from "@/hooks/useBookings"
+import { QueryClient } from "@tanstack/react-query"
 
 export default function ProfilePage() {
-  const { user, refreshUser } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
-  const isMounted = useRef(true)
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [stats, setStats] = useState({
-    followers: 0,
-    reviews: 0,
-    uploads: 0,
-    events: 0,
-    bookings: 0,
-  })
-  const [userReviews, setUserReviews] = useState([])
-  const [userUploads, setUserUploads] = useState([])
+  // Fetch all users, uploads, reviews, events, bookings
+  const { data: users = [], isLoading: isUsersLoading } = useUsers(1)
+  const { data: uploads = [], isLoading: isUploadsLoading } = useUploads(1)
+  const { data: reviews = [], isLoading: isReviewsLoading } = useReviews(1)
+  const { data: events = [], isLoading: isEventsLoading } = useEvents(1)
+  const { data: bookings = [], isLoading: isBookingsLoading } = useBookings(user?.id || "")
+
+  // Find the current user from users list
+  const currentUser = users.find((u: any) => u.id === user?.id) || user
+
+  // Followers: get user objects for follower IDs
+  const followers = users.filter((u: any) => currentUser?.followers?.includes(u.id))
+
+  // Following: get user objects for following IDs
+  const followingUsers = users.filter((u: any) => currentUser?.following?.includes(u.id))
+
+  console.log("followers:", followers)
+  console.log("followingUsers:", followingUsers)
+
+  // Stats
+  const stats = {
+    followers: currentUser?.followers?.length || 0,
+    following: currentUser?.following?.length || 0,
+    reviews: reviews.filter((r: any) => r.user === currentUser?.id).length,
+    uploads: uploads.filter((u: any) => u.user === currentUser?.id).length,
+    events: events.filter((e: any) => e.user === currentUser?.id).length,
+    bookings: bookings.length,
+  }
+
+  // User's uploads and reviews
+  const userUploads = uploads.filter((u: any) => u.user === currentUser?.id)
+  const userReviews = reviews.filter((r: any) => r.user === currentUser?.id)
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [followers, setFollowers] = useState([])
   const [showFollowersModal, setShowFollowersModal] = useState(false)
-  const [suggestedUsers, setSuggestedUsers] = useState([])
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true)
+  const [showFollowingModal, setShowFollowingModal] = useState(false)
+  const [justFollowed, setJustFollowed] = useState<string[]>([])
+  const [selectedUpload, setSelectedUpload] = useState<any>(null)
+  // Add a state to force re-render after follow/unfollow
+  const [refreshKey, setRefreshKey] = useState(0)
+  const queryClient = new QueryClient()
 
-  // Set up cleanup when component unmounts
-  useEffect(() => {
-    isMounted.current = true
-
-    return () => {
-      isMounted.current = false
-    }
-  }, [])
-
-  // Fetch user data and stats
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!isMounted.current) return
-      setIsLoading(true)
-
-      // First check if user is logged in
-      const authData = localStorage.getItem("pocketbase_auth")
-      if (!authData && !user) {
-        router.push("/login")
-        return
-      }
-
-      try {
-        const pb = getPocketBase()
-        if (!pb || !pb.authStore.model) {
-          throw new Error("Not authenticated")
-        }
-
-        const userId = pb.authStore.model.id
-
-        // Use Promise.all to fetch data in parallel
-        const [userData, reviewsData, uploadsData] = await Promise.all([
-          // Fetch user data with expanded followers
-          pb
-            .collection("users")
-            .getOne(userId, {
-              expand: "followers",
-            }),
-
-          // Fetch user reviews
-          fetchReviews(1, 12, "-created", `reviewer = "${userId}"`),
-
-          // Fetch user uploads
-          fetchGalleryImages(),
-        ])
-
-        if (!isMounted.current) return
-
-        // Filter uploads for the current user
-        const userUploads = uploadsData.filter((img) => img.userId === userId)
-
-        // Set stats
-        setStats({
-          followers: userData.followers_count || 0,
-          reviews: reviewsData.totalItems || 0,
-          uploads: userUploads.length || 0,
-          events: 0, // We'll need to implement this when we have events data
-          bookings: 0, // We'll need to implement this when we have bookings data
-        })
-
-        // Store followers data if available
-        if (userData.expand?.followers) {
-          setFollowers(userData.expand.followers)
-        }
-
-        setUserReviews(reviewsData.items || [])
-        setUserUploads(userUploads || [])
-      } catch (error) {
-        console.error("Error loading user data:", error)
-
-        // Only show toast if component is still mounted and it's not an auto-cancellation
-        if (isMounted.current && !error.toString().includes("autocancelled")) {
-          toast({
-            variant: "destructive",
-            title: "Error loading profile",
-            description: "Could not load your profile data. Please try again.",
-          })
-        }
-      } finally {
-        if (isMounted.current) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    loadUserData()
-  }, [user, router, toast, refreshUser])
-
-  // Fetch suggested users
-  useEffect(() => {
-    const fetchSuggestedUsers = async () => {
-      if (!isMounted.current || !user) return
-      setIsLoadingSuggestions(true)
-
-      try {
-        const pb = getPocketBase()
-        if (!pb || !pb.authStore.model) {
-          return
-        }
-
-        const currentUserId = pb.authStore.model.id
-
-        // Step 1: Get the current user's reviews
-        const userReviews = await pb.collection("reviews").getList(1, 10, {
-          filter: `reviewer = "${currentUserId}"`,
-        })
-
-        if (!isMounted.current) return
-
-        // Get destinations the user has reviewed
-        const userDestinations = userReviews.items.map((review) => review.destination)
-
-        const suggestedUserIds = new Set()
-
-        // Step 2: Find users who reviewed similar destinations
-        if (userDestinations.length > 0) {
-          // Create a filter for similar destinations
-          const destinationFilters = userDestinations.map((dest) => `destination = "${dest}"`).join(" || ")
-
-          const similarReviews = await pb.collection("reviews").getList(1, 20, {
-            filter: `reviewer != "${currentUserId}" && (${destinationFilters})`,
-          })
-
-          if (!isMounted.current) return
-
-          // Add these reviewers to suggested users
-          similarReviews.items.forEach((review) => {
-            if (review.reviewer && review.reviewer !== currentUserId) {
-              suggestedUserIds.add(review.reviewer)
-            }
-          })
-        }
-
-        // Step 3: If we don't have enough suggestions, add some random users
-        if (suggestedUserIds.size < 4) {
-          const randomUsers = await pb.collection("users").getList(1, 8, {
-            filter: `id != "${currentUserId}"`,
-            sort: "@random",
-          })
-
-          if (!isMounted.current) return
-
-          randomUsers.items.forEach((user) => {
-            suggestedUserIds.add(user.id)
-          })
-        }
-
-        // Step 4: Get the full user records for our suggestions
-        let suggestedUsers = []
-
-        if (suggestedUserIds.size > 0) {
-          // Convert Set to Array and take only first 4
-          const userIdsArray = Array.from(suggestedUserIds).slice(0, 4)
-
-          // Create a filter to get these specific users
-          const userFilter = userIdsArray.map((id) => `id = "${id}"`).join(" || ")
-
-          const usersResult = await pb.collection("users").getList(1, 4, {
-            filter: userFilter,
-          })
-
-          if (!isMounted.current) return
-
-          suggestedUsers = usersResult.items
-        }
-
-        // Step 5: Filter out users that the current user already follows
-        const currentUser = await pb.collection("users").getOne(currentUserId, {
-          expand: "followers",
-        })
-
-        if (!isMounted.current) return
-
-        const followingIds = currentUser.followers || []
-
-        const filteredSuggestions = suggestedUsers.filter((user) => !followingIds.includes(user.id))
-
-        setSuggestedUsers(filteredSuggestions)
-      } catch (error) {
-        console.error("Error fetching suggested users:", error)
-        // Only show toast if it's not an auto-cancellation
-        if (isMounted.current && !error.toString().includes("autocancelled")) {
-          toast({
-            variant: "destructive",
-            title: "Error loading suggestions",
-            description: "Could not load suggested users. Please try again.",
-          })
-        }
-      } finally {
-        if (isMounted.current) {
-          setIsLoadingSuggestions(false)
-        }
-      }
-    }
-
-    if (user) {
-      fetchSuggestedUsers()
-    }
-  }, [user, toast])
+  // Suggested users: exclude self and users in followingIds
+  const suggestedUsers = users.filter(
+    (u: any) =>
+      u.id !== currentUser?.id &&
+      !currentUser?.following?.includes(u.id)
+  )
 
   // Function to follow a user
   const handleFollow = async (userId: string) => {
@@ -273,52 +109,104 @@ export default function ProfilePage() {
       }
 
       const currentUserId = pb.authStore.model.id
-
-      // Don't allow following yourself
-      if (userId === currentUserId) {
+      const userToFollow = users.find((u: any) => u.id === userId)
+      if (!userToFollow) {
         toast({
           variant: "destructive",
-          title: "Action not allowed",
-          description: "You cannot follow yourself.",
+          title: "User not found",
+          description: "The user you are trying to follow does not exist.",
         })
         return
       }
 
-      // Get the user to follow
-      const userToFollow = await pb.collection("users").getOne(userId)
-
-      // Update their followers array and count
+      // Update the user being followed
       const currentFollowers = userToFollow.followers || []
-      const updatedFollowers = [...currentFollowers, currentUserId]
+      const updatedFollowers = [...new Set([...currentFollowers, currentUserId])]
+      
+      // Update the current user's following
+      const currentUserData = users.find((u: any) => u.id === currentUserId)
+      const currentFollowing = currentUserData?.following || []
+      const updatedFollowing = [...new Set([...currentFollowing, userId])]
 
-      await pb.collection("users").update(userId, {
-        followers: updatedFollowers,
-        followers_count: updatedFollowers.length,
-      })
+      try {
+        await pb.collection("users").update(userId, {
+          followers: updatedFollowers,
+        })
 
-      toast({
-        title: "Success",
-        description: `You are now following ${userToFollow.username}`,
-      })
+        await pb.collection("users").update(currentUserId, {
+          following: updatedFollowing,
+        })
 
-      // Refresh suggested users
-      const resultList = await pb.collection("users").getList(1, 4, {
-        filter: `id != "${currentUserId}"`,
-        sort: "@random",
-      })
+        setJustFollowed((prev) => [...prev, userId]) // Add to justFollowed
+        setRefreshKey((k) => k + 1) // Force re-render
 
-      if (isMounted.current) {
-        setSuggestedUsers(resultList.items || [])
-      }
-    } catch (error) {
-      console.error("Error following user:", error)
-      if (isMounted.current) {
+        queryClient.invalidateQueries({ queryKey: ["all-users"] })
+
+        toast({
+          title: "Success",
+          description: `You are now following ${userToFollow.username}`,
+        })
+
+      } catch (err: any) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to follow user. Please try again.",
+          description: err?.response?.data?.message ||
+            err?.message ||
+            "Failed to complete follow action. Please try again.",
         })
+        return
       }
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to follow user. Please try again.",
+      })
+    }
+  }
+
+  // Function to unfollow a user
+  const handleUnfollow = async (userId: string) => {
+    try {
+      const pb = getPocketBase()
+      if (!pb || !pb.authStore.model) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please sign in to unfollow users.",
+        })
+        return
+      }
+      const currentUserId = pb.authStore.model.id
+
+      // Fetch latest user data from PocketBase
+      const [userToUnfollow, currentUserData] = await Promise.all([
+        pb.collection("users").getOne(userId),
+        pb.collection("users").getOne(currentUserId),
+      ])
+
+      // Remove current user from their followers
+      const updatedFollowers = (userToUnfollow.followers || []).filter((id: string) => id !== currentUserId)
+      // Remove them from your following
+      const updatedFollowing = (currentUserData.following || []).filter((id: string) => id !== userId)
+
+      await pb.collection("users").update(userId, { followers: updatedFollowers })
+      await pb.collection("users").update(currentUserId, { following: updatedFollowing })
+
+      setJustFollowed((prev) => prev.filter((id) => id !== userId)) // Remove from justFollowed
+      setRefreshKey((k) => k + 1) // Force re-render
+
+      queryClient.invalidateQueries({ queryKey: ["all-users"] })
+
+      toast({ title: "Unfollowed", description: `You unfollowed ${userToUnfollow.username}` })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to unfollow user.",
+      })
     }
   }
 
@@ -342,7 +230,7 @@ export default function ProfilePage() {
   const extractShortBio = (about?: string): { shortBio: string | undefined; fullAbout: string | undefined } => {
     if (!about) return { shortBio: undefined, fullAbout: undefined }
 
-    const shortBioMatch = about.match(/^\[(.*?)\](.*)$/s)
+    const shortBioMatch = about.match(/^\[(.*?)\]([\s\S]*)$/)
     if (shortBioMatch) {
       return {
         shortBio: shortBioMatch[1].trim(),
@@ -353,19 +241,18 @@ export default function ProfilePage() {
     return { shortBio: undefined, fullAbout: about }
   }
 
-  if (isLoading) {
+  // Loading state
+  if (isUsersLoading || isUploadsLoading || isReviewsLoading) {
     return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="container py-16 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     )
   }
 
-  if (!user && !localStorage.getItem("pocketbase_auth")) {
-    return null // Will redirect in useEffect
+  if (!user && typeof window !== "undefined" && !localStorage.getItem("pocketbase_auth")) {
+    router.push("/login")
+    return null
   }
 
   const formatDate = (dateString: string) => {
@@ -380,8 +267,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/80">
-      <Navbar />
-
       <div className="container py-8 md:py-16">
         {/* Profile Header */}
         <div className="mb-12">
@@ -478,7 +363,13 @@ export default function ProfilePage() {
                   <div className="text-xl font-bold">{stats.followers}</div>
                   <div className="text-xs text-muted-foreground">Followers</div>
                 </button>
-
+                <button
+                  onClick={() => setShowFollowingModal(true)}
+                  className="bg-background/50 backdrop-blur-sm rounded-lg p-3 shadow-sm hover:bg-background/70 transition-colors"
+                >
+                  <div className="text-xl font-bold">{stats.following}</div>
+                  <div className="text-xs text-muted-foreground">Following</div>
+                </button>
                 <div className="bg-background/50 backdrop-blur-sm rounded-lg p-3 shadow-sm">
                   <div className="text-xl font-bold">{stats.reviews}</div>
                   <div className="text-xs text-muted-foreground">Reviews</div>
@@ -545,70 +436,33 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Uploads Tab - Masonry Grid */}
           <TabsContent value="uploads">
-            {userUploads.length > 0 ? (
-              <div
-                className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" : "space-y-4"}
-              >
-                {userUploads.map((upload: any) =>
-                  viewMode === "grid" ? (
-                    <div key={upload.id} className="aspect-square relative rounded-md overflow-hidden group">
-                      <Image
-                        src={upload.src || "/placeholder.svg"}
-                        alt={upload.alt || "Gallery image"}
-                        fill
-                        className="object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                        <p className="text-white text-sm font-medium truncate">{upload.location}</p>
-                        <div className="flex items-center gap-2 text-white/80 text-xs">
-                          <span className="flex items-center">
-                            <Star className="h-3 w-3 mr-1" />
-                            {upload.likes || 0}
-                          </span>
-                          <span className="flex items-center">
-                            <Users className="h-3 w-3 mr-1" />
-                            {upload.comments || 0}
-                          </span>
-                        </div>
-                      </div>
+            {uploads?.length > 0 ? (
+              <div className={`columns-2 md:columns-3 gap-4`}>
+                {uploads.map((upload: any) => (
+                  <div
+                    key={upload.id}
+                    className="mb-4 break-inside-avoid cursor-pointer group relative rounded-lg overflow-hidden"
+                    onClick={() => setSelectedUpload(upload)}
+                  >
+                    <Image
+                      src={upload.imageUrl || "/placeholder.svg"}
+                      alt={upload.caption || "Gallery image"}
+                      width={400}
+                      height={400}
+                      className="object-cover w-full h-auto transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      <span className="text-white text-xs">{upload.location}</span>
                     </div>
-                  ) : (
-                    <Card key={upload.id} className="overflow-hidden">
-                      <div className="flex flex-col sm:flex-row">
-                        <div className="relative w-full sm:w-48 h-48">
-                          <Image
-                            src={upload.src || "/placeholder.svg"}
-                            alt={upload.alt || "Gallery image"}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-medium">{upload.alt || "Untitled"}</h3>
-                          <p className="text-sm text-muted-foreground mb-2">{upload.location}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(upload.date)}</p>
-                          <div className="flex items-center gap-4 mt-4">
-                            <span className="flex items-center text-sm">
-                              <Star className="h-4 w-4 mr-1" />
-                              {upload.likes || 0} likes
-                            </span>
-                            <span className="flex items-center text-sm">
-                              <Users className="h-4 w-4 mr-1" />
-                              {upload.comments || 0} comments
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ),
-                )}
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center py-12 bg-muted/30 rounded-lg">
                 <Camera className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No uploads yet</h3>
-                <p className="text-muted-foreground mb-6">Share your travel photos with the community</p>
                 <Button asChild>
                   <Link href="/gallery">Upload Photos</Link>
                 </Button>
@@ -688,6 +542,28 @@ export default function ProfilePage() {
           </TabsContent>
         </Tabs>
 
+        {/* Upload Modal Preview */}
+        {selectedUpload && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={() => setSelectedUpload(null)}>
+            <div className="bg-background rounded-lg overflow-hidden max-w-lg w-full relative" onClick={(e) => e.stopPropagation()}>
+              <Image
+                src={selectedUpload.src || "/placeholder.svg"}
+                alt={selectedUpload.alt || "Gallery image"}
+                width={600}
+                height={600}
+                className="object-cover w-full"
+              />
+              <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => setSelectedUpload(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+              <div className="p-4">
+                <h3 className="font-medium">{selectedUpload.alt || "Untitled"}</h3>
+                <p className="text-sm text-muted-foreground">{selectedUpload.location}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Followers Modal */}
         {showFollowersModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -724,8 +600,15 @@ export default function ProfilePage() {
                           <p className="font-medium truncate">{follower.name || follower.username}</p>
                           <p className="text-xs text-muted-foreground truncate">@{follower.username}</p>
                         </div>
-                        <Button variant="outline" size="sm">
-                          View
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setShowFollowersModal(false)
+                            router.push(`/profile/${follower.id}`)
+                          }}
+                        >
+                          View Profile
                         </Button>
                       </div>
                     ))}
@@ -741,10 +624,94 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {/* Following Modal */}
+        {showFollowingModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-lg w-full max-w-md max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h3 className="font-semibold text-lg">Following ({stats.following})</h3>
+                <Button variant="ghost" size="icon" onClick={() => setShowFollowingModal(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-2">
+                {followingUsers.length > 0 ? (
+                  <div className="space-y-2">
+                    {followingUsers.map((user: any) => {
+                      const isMutual = (user.followers || []).includes(currentUser?.id)
+                      const isJustFollowed = justFollowed.includes(user.id)
+                      return (
+                        <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-muted rounded-md">
+                          <div className="relative h-10 w-10 rounded-full overflow-hidden bg-muted">
+                            {user.avatar ? (
+                              <Image
+                                src={`https://remain-faceghost.pockethost.io/api/files/${user.collectionId}/${user.id}/${user.avatar}`}
+                                alt={user.name || user.username}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary">
+                                <span className="text-sm font-bold">
+                                  {(user.name?.charAt(0) || user.username?.charAt(0) || "").toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{user.name || user.username}</p>
+                            <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                          </div>
+                          {/* Unfollow button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              await handleUnfollow(user.id)
+                              // No need to do anything else, state will update
+                            }}
+                          >
+                            Unfollow
+                          </Button>
+                          {/* After unfollow, show follow/follow back if user still follows you */}
+                          {!currentUser?.following?.includes(user.id) && (
+                            isMutual ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleFollow(user.id)}
+                              >
+                                Follow Back
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleFollow(user.id)}
+                              >
+                                Follow
+                              </Button>
+                            )
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-40 text-center">
+                    <Users className="h-10 w-10 text-muted-foreground mb-2" />
+                    <p className="text-muted-foreground">Not following anyone yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Suggested Users Section */}
         <div className="mt-12">
           <h2 className="text-xl font-bold mb-4">Suggested Users</h2>
-          {isLoadingSuggestions ? (
+          {isUsersLoading ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
             </div>
@@ -771,14 +738,20 @@ export default function ProfilePage() {
                     </div>
                     <h3 className="font-medium">{suggestedUser.name || suggestedUser.username}</h3>
                     <p className="text-xs text-muted-foreground mb-3">@{suggestedUser.username}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleFollow(suggestedUser.id)}
-                    >
-                      Follow
-                    </Button>
+                    {justFollowed.includes(suggestedUser.id) || currentUser?.following?.includes(suggestedUser.id) ? (  
+                      <Button variant="default" size="sm" className="w-full" disabled>
+                        Following
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleFollow(suggestedUser.id)}
+                      >
+                        Follow
+                      </Button>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -792,8 +765,6 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }

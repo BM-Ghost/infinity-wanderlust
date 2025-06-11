@@ -16,7 +16,7 @@ export interface UserRecord {
   about?: string;
   Links?: string;
   followers?: string[];
-  followers_count?: number;
+  following?: string[];
 }
 
 export interface UseUsersOptions {

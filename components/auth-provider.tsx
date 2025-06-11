@@ -16,7 +16,7 @@ type User = {
   location?: string
   auth_number?: number
   followers?: string[]
-  followers_count?: number
+  following?: string[]
   created: string
   updated: string
 }
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pb = getPocketBase()
 
     // Set initial user state
-    if (pb.authStore.isValid) {
+    if (pb?.authStore.isValid) {
       const authModel = pb.authStore.model
       if (authModel) {
         setUser({
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           location: authModel.location,
           auth_number: authModel.auth_number,
           followers: authModel.followers,
-          followers_count: authModel.followers_count,
+          following: authModel.following,
           created: authModel.created,
           updated: authModel.updated,
         })
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           location: authModel.location,
           auth_number: authModel.auth_number,
           followers: authModel.followers,
-          followers_count: authModel.followers_count,
+          following: authModel.following,
           created: authModel.created,
           updated: authModel.updated,
         })
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pb = getPocketBase()
 
     try {
-      await pb.collection("users").requestVerification(email)
+      await pb?.collection("users").requestVerification(email)
       console.log("Verification email sent to:", email)
     } catch (error: any) {
       console.error("Failed to send verification email:", error)
@@ -241,7 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign out
   const signOut = () => {
     const pb = getPocketBase()
-    pb.authStore.clear()
+    pb?.authStore.clear()
   }
 
   // Request password reset
@@ -249,7 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pb = getPocketBase()
 
     try {
-      await pb.collection("users").requestPasswordReset(email)
+      await pb?.collection("users").requestPasswordReset(email)
     } catch (error: any) {
       console.error("Password reset request error:", error)
       throw new Error(error.message || "Failed to request password reset")
@@ -261,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pb = getPocketBase()
 
     try {
-      await pb.collection("users").confirmPasswordReset(resetToken, password, passwordConfirm)
+      await pb?.collection("users").confirmPasswordReset(resetToken, password, passwordConfirm)
     } catch (error: any) {
       console.error("Password reset error:", error)
       throw new Error(error.message || "Failed to reset password")
@@ -272,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     const pb = getPocketBase()
 
-    if (pb.authStore.isValid && pb.authStore.model) {
+    if (pb?.authStore.isValid && pb.authStore.model) {
       try {
         const userId = pb.authStore.model.id
         const updatedUser = await pb.collection("users").getOne(userId)
@@ -294,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           location: updatedUser.location,
           auth_number: updatedUser.auth_number,
           followers: updatedUser.followers,
-          followers_count: updatedUser.followers_count,
+          following: updatedUser.following,
           created: updatedUser.created,
           updated: updatedUser.updated,
         })

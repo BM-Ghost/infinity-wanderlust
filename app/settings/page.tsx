@@ -6,8 +6,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -89,7 +87,7 @@ export default function SettingsPage() {
   const extractShortBio = (about?: string): { shortBio: string | undefined; fullAbout: string | undefined } => {
     if (!about) return { shortBio: undefined, fullAbout: undefined }
 
-    const shortBioMatch = about.match(/^\[(.*?)\](.*)$/s)
+    const shortBioMatch = about.match(/^\[(.*?)\]([\s\S]*)$/)
     if (shortBioMatch) {
       return {
         shortBio: shortBioMatch[1].trim(),
@@ -312,8 +310,6 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/80">
-      <Navbar />
-
       <div className="container py-8 md:py-16">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -757,8 +753,6 @@ export default function SettingsPage() {
           </Tabs>
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }
