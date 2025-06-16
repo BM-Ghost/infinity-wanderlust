@@ -76,7 +76,6 @@ export default function ProfilePage() {
   }
 
   // User's uploads and reviews
-  const userUploads = uploads.filter((u: any) => u.user === currentUser?.id)
   const userReviews = reviews.filter((r: any) => r.user === currentUser?.id)
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")

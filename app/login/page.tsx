@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -19,7 +18,6 @@ export default function LoginPage() {
   const router = useRouter()
   const { t } = useTranslation()
   const { toast } = useToast()
-  const { signIn } = useAuth()
 
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")

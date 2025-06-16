@@ -252,12 +252,6 @@ export default function CreateEventPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchByDemonym = async (demonym: string) => {
-    const res = await fetch(`https://restcountries.com/v3.1/demonym/${demonym}`);
-    const data = await res.json();
-    console.log(data);
-  };
-
   useEffect(() => {
     if (startDate && startTime && endDate && endTime) {
       const startHour = startTime.getHours();

@@ -4,16 +4,14 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { getPocketBase } from "@/lib/pocketbase"
 import { useTranslation } from "@/lib/translations"
 import { useAuth } from "@/components/auth-provider"
+import { ImageCollage } from "@/components/image-collage";
 import {
   Star,
   MapPin,
@@ -28,6 +26,8 @@ import {
   Bookmark,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { useReviews } from "@/hooks/useReviews"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function ReviewDetailPage() {
   const { id } = useParams()
@@ -36,103 +36,19 @@ export default function ReviewDetailPage() {
   const { user } = useAuth()
 
   const [review, setReview] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [relatedReviews, setRelatedReviews] = useState<any[]>([])
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const { data: reviews, isLoading, isError } = useReviews(1)
 
+  // FIX: Move state updates into useEffect
   useEffect(() => {
-    async function fetchReviewDetails() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const pb = getPocketBase()
-
-        // Fetch the review with expanded reviewer
-        const reviewData = await pb.collection("reviews").getOne(id as string, {
-          expand: "reviewer",
-        })
-
-        // Format the review data
-        const formattedReview = formatReview(reviewData)
-        setReview(formattedReview)
-
-        // Fetch related reviews for the same destination
-        if (formattedReview) {
-          const relatedData = await pb.collection("reviews").getList(1, 4, {
-            filter: `destination = "${formattedReview.destination}" && id != "${id}"`,
-            sort: "-rating",
-            expand: "reviewer",
-          })
-
-          setRelatedReviews(relatedData.items.map(formatReview))
-        }
-      } catch (error) {
-        console.error("Error fetching review:", error)
-        setError("Failed to load review. It may have been deleted or you don't have permission to view it.")
-      } finally {
-        setLoading(false)
-      }
+    if (reviews && id) {
+      const foundReview = reviews.find((review: any) => review.id === id) || null
+      setReview(foundReview)
+      setRelatedReviews(reviews.filter((r: any) => r.id !== id))
     }
-
-    if (id) {
-      fetchReviewDetails()
-    }
-  }, [id])
-
-  // Format review data
-  function formatReview(record: any) {
-    if (!record) return null
-
-    const baseUrl = "https://remain-faceghost.pockethost.io/api/files/"
-
-    // Format the date
-    const date = new Date(record.created)
-    const formattedDate = date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-
-    // Get author info
-    let authorName = "Unknown User"
-    let authorAvatar = null
-    let authorUsername = ""
-
-    if (record.expand?.reviewer) {
-      if (record.expand.reviewer.name) {
-        authorName = record.expand.reviewer.name
-      } else if (record.expand.reviewer.username) {
-        authorName = record.expand.reviewer.username
-      }
-
-      authorUsername = record.expand.reviewer.username || ""
-
-      if (record.expand.reviewer.avatar) {
-        authorAvatar = `${baseUrl}${record.expand.reviewer.collectionId}/${record.expand.reviewer.id}/${record.expand.reviewer.avatar}`
-      }
-    }
-
-    // Get photo URL
-    let photoUrl = null
-    if (record.photo) {
-      photoUrl = `${baseUrl}${record.collectionId}/${record.id}/${record.photo}`
-    }
-
-    return {
-      ...record,
-      authorName,
-      authorAvatar,
-      authorUsername,
-      formattedDate,
-      photoUrl,
-      likes_count: record.likes_count || 0,
-      comments_count: record.comments_count || 0,
-    }
-  }
+  }, [reviews, id])
 
   // Handle like action
   const handleLike = () => {
@@ -176,7 +92,7 @@ export default function ReviewDetailPage() {
     },
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container py-8 md:py-12">
@@ -209,12 +125,11 @@ export default function ReviewDetailPage() {
             </div>
           </div>
         </div>
-        <Footer />
       </div>
     )
   }
 
-  if (error || !review) {
+  if (isError || !review) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container py-16 text-center">
@@ -223,7 +138,7 @@ export default function ReviewDetailPage() {
               <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h2 className="text-2xl font-bold mb-2">Review Not Found</h2>
               <p className="text-muted-foreground mb-6">
-                {error || "This review doesn't exist or may have been removed."}
+                {isError || "This review doesn't exist or may have been removed."}
               </p>
               <Button asChild>
                 <Link href="/reviews">Browse Reviews</Link>
@@ -235,45 +150,18 @@ export default function ReviewDetailPage() {
     )
   }
 
+  const getReviewImageUrl = (review: any, photoIndex: number): string => {
+    console.log("review:", review);
+    if (review.photos && review.photos.length > 0) {
+      const imageUrl = `https://remain-faceghost.pockethost.io/api/files/${review.collectionId}/${review.id}/${review.photos[photoIndex]}`;
+      console.log("getReviewImageUrl:", imageUrl);
+      return imageUrl;
+    }
+    return "/placeholder.svg";
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
-      {/* Hero section with parallax effect */}
-      <div className="relative h-[40vh] md:h-[50vh] overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${review.photoUrl || `/placeholder.svg?height=800&width=1200&text=${encodeURIComponent(review.destination)}`})`,
-            transform: "translateZ(0)",
-          }}
-        >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-        </div>
-
-        <div className="absolute inset-0 flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            className="text-center text-white px-4"
-          >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">{review.destination}</h1>
-            <div className="flex items-center justify-center gap-2 mb-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-6 w-6 ${i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-white/50"}`}
-                />
-              ))}
-            </div>
-            <p className="text-lg md:text-xl max-w-2xl mx-auto">
-              An unforgettable journey through {review.destination}
-            </p>
-          </motion.div>
-        </div>
-      </div>
-
       <div className="container py-8 md:py-12">
         {/* Breadcrumb navigation */}
         <div className="flex items-center mb-8 text-sm">
@@ -403,6 +291,21 @@ export default function ReviewDetailPage() {
                     Discover more about this amazing destination and plan your next adventure to {review.destination}.
                   </p>
 
+                  {review.photos && review.photos.length > 0 && (
+                    <div className="relative">
+                      <ImageCollage
+                        images={
+                          Array.isArray(review.photos)
+                            ? review.photos.map((photo: string, idx: number) => getReviewImageUrl(review, idx))
+                            : []
+                        }
+                        alt={review.destination}
+                      />
+                      {/* Optional: dark overlay for better text contrast */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none rounded-xl" />
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <div className="text-sm">
                       <div className="font-medium">Average Rating</div>
@@ -410,9 +313,8 @@ export default function ReviewDetailPage() {
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
-                            className={`h-4 w-4 ${
-                              i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
-                            }`}
+                            className={`h-4 w-4 ${i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                              }`}
                           />
                         ))}
                       </div>
@@ -452,11 +354,10 @@ export default function ReviewDetailPage() {
                                 {Array.from({ length: 5 }).map((_, i) => (
                                   <Star
                                     key={i}
-                                    className={`h-3 w-3 ${
-                                      i < relatedReview.rating
+                                    className={`h-3 w-3 ${i < relatedReview.rating
                                         ? "text-yellow-400 fill-yellow-400"
                                         : "text-muted-foreground"
-                                    }`}
+                                      }`}
                                   />
                                 ))}
                               </div>
