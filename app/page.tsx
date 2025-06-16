@@ -324,72 +324,72 @@ export default function HomePage() {
               </div>
             ) : (
               (upcomingEvents ?? []).map((event) => (
-<Card 
-  key={event.id}
-  className="overflow-hidden rounded-2xl shadow-md bg-transparent backdrop-blur-sm transition-colors duration-300 hover:bg-green-500/20"
->
-  {/* Image with Overlays */}
-  <div className="relative w-full aspect-[3/2] overflow-hidden">
-    <Image
-      src={
-        getEventImageUrl(event) || "/placeholder.svg?height=400&width=600"
-      }
-      alt={event.title}
-      fill
-      className="object-cover object-center transition-transform duration-300 hover:scale-105"
-    />
+                <Card
+                  key={event.id}
+                  className="overflow-hidden rounded-2xl shadow-md bg-transparent backdrop-blur-sm transition-colors duration-300 hover:bg-green-500/20"
+                >
+                  {/* Image with Overlays */}
+                  <div className="relative w-full aspect-[3/2] overflow-hidden">
+                    <Image
+                      src={
+                        getEventImageUrl(event) || "/placeholder.svg?height=400&width=600"
+                      }
+                      alt={event.title}
+                      fill
+                      className="object-cover object-center transition-transform duration-300 hover:scale-105"
+                    />
 
-    {/* Top-left Location */}
-    <div className="absolute top-3 left-3 bg-background/80 text-sm px-3 py-1 rounded-full shadow-md flex items-center gap-1 text-muted-foreground">
-      <MapPin className="h-4 w-4" />
-      {event.destination}
-    </div>
+                    {/* Top-left Location */}
+                    <div className="absolute top-3 left-3 bg-background/80 text-sm px-3 py-1 rounded-full shadow-md flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      {event.destination}
+                    </div>
 
-    {/* Top-right Spots Left */}
-    <div className="absolute top-3 right-3">
-      <Badge variant="outline" className="bg-primary/50 text-white shadow-md">
-        {event.spots_left} spots left
-      </Badge>
-    </div>
+                    {/* Top-right Spots Left */}
+                    <div className="absolute top-3 right-3">
+                      <Badge variant="outline" className="bg-primary/50 text-white shadow-md">
+                        {event.spots_left} spots left
+                      </Badge>
+                    </div>
 
-    {/* Bottom-center Book Button */}
-    <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
-      <Button
-        asChild
-        size="sm"
-        className="rounded-full px-5 shadow-lg backdrop-blur bg-green-500/50 hover:bg-green-500 transition-colors"
-      >
-        <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
-      </Button>
-    </div>
-  </div>
+                    {/* Bottom-center Book Button */}
+                    <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
+                      <Button
+                        asChild
+                        size="sm"
+                        className="rounded-full px-5 shadow-lg backdrop-blur bg-green-500/50 hover:bg-green-500 transition-colors"
+                      >
+                        <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
+                      </Button>
+                    </div>
+                  </div>
 
-  {/* Content */}
-  <CardContent className="p-4 pt-5 space-y-2">
-    <h3 className="text-lg font-semibold">{event.title}</h3>
+                  {/* Content */}
+                  <CardContent className="p-4 pt-5 space-y-2">
+                    <h3 className="text-lg font-semibold">{event.title}</h3>
 
-    <div className="flex items-center text-sm text-muted-foreground gap-1">
-      <Calendar className="h-4 w-4" />
-      {new Date(event.start_date).toLocaleDateString()} -{" "}
-      {new Date(event.end_date).toLocaleDateString()}
-    </div>
+                    <div className="flex items-center text-sm text-muted-foreground gap-1">
+                      <Calendar className="h-4 w-4" />
+                      {new Date(event.start_date).toLocaleDateString()} -{" "}
+                      {new Date(event.end_date).toLocaleDateString()}
+                    </div>
 
-    {/* Days left */}
-    <div className="text-sm text-white font-medium">
-      {
-        (() => {
-          const today = new Date();
-          const start = new Date(event.start_date);
-          const timeDiff = start.getTime() - today.getTime();
-          const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-          return daysLeft > 0
-            ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} to event`
-            : "Event has started or passed";
-        })()
-      }
-    </div>
-  </CardContent>
-</Card>
+                    {/* Days left */}
+                    <div className="text-sm text-white font-medium">
+                      {
+                        (() => {
+                          const today = new Date();
+                          const start = new Date(event.start_date);
+                          const timeDiff = start.getTime() - today.getTime();
+                          const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                          return daysLeft > 0
+                            ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} to event`
+                            : "Event has started or passed";
+                        })()
+                      }
+                    </div>
+                  </CardContent>
+                </Card>
 
 
               ))
