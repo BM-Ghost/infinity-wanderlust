@@ -75,6 +75,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { getPocketBase } from "@/lib/pocketbase"
 import { useReviews } from "@/hooks/useReviews"
 import { useQueryClient } from "@tanstack/react-query"
+import { ImageCollage } from "@/components/image-collage"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
@@ -138,6 +139,15 @@ export default function ReviewsPage() {
   const [commentInputRefs] = useState<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
 
 
+  const getReviewImageUrl = (review: any, photoIndex: number): string => {
+    console.log("review:", review);
+    if (review.photos && review.photos.length > 0) {
+      const imageUrl = `https://remain-faceghost.pockethost.io/api/files/${review.collectionId}/${review.id}/${review.photos[photoIndex]}`;
+      console.log("getReviewImageUrl:", imageUrl);
+      return imageUrl;
+    }
+    return "/placeholder.svg";
+  };
 
   const queryClient = useQueryClient()
 
@@ -362,7 +372,7 @@ export default function ReviewsPage() {
           review_text: reviewText,
           photos: reviewImages,
         },
-        
+
       )
 
       if (result) {
@@ -1059,6 +1069,8 @@ export default function ReviewsPage() {
 
       if (success) {
 
+        queryClient.invalidateQueries({ queryKey: ["all-reviews"] })
+
         toast({
           title: "Review liked",
           description: "You liked this review.",
@@ -1095,19 +1107,20 @@ export default function ReviewsPage() {
   const ReviewStats = ({ review }: { review: ReviewWithAuthor }) => {
     return (
       <div className="flex items-center justify-between px-4 py-2 bg-muted/30 rounded-md mt-4">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center">
-            <Heart className={`h-4 w-4 mr-1 ${review.likes_count > 0 ? "fill-red-500 text-red-500" : ""}`} />
-            <span className="text-sm">{review.likes_count || 0}</span>
-          </div>
-          <div className="flex items-center">
-            <MessageSquare className="h-4 w-4 mr-1" />
-            <span className="text-sm">{review.comments_count || 0}</span>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <Calendar className="h-4 w-4 mr-1" />
-          <span className="text-xs text-muted-foreground">{review.formattedDate}</span>
+        <div className="flex items-center gap-4">
+          {renderLikeButton(review.id, review.likes_count || 0)}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2"
+            onClick={() => toggleComments(review.id)}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>
+              {showComments[review.id] ? "Hide" : ""}
+              {!showComments[review.id] && review.comments_count > 0 && review.comments_count}
+            </span>
+          </Button>
         </div>
       </div>
     )
@@ -1586,40 +1599,23 @@ export default function ReviewsPage() {
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">{review.review_text}</p>
 
-                  {review.photoUrl && (
-                    <div className="mt-4">
-                      <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
-                        <Image
-                          src={review.photoUrl || "/placeholder.svg"}
-                          alt={`${review.authorName}'s travel photo`}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
+                  <div className="mt-4">
+                    <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
+                      <ImageCollage
+                        images={
+                          Array.isArray(review.photos)
+                            ? review.photos.map((photo: string, idx: number) => getReviewImageUrl(review, idx))
+                            : []
+                        }
+                        alt={`${review.authorName}'s travel photo`}
+                      />
                     </div>
-                  )}
+                  </div>
 
                   <ReviewStats review={review} />
                 </CardContent>
                 <CardFooter className="flex flex-col">
                   <div className="flex justify-between w-full">
-                    <div className="flex items-center gap-4">
-                      {renderLikeButton(review.id, review.likes_count || 0)}
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-2"
-                        onClick={() => toggleComments(review.id)}
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                        <span>
-                          {showComments[review.id] ? "Hide" : ""}
-                          {!showComments[review.id] && review.comments_count > 0 && review.comments_count}
-                        </span>
-                      </Button>
-                    </div>
-
                     {user && user.id === review.reviewer && (
                       <div className="flex gap-2">
                         <Button

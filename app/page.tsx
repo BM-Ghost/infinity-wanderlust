@@ -19,9 +19,6 @@ import { ImageCollage } from "@/components/image-collage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  useQuery,
-} from "@tanstack/react-query";
 import { useReviews } from "@/hooks/useReviews";
 import { useEvents } from "@/hooks/useEvents";
 
