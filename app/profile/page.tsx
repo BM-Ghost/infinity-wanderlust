@@ -69,9 +69,9 @@ export default function ProfilePage() {
   const stats = {
     followers: currentUser?.followers?.length || 0,
     following: currentUser?.following?.length || 0,
-    reviews: reviews.filter((r: any) => r.user === currentUser?.id).length,
-    uploads: uploads.filter((u: any) => u.user === currentUser?.id).length,
-    events: events.filter((e: any) => e.user === currentUser?.id).length,
+    reviews: reviews.length,
+    uploads: uploads.length,
+    events: events.length,
     bookings: bookings.length,
   }
 
@@ -84,6 +84,10 @@ export default function ProfilePage() {
   const [showFollowingModal, setShowFollowingModal] = useState(false)
   const [justFollowed, setJustFollowed] = useState<string[]>([])
   const [selectedUpload, setSelectedUpload] = useState<any>(null)
+  const [selectedReview, setSelectedReview] = useState<any>(null)
+  const [selectedEvent, setSelectedEvent] = useState<any>(null)
+  const [selectedBooking, setSelectedBooking] = useState<any>(null)
+
   // Add a state to force re-render after follow/unfollow
   const [refreshKey, setRefreshKey] = useState(0)
   const queryClient = new QueryClient()
@@ -261,6 +265,15 @@ export default function ProfilePage() {
       month: "long",
       day: "numeric",
     })
+  }
+
+  const getEventImageUrl = (event: any): string => {
+    if (!event) return "/placeholder.svg"
+    if (event.imageUrl) return event.imageUrl
+    if (event.images?.length) {
+      return `https://remain-faceghost.pockethost.io/api/files/${event.collectionId}/${event.id}/${event.images[0]}`
+    }
+    return "/placeholder.svg"
   }
 
   const { shortBio, fullAbout } = extractShortBio(user?.about)
@@ -520,6 +533,28 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="bookings">
+              {bookings?.length > 0 ? (
+              <div className={`columns-2 md:columns-3 gap-4`}>
+                {bookings.map((booking: any) => (
+                  <div
+                    key={booking.id}
+                    className="mb-4 break-inside-avoid cursor-pointer group relative rounded-lg overflow-hidden"
+                    onClick={() => setSelectedBooking(booking)}
+                  >
+                    <Image
+                      src={getEventImageUrl(booking.expand?.event)}
+                      alt={booking.caption || "Gallery image"}
+                      width={400}
+                      height={400}
+                      className="object-cover w-full h-auto transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      <span className="text-white text-xs">{booking.location}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="text-center py-12 bg-muted/30 rounded-lg">
               <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No bookings yet</h3>
@@ -528,9 +563,32 @@ export default function ProfilePage() {
                 <Link href="/events">Explore Events</Link>
               </Button>
             </div>
+            )}
           </TabsContent>
 
           <TabsContent value="events">
+            {events?.length > 0 ? (
+              <div className={`columns-2 md:columns-3 gap-4`}>
+                {events.map((event: any) => (
+                  <div
+                    key={event.id}
+                    className="mb-4 break-inside-avoid cursor-pointer group relative rounded-lg overflow-hidden"
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    <Image
+                      src={getEventImageUrl(event)}
+                      alt={event.caption || "Gallery image"}
+                      width={400}
+                      height={400}
+                      className="object-cover w-full h-auto transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      <span className="text-white text-xs">{event.location}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="text-center py-12 bg-muted/30 rounded-lg">
               <CalendarCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No events yet</h3>
@@ -539,6 +597,7 @@ export default function ProfilePage() {
                 <Link href="/events">Browse Events</Link>
               </Button>
             </div>
+            )}
           </TabsContent>
         </Tabs>
 

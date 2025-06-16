@@ -9,7 +9,7 @@ export type Review = {
   rating: number
   review_text: string
   reviewer: string
-  photo?: string
+  photos?: string
   likes_count: number
   comments_count: number
   expand?: {
@@ -89,8 +89,7 @@ export async function fetchReviews(
 
 // Create a new review
 export async function createReview(
-  data: { destination: string; rating: number; review_text: string },
-  photos?: File[],
+  data: { destination: string; rating: number; review_text: string; photos?: File[]; },
 ): Promise<ReviewWithAuthor | null> {
   const pb = getPocketBase()
   if (!pb) throw new Error("Failed to connect to PocketBase")
@@ -99,20 +98,9 @@ export async function createReview(
     throw new Error("You must be signed in to create a review")
   }
 
+  console.log("photos:", data.photos)
   try {
-    const formData = new FormData()
-    formData.append("destination", data.destination)
-    formData.append("rating", data.rating.toString())
-    formData.append("review_text", data.review_text)
-    formData.append("reviewer", pb.authStore.model?.id)
-    formData.append("likes_count", "0")
-    formData.append("comments_count", "0")
-
-    if (photos && photos.length > 0) {
-      formData.append("photo", photos[0])
-    }
-
-    const record = await pb.collection("reviews").create(formData, {
+    const record = await pb.collection("reviews").create(data, {
       expand: "reviewer", // Make sure to expand reviewer relation
     })
 
@@ -135,8 +123,7 @@ export async function createReview(
 // Update a review
 export async function updateReview(
   id: string,
-  data: { destination: string; rating: number; review_text: string },
-  photos?: File[],
+  data: { destination: string; rating: number; review_text: string; photos?: File[]; },
 ): Promise<ReviewWithAuthor | null> {
   const pb = getPocketBase()
   if (!pb) throw new Error("Failed to connect to PocketBase")
@@ -145,6 +132,8 @@ export async function updateReview(
     throw new Error("You must be signed in to update a review")
   }
 
+  console.log("photos:", data.photos)
+
   try {
     // First check if the user owns this review
     const existingReview = await pb.collection("reviews").getOne(id)
@@ -152,16 +141,7 @@ export async function updateReview(
       throw new Error("You can only edit your own reviews")
     }
 
-    const formData = new FormData()
-    formData.append("destination", data.destination)
-    formData.append("rating", data.rating.toString())
-    formData.append("review_text", data.review_text)
-
-    if (photos && photos.length > 0) {
-      formData.append("photo", photos[0])
-    }
-
-    const record = await pb.collection("reviews").update(id, formData, {
+    const record = await pb.collection("reviews").update(id, data, {
       expand: "reviewer", // Make sure to expand reviewer relation
     })
 

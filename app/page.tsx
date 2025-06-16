@@ -15,9 +15,6 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "@/lib/translations";
-import { fetchFeaturedDestinations } from "@/lib/destinations";
-import { getUpcomingEvents } from "@/lib/travel-events";
-import { fetchLatestReviews } from "@/lib/reviews";
 import { ImageCollage } from "@/components/image-collage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
@@ -25,8 +22,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   useQuery,
 } from "@tanstack/react-query";
-
-
+import { useReviews } from "@/hooks/useReviews";
+import { useEvents } from "@/hooks/useEvents";
 
 export default function HomePage() {
   const { t } = useTranslation();
@@ -36,35 +33,12 @@ export default function HomePage() {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const baseUrl = "https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_"
 
-  const {
-    data: featuredDestinations = [],
-    isLoading: isLoadingDestinations,
-  } = useQuery({
-    queryKey: ["featuredDestinations"],
-    queryFn: () => fetchFeaturedDestinations(10),
+  const { data: reviews, isLoading, isError } = useReviews(1)
+  const { data: events, isLoading: isLoadingEvents } = useEvents(1);
+  const upcomingEvents = events?.filter((event: any) => {
+    const now = new Date();
+    return new Date(event.start_date) > now;
   });
-
-  const {
-    data: upcomingEvents = [],
-    isLoading: isLoadingEvents,
-  } = useQuery({
-    queryKey: ["upcomingEvents"],
-    queryFn: () => getUpcomingEvents(2),
-  });
-
-  const {
-    data: reviewData,
-    isLoading: isLoadingReviews,
-  } = useQuery({
-    queryKey: ["latestReviews"],
-    queryFn: () => fetchLatestReviews(5),
-  });
-
-  const latestReviews = reviewData?.items ?? [];
-  const pagination = {
-    page: reviewData?.page ?? 1,
-    totalPages: reviewData?.totalPages ?? 1,
-  };
 
   const checkScrollPosition = () => {
     if (!scrollContainerRef.current) return;
@@ -84,7 +58,7 @@ export default function HomePage() {
         scrollContainer.removeEventListener("scroll", checkScrollPosition);
       };
     }
-  }, [featuredDestinations]);
+  }, [reviews]);
 
   const scrollLeft = () => {
     scrollContainerRef.current?.scrollBy({ left: -300, behavior: "smooth" });
@@ -114,6 +88,21 @@ export default function HomePage() {
     }
     return "/placeholder.svg"
   }
+
+  const getReviewImageUrl = (review: any, photoIndex: number): string => {
+    console.log("review:", review);
+    if (review.photos && review.photos.length > 0) {
+      const imageUrl = `https://remain-faceghost.pockethost.io/api/files/${review.collectionId}/${review.id}/${review.photos[photoIndex]}`;
+      console.log("getReviewImageUrl:", imageUrl);
+      return imageUrl;
+    }
+    return "/placeholder.svg";
+  };
+
+  console.log("Featured Destinations:", reviews);
+
+  // Get the latest 6 reviews (or fewer if not enough)
+  const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 6) : [];
 
   return (
     <>
@@ -190,76 +179,95 @@ export default function HomePage() {
               className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
-              {isLoadingDestinations ? (
+              {isLoading ? (
                 // Loading skeletons
                 Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={`skeleton-${index}`}
                     className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
                   >
-                    <Card className="overflow-hidden bg-background/90 backdrop-blur-sm h-full">
+                    <Card className="bg-background/90 backdrop-blur-sm">
                       <Skeleton className="h-64 w-full" />
                       <CardContent className="p-6">
-                        <Skeleton className="h-6 w-3/4 mb-2" />
-                        <Skeleton className="h-4 w-full mb-2" />
-                        <Skeleton className="h-4 w-5/6 mb-4" />
-                        <Skeleton className="h-10 w-full" />
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-8 w-8 rounded-full" />
+                          <div>
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="h-3 w-16 mt-1" />
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
                 ))
-              ) : featuredDestinations.length === 0 ? (
+              ) : reviews?.length === 0 && isError ? (
                 <div className="w-full text-center py-10">
                   <p className="text-white text-lg">
-                    No destinations found. Be the first to review a destination!
+                    No featured destinations found. Be the first to share your photos!
                   </p>
                   <Button asChild className="mt-4">
-                    <Link href="/reviews/">Write a Review</Link>
+                    <Link href="/reviews/">Share Your Photos</Link>
                   </Button>
                 </div>
               ) : (
-                featuredDestinations.map((destination, index) => (
+                reviews?.map((review) => (
                   <motion.div
-                    key={index}
-                    custom={index}
+                    key={review.id}
                     initial="hidden"
                     animate="visible"
                     variants={cardVariants}
                     className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
                   >
-                    <Card className="overflow-hidden bg-background/90 backdrop-blur-sm h-full group">
-                      <div className="relative">
-                        <ImageCollage
-                          images={destination.images}
-                          alt={destination.name}
-                        />
-                        <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm rounded-full px-2 py-1 flex items-center">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                          <span className="text-xs font-medium">
-                            {destination.rating}
-                          </span>
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({destination.reviewCount})
-                          </span>
+                    <Card className="bg-transparent hover:bg-gradient-to-br hover:from-green-900/90 hover:via-green-800/90 hover:to-green-700/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg max-w-[350px] min-w-[320px] w-full mx-auto transition-colors duration-300">
+                      {review.photos && review.photos.length > 0 && (
+                        <div className="relative">
+                          <ImageCollage
+                            images={
+                              Array.isArray(review.photos)
+                                ? review.photos.map((photo: string, idx: number) => getReviewImageUrl(review, idx))
+                                : []
+                            }
+                            alt={review.destination}
+                          />
+                          {/* Top overlays */}
+                          <div className="absolute top-3 left-3 flex items-center z-10">
+                            {/* Avatar */}
+                            <Avatar className="h-10 w-10 border-2 border-green-300/60 shadow-lg bg-green-900/80">
+                              <AvatarImage src={review.authorAvatar ?? undefined} />
+                              <AvatarFallback>{review.authorName?.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            {/* Destination pill */}
+                            <span className="ml-2 bg-transparent text-white-100 text-xs font-semibold px-3 py-1 backdrop-blur-sm rounded-full shadow border border-green-500/40">
+                              {review.destination}
+                            </span>
+                          </div>
+                          {/* Rating badge top-right */}
+                          <div className="absolute top-3 right-3 z-10">
+                            <div className="bg-yellow-400/90 rounded-full px-3 py-1 flex items-center shadow">
+                              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 mr-1" />
+                              <span className="text-sm font-bold text-gray-900">{review.rating}</span>
+                            </div>
+                          </div>
+                          {/* Optional: dark overlay for better text contrast */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none rounded-xl" />
                         </div>
-                      </div>
-                      <CardContent className="p-6">
-                        <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
-                          {destination.name}
-                        </h3>
-                        <p className="text-muted-foreground mb-4 line-clamp-3">
-                          {destination.description}
-                        </p>
-                        <Button asChild className="w-full">
-                          <Link
-                            href={`/reviews/${destination.topReviewId}`}
-                            className="flex items-center justify-center"
+                      )}
+                      {/* CTA below image, visually outside card */}
+                      <div className="flex justify-center">
+                        <Link href={`/reviews/${review.id}`}>
+                          <span
+                            className={` block w-fit italic text-green-200 bg-transparent hover:bg-green-900/90 active:bg-green-900 hover:text-green-50 transition rounded-lg px-4 py-2 cursor-pointer whitespace-normal break-words shadow-lg backdrop-blur-smborder border-green-900/10 -mt-8z-20`}
+                            style={{
+                              backgroundColor: "transparent",
+                              fontStyle: "italic",
+                              boxShadow: "0 4px 24px 0 rgba(0,0,0,0.10)",
+                              position: "relative",
+                            }}
                           >
-                            <span>Explore Destination</span>
-                            <ChevronRight className="ml-1 h-4 w-4 group-hover:ml-2 transition-all" />
-                          </Link>
-                        </Button>
-                      </CardContent>
+                            Read more about {review.destination} as reviewed by {review.authorName}
+                          </span>
+                        </Link>
+                      </div>
                     </Card>
                   </motion.div>
                 ))
@@ -287,7 +295,7 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {isLoadingEvents ? (
               // Loading skeletons
               Array.from({ length: 2 }).map((_, index) => (
@@ -307,7 +315,7 @@ export default function HomePage() {
                   </div>
                 </Card>
               ))
-            ) : upcomingEvents.length === 0 ? (
+            ) : (upcomingEvents ?? []).length === 0 ? (
               <div className="col-span-2 text-center py-10">
                 <p className="text-white text-lg">No upcoming events found.</p>
                 <Button asChild className="mt-4">
@@ -315,57 +323,75 @@ export default function HomePage() {
                 </Button>
               </div>
             ) : (
-              upcomingEvents.map((event) => (
-                <Card
-                  key={event.id}
-                  className="overflow-hidden bg-background/90 backdrop-blur-sm"
-                >
-                  <div className="flex flex-col md:flex-row">
-                    <div className="relative w-full md:w-1/3 h-48 md:h-auto">
-                      <Image
-                        src={
-                          getEventImageUrl(event) ||
-                          "/placeholder.svg?height=400&width=600"
-                        }
-                        alt={event.title}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <CardContent className="flex-1 p-6">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-xl font-bold mb-2">
-                            {event.title}
-                          </h3>
-                          <div className="flex flex-col gap-1 mb-4">
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4 mr-1" />
-                              {event.destination}
-                            </div>
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              {new Date(
-                                event.start_date
-                              ).toLocaleDateString()}{" "}
-                              - {new Date(event.end_date).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="bg-primary/10">
-                          {event.spots_left} spots left
-                        </Badge>
-                      </div>
-                      <div className="mt-auto">
-                        <Button asChild className="w-full">
-                          <Link href={`/events/${event.id}`}>
-                            {t("bookNow")}
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </div>
-                </Card>
+              (upcomingEvents ?? []).map((event) => (
+<Card 
+  key={event.id}
+  className="overflow-hidden rounded-2xl shadow-md bg-transparent backdrop-blur-sm transition-colors duration-300 hover:bg-green-500/20"
+>
+  {/* Image with Overlays */}
+  <div className="relative w-full aspect-[3/2] overflow-hidden">
+    <Image
+      src={
+        getEventImageUrl(event) || "/placeholder.svg?height=400&width=600"
+      }
+      alt={event.title}
+      fill
+      className="object-cover object-center transition-transform duration-300 hover:scale-105"
+    />
+
+    {/* Top-left Location */}
+    <div className="absolute top-3 left-3 bg-background/80 text-sm px-3 py-1 rounded-full shadow-md flex items-center gap-1 text-muted-foreground">
+      <MapPin className="h-4 w-4" />
+      {event.destination}
+    </div>
+
+    {/* Top-right Spots Left */}
+    <div className="absolute top-3 right-3">
+      <Badge variant="outline" className="bg-primary/50 text-white shadow-md">
+        {event.spots_left} spots left
+      </Badge>
+    </div>
+
+    {/* Bottom-center Book Button */}
+    <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
+      <Button
+        asChild
+        size="sm"
+        className="rounded-full px-5 shadow-lg backdrop-blur bg-green-500/50 hover:bg-green-500 transition-colors"
+      >
+        <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
+      </Button>
+    </div>
+  </div>
+
+  {/* Content */}
+  <CardContent className="p-4 pt-5 space-y-2">
+    <h3 className="text-lg font-semibold">{event.title}</h3>
+
+    <div className="flex items-center text-sm text-muted-foreground gap-1">
+      <Calendar className="h-4 w-4" />
+      {new Date(event.start_date).toLocaleDateString()} -{" "}
+      {new Date(event.end_date).toLocaleDateString()}
+    </div>
+
+    {/* Days left */}
+    <div className="text-sm text-white font-medium">
+      {
+        (() => {
+          const today = new Date();
+          const start = new Date(event.start_date);
+          const timeDiff = start.getTime() - today.getTime();
+          const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+          return daysLeft > 0
+            ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} to event`
+            : "Event has started or passed";
+        })()
+      }
+    </div>
+  </CardContent>
+</Card>
+
+
               ))
             )}
           </div>
@@ -385,7 +411,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoadingReviews ? (
+            {isLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <Card
                   key={`loading-review-${i}`}
@@ -402,7 +428,7 @@ export default function HomePage() {
                   </div>
                 </Card>
               ))
-            ) : latestReviews.length === 0 ? (
+            ) : latestReviews?.length === 0 ? (
               <div className="col-span-full text-center py-10">
                 <p className="text-white text-lg">
                   No recent reviews. Be the first to share your experience!
@@ -413,16 +439,6 @@ export default function HomePage() {
               </div>
             ) : (
               latestReviews.map((review, i) => {
-                const avatarUrl = review.reviewer_avatar
-                  ? `${baseUrl}/${review.user_id}/${review.reviewer_avatar}`
-                  : review.expand?.user?.avatar
-                    ? `${baseUrl}/${review.expand.user.id}/${review.expand.user.avatar}`
-                    : null;
-
-                const reviewerName = review.reviewer_name || review.expand?.user?.name || "Anonymous";
-                const reviewerInitial = reviewerName.charAt(0).toUpperCase();
-                const reviewDate = new Date(review.created).toLocaleDateString();
-
                 return (
                   <motion.div
                     key={review.id}
@@ -431,29 +447,33 @@ export default function HomePage() {
                     animate="visible"
                     variants={cardVariants}
                   >
-                    <Card className="bg-background/80 backdrop-blur-sm p-4 hover:shadow-xl transition-shadow">
+
+                    <Card className="bg-background/80 backdrop-blur-sm p-4 hover:shadow-xl transition-shadow rounded-lg">
                       <div className="flex items-center mb-4">
-                        <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
-                          {avatarUrl ? (
-                            <Avatar className="h-12 w-12 border">
-                              <AvatarImage src={avatarUrl} alt={reviewerName} />
-                              <AvatarFallback>{reviewerInitial}</AvatarFallback>
-                            </Avatar>
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-medium">
-                              {reviewerInitial}
-                            </div>
+                        {/* Avatar */}
+                        <div className="flex-shrink-0">
+                          <Avatar className="h-12 w-12 border-2 border-white/20 shadow-md">
+                            <AvatarImage
+                              src={review.authorAvatar ?? undefined}
+                              className="object-cover h-12 w-12 rounded-full"
+                            />
+                            <AvatarFallback className="h-12 w-12 flex items-center justify-center text-lg bg-muted rounded-full">
+                              {review.authorName?.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                        {/* Author & meta */}
+                        <div className="ml-4 flex flex-col justify-center">
+                          <h3 className="font-semibold text-white leading-tight">{review.authorName}</h3>
+                          {review.destination && (
+                            <span className="inline-block bg-white-100/10 text-white-300 text-xs px-2 py-0.5 rounded-full mt-1 mb-0.5 w-fit">
+                              {review.destination}
+                            </span>
                           )}
+                          <span className="text-xs text-muted-foreground mt-0.5">{review.formattedDate}</span>
                         </div>
-                        <div className="ml-3">
-                          <h3 className="font-medium text-white">{reviewerName}</h3>
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            {review.destination && <span>{review.destination}</span>}
-                            {review.destination && <span className="mx-2">•</span>}
-                            <span>{reviewDate}</span>
-                          </div>
-                        </div>
-                        <div className="ml-auto flex">
+                        {/* Stars */}
+                        <div className="ml-auto flex items-center gap-0.5">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <Star
                               key={i}
@@ -466,7 +486,7 @@ export default function HomePage() {
                         </div>
                       </div>
                       <p className="text-muted-foreground line-clamp-3 mb-1">
-                        “{review.content}”
+                        “{review.review_text}”
                       </p>
                       <Button variant="link" asChild className="mt-2 px-0 text-white hover:text-white/80">
                         <Link href={`/reviews`}>{t("readMore")}</Link>

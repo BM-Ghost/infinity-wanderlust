@@ -446,20 +446,6 @@ export default function SettingsPage() {
 
                           <div className="grid gap-4">
                             <div className="grid gap-2">
-                              <Label htmlFor="shortBio">Short Bio for About Section (Optional)</Label>
-                              <Input
-                                id="shortBio"
-                                value={shortBio}
-                                onChange={(e) => setShortBio(e.target.value)}
-                                placeholder="A brief intro that will appear at the top of your About section"
-                                maxLength={150}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                This will be displayed as a highlight at the top of your About section
-                              </p>
-                            </div>
-
-                            <div className="grid gap-2">
                               <Label htmlFor="about">About Me</Label>
                               <Textarea
                                 id="about"
@@ -494,19 +480,6 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <Separator />
-                        <div className="grid gap-2">
-                          <Label htmlFor="auth_number">Authentication Number</Label>
-                          <Input
-                            id="auth_number"
-                            type="number"
-                            value={authNumber}
-                            onChange={(e) => setAuthNumber(Number.parseInt(e.target.value) || 0)}
-                            placeholder="Your authentication number"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            This number is used for additional security verification
-                          </p>
-                        </div>
                       </CardContent>
 
                       <CardFooter className="flex justify-between">

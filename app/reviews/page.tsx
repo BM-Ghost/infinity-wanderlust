@@ -360,8 +360,9 @@ export default function ReviewsPage() {
           destination,
           rating,
           review_text: reviewText,
+          photos: reviewImages,
         },
-        reviewImages.length > 0 ? reviewImages : undefined,
+        
       )
 
       if (result) {
@@ -429,8 +430,8 @@ export default function ReviewsPage() {
           destination: editDestination,
           rating: editRating,
           review_text: editReviewText,
+          photos: editReviewImages,
         },
-        editReviewImages.length > 0 ? editReviewImages : undefined,
       )
 
       if (result) {
@@ -1151,6 +1152,7 @@ export default function ReviewsPage() {
                   <DialogDescription>Share your travel experience with the community</DialogDescription>
                 </DialogHeader>
 
+                {/* Scrollable form fields */}
                 <div className="space-y-4 py-4 overflow-y-auto flex-grow">
                   <div className="space-y-2">
                     <Label htmlFor="destination">Destination *</Label>
@@ -1169,8 +1171,7 @@ export default function ReviewsPage() {
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none">
                           <Star
-                            className={`h-6 w-6 ${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                              }`}
+                            className={`h-6 w-6 ${star <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
                           />
                         </button>
                       ))}
@@ -1232,7 +1233,8 @@ export default function ReviewsPage() {
                   </div>
                 </div>
 
-                <DialogFooter className="sticky bottom-0 pt-2 bg-background border-t mt-auto flex justify-center items-center gap-2">
+                {/* Action buttons always at the end */}
+                <DialogFooter className="pt-4 bg-background border-t flex justify-center items-center gap-2">
                   <Button type="button" variant="outline" onClick={() => setReviewDialogOpen(false)}>
                     Cancel
                   </Button>
@@ -1281,6 +1283,7 @@ export default function ReviewsPage() {
                   <DialogDescription>Update your travel experience</DialogDescription>
                 </DialogHeader>
 
+                {/* Scrollable form fields */}
                 <div className="space-y-4 py-4 overflow-y-auto flex-grow">
                   <div className="space-y-2">
                     <Label htmlFor="edit-destination">Destination *</Label>
@@ -1304,8 +1307,7 @@ export default function ReviewsPage() {
                           className="focus:outline-none"
                         >
                           <Star
-                            className={`h-6 w-6 ${star <= editRating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
-                              }`}
+                            className={`h-6 w-6 ${star <= editRating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
                           />
                         </button>
                       ))}
@@ -1369,7 +1371,8 @@ export default function ReviewsPage() {
                   </div>
                 </div>
 
-                <DialogFooter className="sticky bottom-0 pt-2 bg-background border-t mt-auto flex justify-center items-center gap-2">
+                {/* Action buttons always at the end */}
+                <DialogFooter className="pt-4 bg-background border-t flex justify-center items-center gap-2">
                   <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
                     Cancel
                   </Button>
