@@ -30,12 +30,23 @@ export default function HomePage() {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const baseUrl = "https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_"
 
-  const { data: reviews, isLoading, isError } = useReviews(1)
-  const { data: events, isLoading: isLoadingEvents } = useEvents(1);
-  const upcomingEvents = events?.filter((event: any) => {
-    const now = new Date();
-    return new Date(event.start_date) > now;
+  const { data: reviewsData, isLoading, isError } = useReviews({
+    page: 1,
+    perPage: 4, // Show 4 featured reviews
+    enabled: true
   });
+  const reviews = reviewsData?.items || [];
+  
+  const { data: eventsData, isLoading: isLoadingEvents } = useEvents({
+    page: 1,
+    perPage: 10, // Show up to 10 upcoming events
+    enabled: true,
+    sort: "start_date", // Sort by start date
+    filter: `start_date > "${new Date().toISOString().split('T')[0]}"` // Only future events
+  });
+  
+  // Get the first 3 upcoming events
+  const upcomingEvents = eventsData?.items.slice(0, 3) || [];
 
   const checkScrollPosition = () => {
     if (!scrollContainerRef.current) return;
@@ -102,8 +113,8 @@ export default function HomePage() {
   const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 6) : [];
 
   return (
-    <>
-      {/* Hero Section with Rainforest Sunset Background */}
+    <div className="homepage-bg">
+      {/* Hero Section */}
       <section className="homepage-section-1 relative py-24 md:py-32">
         <div className="container relative z-10">
           <div className="max-w-3xl">
@@ -207,7 +218,7 @@ export default function HomePage() {
                   </Button>
                 </div>
               ) : (
-                reviews?.map((review) => (
+                reviews.map((review: any, index: number) => (
                   <motion.div
                     key={review.id}
                     initial="hidden"
@@ -216,7 +227,7 @@ export default function HomePage() {
                     className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
                   >
                     <Card className="bg-transparent hover:bg-gradient-to-br hover:from-green-900/90 hover:via-green-800/90 hover:to-green-700/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg max-w-[350px] min-w-[320px] w-full mx-auto transition-colors duration-300">
-                      {review.photos && review.photos.length > 0 && (
+                      {reviews.length > 0 && (
                         <div className="relative">
                           <ImageCollage
                             images={
@@ -496,7 +507,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-    </>
+    </div>
   );
 }

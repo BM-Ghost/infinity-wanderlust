@@ -89,13 +89,18 @@ export default function ReviewsPage() {
 
   const [error, setError] = useState<string | null>(null)
 
-  const { data: reviews, isLoading, isError } = useReviews(1)
+  const { data: reviewsData = { items: [], totalItems: 0, totalPages: 0 }, isLoading, isError } = useReviews({
+    page: 1,
+    perPage: 10,
+    enabled: true
+  })
+  const reviews = reviewsData.items || []
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const perPage = 5
+  const [totalPages, setTotalPages] = useState(reviewsData.totalPages || 1)
+  const [totalItems, setTotalItems] = useState(reviewsData.totalItems || 0)
+  const perPage = 10
 
   // Filtering and sorting state
   const [activeTab, setActiveTab] = useState("all")

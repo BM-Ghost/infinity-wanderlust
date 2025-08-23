@@ -5,8 +5,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -236,8 +234,6 @@ export default function RegisterPage() {
 
   return (
     <div className="alps-bg min-h-screen">
-      <Navbar />
-
       <div className="container py-16 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           <Card className="overflow-hidden shadow-lg">
@@ -447,8 +443,6 @@ export default function RegisterPage() {
           </Card>
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }

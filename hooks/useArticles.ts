@@ -1,58 +1,49 @@
 import { useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
-import { fetchTravelEvents, TravelEvent, FetchTravelEventsOptions } from "@/lib/travel-events";
+import { fetchReviews, ReviewWithAuthor } from "@/lib/reviews";
 import { ClientResponseError } from "pocketbase";
 
-export interface EventsData {
-  items: TravelEvent[];
+const ADMIN_EMAIL = 'basilmeshack13@gmail.com';
+
+export interface ArticlesData {
+  items: ReviewWithAuthor[];
   totalItems: number;
   totalPages: number;
   error?: string; // Optional error message from the API
 }
 
-interface UseEventsOptions extends Omit<FetchTravelEventsOptions, 'expand'> {
-  eventId?: string;
+interface UseArticlesOptions {
+  page: number;
+  perPage?: number;
   enabled?: boolean;
-  initialData?: EventsData;
+  initialData?: ArticlesData;
 }
 
-export const useEvents = ({
+export const useArticles = ({
   page = 1,
-  perPage = 10,
-  sort = "-created",
-  filter = "",
-  eventId,
+  perPage = 9,
   enabled = true,
   initialData,
-}: UseEventsOptions = {}) => {
+}: UseArticlesOptions) => {
   const queryClient = useQueryClient();
+  const filter = `reviewer.email = '${ADMIN_EMAIL}'`;
+  const sort = "-created";
   
-  const queryOptions: UseQueryOptions<EventsData, Error> = {
-    queryKey: ["all-events", page, perPage, sort, filter, eventId],
+  const queryOptions: UseQueryOptions<ArticlesData, Error> = {
+    queryKey: ["articles", page, perPage, sort, filter],
     queryFn: async () => {
       try {
-        const result = await fetchTravelEvents({ 
-          page,
-          perPage,
-          sort,
-          filter,
-          expand: "creator,collaborators"
-        });
-        
-        // If eventId is provided, filter to just that event
-        if (eventId) {
-          return {
-            ...result,
-            items: result.items.filter((event) => event.id === eventId),
-            totalItems: result.items.some(event => event.id === eventId) ? 1 : 0,
-            totalPages: result.items.some(event => event.id === eventId) ? 1 : 0
-          };
-        }
-        
-        return result;
+        const result = await fetchReviews(page, perPage, sort, filter);
+        return {
+          items: result.items as ReviewWithAuthor[],
+          totalItems: result.totalItems,
+          totalPages: result.totalPages,
+          // Include error from fetchReviews if any
+          ...(result.error && { error: result.error })
+        };
       } catch (error) {
         if (error instanceof ClientResponseError && !navigator.onLine) {
           // Return cached data if offline
-          const cachedData = queryClient.getQueryData<EventsData>(["all-events", page, perPage, sort, filter, eventId]);
+          const cachedData = queryClient.getQueryData<ArticlesData>(["articles", page, perPage, sort, filter]);
           
           if (cachedData) {
             return cachedData;
@@ -63,7 +54,8 @@ export const useEvents = ({
             return initialData;
           }
         }
-        // Return empty result on error to prevent UI crashes, but include the error if available
+        
+        // Return empty result with error to prevent UI crashes
         if (error instanceof Error) {
           return { 
             items: [], 
@@ -72,7 +64,14 @@ export const useEvents = ({
             error: error.message
           };
         }
-        return { items: [], totalItems: 0, totalPages: 0 };
+        
+        // Fallback for non-Error throwables
+        return { 
+          items: [], 
+          totalItems: 0, 
+          totalPages: 0,
+          error: 'An unknown error occurred'
+        };
       }
     },
     enabled: enabled && !!page,
@@ -92,5 +91,10 @@ export const useEvents = ({
     refetchOnMount: true,
   };
 
-  return useQuery<EventsData, Error>(queryOptions);
+  // Add initialData to options if provided
+  if (initialData) {
+    queryOptions.initialData = initialData;
+  }
+
+  return useQuery<ArticlesData, Error>(queryOptions);
 };

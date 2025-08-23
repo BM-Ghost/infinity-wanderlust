@@ -95,6 +95,7 @@ export function Navbar() {
     { href: "/about", label: t("about") },
     { href: "/gallery", label: t("gallery") },
     { href: "/events", label: t("events") },
+    { href: "/articles", label: t("articles") },
     { href: "/reviews", label: t("reviews") },
     { href: "/contact", label: t("contact") },
   ]

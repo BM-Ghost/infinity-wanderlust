@@ -31,20 +31,33 @@ export type ReviewWithAuthor = Review & {
 }
 
 // Update the fetchReviews function to handle auto-cancellation properly and properly expand relations
+export interface FetchReviewsResult {
+  items: ReviewWithAuthor[];
+  totalItems: number;
+  totalPages: number;
+  error?: string; // Optional error message
+}
+
 export async function fetchReviews(
   page = 1,
   perPage = 10,
   sort = "-created",
   filter = "",
-): Promise<{ items: ReviewWithAuthor[]; totalItems: number; totalPages: number }> {
+): Promise<FetchReviewsResult> {
   const pb = getPocketBase()
   if (!pb) throw new Error("Failed to connect to PocketBase")
 
   try {
     // Add proper error handling for authentication
     if (filter.includes("reviewer =") && !pb?.authStore?.isValid) {
-      console.log("User not authenticated but trying to fetch their reviews")
-      return { items: [], totalItems: 0, totalPages: 0 }
+      const errorMsg = "Authentication required to fetch user reviews";
+      console.log(errorMsg);
+      return { 
+        items: [], 
+        totalItems: 0, 
+        totalPages: 0, 
+        error: errorMsg 
+      };
     }
 
     // Create a custom options object with a unique AbortController signal
@@ -76,14 +89,25 @@ export async function fetchReviews(
       totalPages: resultList.totalPages,
     }
   } catch (error: any) {
-    // Check if this is an auto-cancellation error
+    // Handle different types of errors
+    let errorMessage = 'An unexpected error occurred while fetching reviews';
+    
     if (error.name === "AbortError" || error.message?.includes("autocancelled")) {
-      console.log("Request was cancelled, likely due to component unmounting or new request starting")
-      return { items: [], totalItems: 0, totalPages: 0 }
+      console.log("Request was cancelled, likely due to component unmounting or new request starting");
+      errorMessage = 'Request was cancelled';
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error("Error fetching reviews:", error);
+    } else {
+      console.error("Unexpected error fetching reviews:", error);
     }
-
-    console.error("Error fetching reviews:", error)
-    return { items: [], totalItems: 0, totalPages: 0 }
+    
+    return { 
+      items: [], 
+      totalItems: 0, 
+      totalPages: 0, 
+      error: errorMessage 
+    }
   }
 }
 

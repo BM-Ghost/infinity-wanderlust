@@ -34,8 +34,13 @@ export default function EventsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
 
-  const { data: events = [], isLoading } = useEvents(1)
+  const { data: eventsData = { items: [], totalItems: 0, totalPages: 0 }, isLoading } = useEvents({
+    page: 1,
+    perPage: 10,
+    enabled: true
+  })
   const now = new Date()
+  const events = eventsData.items || []
 
   const filteredEvents = events.filter((event) => {
     const start = new Date(event.start_date)
