@@ -31,7 +31,7 @@ export const translations = {
     // Navigation
     home: "Home",
     about: "About",
-    articles: "Articles",
+    articles: "Blogs",
     gallery: "Gallery",
     events: "Events",
     reviews: "Reviews",
@@ -136,7 +136,7 @@ export const translations = {
     // Navigation
     home: "Inicio",
     about: "Acerca de",
-    artículos: "Artículos",
+    artículos: "Blogs",
     gallery: "Galería",
     events: "Eventos",
     reviews: "Reseñas",
@@ -243,7 +243,7 @@ export const translations = {
     // Navigation
     home: "Accueil",
     about: "À propos",
-    articles: "Articles",
+    articles: "Blogues",
     gallery: "Galerie",
     events: "Événements",
     reviews: "Avis",
@@ -348,7 +348,7 @@ export const translations = {
     // Navigation
     home: "Startseite",
     about: "Über uns",
-    artikel: "Artikel",  
+    artikel: "Blogs",  
     gallery: "Galerie",
     events: "Veranstaltungen",
     reviews: "Bewertungen",
@@ -451,7 +451,7 @@ export const translations = {
     // Navigation
     home: "首页",
     about: "关于我们",
-    wenzhang: "文章", 
+    wenzhang: "博客", 
     gallery: "画廊",
     events: "活动",
     reviews: "评论",
