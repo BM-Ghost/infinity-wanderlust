@@ -20,7 +20,7 @@ export default function ArticlesPage() {
   const router = useRouter()
   const { user } = useAuth()
   const isAuthenticated = !!user
-  const isAdmin = user?.email === 'basilmeshack13@gmail.com'
+  const isAdmin = user?.email === 'infinitywanderlusttravels@gmail.com'
   const { toast } = useToast()
   
   const [currentPage, setCurrentPage] = useState(1)

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query
 import { fetchReviews, ReviewWithAuthor } from "@/lib/reviews";
 import { ClientResponseError } from "pocketbase";
 
-const ADMIN_EMAIL = 'basilmeshack13@gmail.com';
+const ADMIN_EMAIL = 'infinitywanderlusttravels@gmail.com';
 
 export interface ArticlesData {
   items: ReviewWithAuthor[];
