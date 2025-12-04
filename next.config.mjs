@@ -1,4 +1,4 @@
-import { createPages } from '@cloudflare/next-on-pages/adapter';
+import { createPages } from '@cloudflare/next-on-pages';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,9 +9,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true, // required for Cloudflare Pages
+    unoptimized: true,
   },
-  output: 'standalone', // required
+  output: 'standalone',
 };
 
 export default createPages(nextConfig);
