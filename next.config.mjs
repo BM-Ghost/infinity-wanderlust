@@ -1,3 +1,5 @@
+import { createPages } from '@cloudflare/next-on-pages/adapter';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -7,8 +9,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
+    unoptimized: true, // required for Cloudflare Pages
   },
-}
+  output: 'standalone', // required
+};
 
-export default nextConfig
+export default createPages(nextConfig);
