@@ -1,8 +1,5 @@
 {
   "name": "infinity-wanderlust",
   "compatibility_date": "2025-12-04",
-  "pages_build_output_dir": ".vercel/output/static",
-  "build": {
-    "command": "npx @cloudflare/next-on-pages build"
-  }
+  "pages_build_output_dir": ".vercel/output/static"
 }
