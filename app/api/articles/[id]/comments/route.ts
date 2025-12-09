@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPocketBase } from '@/lib/pocketbase'
 import { useAuth } from '@/lib/auth'
-
 export const runtime = "edge";
 
 export async function POST(
