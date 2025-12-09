@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getPocketBase } from '@/lib/pocketbase'
-import { auth } from '@/lib/auth'
+import { useAuth } from '@/lib/auth'
+export const runtime = "edge";
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
+    const session = await useAuth()
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
