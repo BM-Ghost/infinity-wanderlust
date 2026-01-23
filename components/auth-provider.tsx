@@ -115,21 +115,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const authData = await pb.collection("users").authWithPassword(email, password)
 
-      // Save auth data to localStorage
-      localStorage.setItem(
-        "pocketbase_auth",
-        JSON.stringify({
-          token: pb.authStore.token,
-          model: pb.authStore.model,
-        }),
-      )
-
       // Check if the user is verified (if your PocketBase has verification enabled)
       if (authData.record && !authData.record.verified) {
         pb.authStore.clear()
         return { success: false, needsVerification: true }
       }
 
+      // Auth data is automatically synced to localStorage via pb.authStore.onChange
       return { success: true }
     } catch (error: any) {
       console.error("Authentication error:", error)
@@ -242,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = () => {
     const pb = getPocketBase()
     pb?.authStore.clear()
+    localStorage.removeItem("pocketbase_auth")
   }
 
   // Request password reset
@@ -299,14 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           updated: updatedUser.updated,
         })
 
-        // Also update localStorage
-        localStorage.setItem(
-          "pocketbase_auth",
-          JSON.stringify({
-            token: pb.authStore.token,
-            model: updatedUser,
-          }),
-        )
+        // localStorage is automatically synced via pb.authStore.onChange
       } catch (error) {
         console.error("Error refreshing user data:", error)
       }

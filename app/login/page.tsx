@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,8 +16,22 @@ import { getPocketBase } from "@/lib/pocketbase"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useTranslation()
   const { toast } = useToast()
+
+  // Avoid hydration mismatches by delaying render until client mounts
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  // Show secure-account toast when arriving with flag
+  useEffect(() => {
+    if (!mounted) return
+    const secure = searchParams.get("secure")
+    if (secure === "1") {
+      toast({ title: "Your account is secure", description: "You can sign in with your new password." })
+    }
+  }, [mounted, searchParams])
 
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")
@@ -42,14 +56,7 @@ export default function LoginPage() {
       // Authenticate directly with PocketBase
       await pb.collection("users").authWithPassword(email, password)
 
-      // Save auth data to localStorage
-      localStorage.setItem(
-        "pocketbase_auth",
-        JSON.stringify({
-          token: pb.authStore.token,
-          model: pb.authStore.model,
-        }),
-      )
+      // Auth data is automatically synced to localStorage via pb.authStore.onChange
 
       console.log("Authentication successful")
 
@@ -75,6 +82,10 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (

@@ -1,19 +1,20 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useTranslation } from "@/lib/translations"
-import { getPocketBase } from "@/lib/pocketbase"
+import { requestPasswordReset } from "@/actions/password-reset"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useTranslation()
   const { toast } = useToast()
 
@@ -22,24 +23,37 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // Prefill email and show security banner when coming from secure link
+  const alert = searchParams.get("alert")
+  const emailParam = searchParams.get("email")
+  const showSecureBanner = alert === "secure-account"
+  
+  React.useEffect(() => {
+    if (emailParam) setEmail(emailParam)
+  }, [emailParam])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
 
     try {
-      const pb = getPocketBase()
-      if (!pb) {
-        throw new Error("Password reset service unavailable")
+      const result = await requestPasswordReset(email)
+
+      if (result.success) {
+        setSuccess(true)
+        toast({
+          title: "Password reset code sent",
+          description: "Please check your email for the verification code.",
+        })
+      } else {
+        setError(result.message)
+        toast({
+          variant: "destructive",
+          title: "Reset failed",
+          description: result.message,
+        })
       }
-
-      await pb.collection("users").requestPasswordReset(email)
-
-      setSuccess(true)
-      toast({
-        title: "Password reset email sent",
-        description: "Please check your inbox for the reset link.",
-      })
     } catch (err: any) {
       console.error("Forgot password error:", err)
       setError(err.message || "Unable to send reset email. Please try again.")
@@ -63,10 +77,32 @@ export default function ForgotPasswordPage() {
               <CardDescription>{t("forgotPasswordSubtitle")}</CardDescription>
             </CardHeader>
             <CardContent>
+              {showSecureBanner && (
+                <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
+                  <strong>Security Notice:</strong> We detected a password change. To secure your account, enter your email to receive a verification code, then set a new password on the next screen. After reset, you'll be asked whether to sign out other sessions and you can log in again.
+                </div>
+              )}
               {success ? (
-                <p className="text-green-600 text-sm">
-                  {t("resetEmailSent") || "If that email is registered, you’ll receive a reset link shortly."}
-                </p>
+                <div className="space-y-4">
+                  <div className="text-green-600 text-sm text-center">
+                    Password reset code sent! Check your email for a 6-digit verification code.
+                  </div>
+                  <div className="text-sm text-muted-foreground text-center">
+                    Didn't receive the email? Check your spam folder or{" "}
+                    <button
+                      onClick={() => setSuccess(false)}
+                      className="text-primary hover:underline"
+                    >
+                      try again
+                    </button>
+                  </div>
+                  <Button
+                    onClick={() => router.push(`/reset-password?email=${encodeURIComponent(email)}`)}
+                    className="w-full"
+                  >
+                    Enter Reset Code
+                  </Button>
+                </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
@@ -82,7 +118,7 @@ export default function ForgotPasswordPage() {
                   </div>
                   {error && <div className="text-red-600 text-sm">{error}</div>}
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? t("loading") : t("resetPassword")}
+                    {isLoading ? t("loading") : "Send Reset Code"}
                   </Button>
                 </form>
               )}

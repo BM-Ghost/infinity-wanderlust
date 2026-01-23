@@ -23,6 +23,7 @@ import {
   Bell,
   Eye,
   EyeOff,
+  Loader2,
   Instagram,
   Facebook,
   Twitter,
@@ -51,8 +52,10 @@ export default function SettingsPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
   const [authNumber, setAuthNumber] = useState(0)
   const [shortBio, setShortBio] = useState("")
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false)
 
   // Password change fields
   const [currentPassword, setCurrentPassword] = useState("")
@@ -66,6 +69,8 @@ export default function SettingsPage() {
   const [commentNotif, setCommentNotif] = useState(true)
   const [likeNotif, setLikeNotif] = useState(true)
   const [eventNotif, setEventNotif] = useState(true)
+
+  // no-op: removed popup prompts; success is shown inline
 
   // Function to detect social media links and return appropriate icon
   const getSocialIcon = (url: string) => {
@@ -257,7 +262,7 @@ export default function SettingsPage() {
       return
     }
 
-    setIsSubmitting(true)
+    setIsPasswordSubmitting(true)
 
     try {
       const pb = getPocketBase()
@@ -266,12 +271,28 @@ export default function SettingsPage() {
       }
 
       const userId = pb.authStore.model.id
+      const userEmail = pb.authStore.model.email
+      const userName = pb.authStore.model.name || pb.authStore.model.username || pb.authStore.model.email
 
       await pb.collection("users").update(userId, {
         password: newPassword,
         passwordConfirm: confirmPassword,
         oldPassword: currentPassword,
       })
+
+      // Optional: bump auth_number to signal other sessions to refresh (lightweight invalidation flag)
+      try {
+        await pb.collection("users").update(userId, { auth_number: Date.now() })
+      } catch (bumpError) {
+        console.warn("auth_number bump failed (non-blocking)", bumpError)
+      }
+
+      // Fire-and-forget email notification
+      fetch("/api/email/password-changed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: userEmail, userName, logoutAll: true }),
+      }).catch((err) => console.warn("password-changed email send failed", err))
 
       toast({
         title: "Password updated",
@@ -283,8 +304,8 @@ export default function SettingsPage() {
       setNewPassword("")
       setConfirmPassword("")
 
-      // Navigate back to profile page
-      router.push("/profile")
+      // Show inline success options (stay signed in or sign out sessions)
+      setPasswordChangeSuccess(true)
     } catch (error: any) {
       console.error("Error changing password:", error)
       toast({
@@ -293,7 +314,7 @@ export default function SettingsPage() {
         description: error.message || "Please check your current password and try again.",
       })
     } finally {
-      setIsSubmitting(false)
+      setIsPasswordSubmitting(false)
     }
   }
 
@@ -301,6 +322,35 @@ export default function SettingsPage() {
     if (signOut) {
       signOut()
       router.push("/login")
+    }
+  }
+
+  const handleLogoutDecisions = async ({ logoutHere, logoutEverywhere }: { logoutHere: boolean; logoutEverywhere: boolean }) => {
+    const pb = getPocketBase()
+
+    if (logoutEverywhere) {
+      // Call server to bump auth_number for cross-session signout
+      try {
+        const userId = pb?.authStore.model?.id
+        if (userId) {
+          await fetch("/api/security/logout-all", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId }),
+          })
+        }
+      } catch (e) {
+        console.warn("logout-all request failed", e)
+      }
+      // Clear local token
+      pb?.authStore.clear()
+      localStorage.removeItem("pocketbase_auth")
+    }
+
+    if (logoutHere) {
+      router.push("/login?secure=1")
+    } else {
+      toast({ title: "You stay signed in", description: "Password updated. You can continue browsing." })
     }
   }
 
@@ -495,14 +545,15 @@ export default function SettingsPage() {
                 </TabsContent>
 
                 <TabsContent value="password">
-                  <Card>
-                    <form onSubmit={handlePasswordChange}>
-                      <CardHeader>
-                        <CardTitle>Change Password</CardTitle>
-                        <CardDescription>Update your password to keep your account secure</CardDescription>
-                      </CardHeader>
+                  {!passwordChangeSuccess && (
+                    <Card>
+                      <form onSubmit={handlePasswordChange}>
+                        <CardHeader>
+                          <CardTitle>Change Password</CardTitle>
+                          <CardDescription>Update your password to keep your account secure</CardDescription>
+                        </CardHeader>
 
-                      <CardContent className="space-y-4">
+                        <CardContent className="space-y-4">
                         <div className="grid gap-2">
                           <Label htmlFor="currentPassword">Current Password</Label>
                           <div className="relative">
@@ -511,12 +562,14 @@ export default function SettingsPage() {
                               type={showPassword ? "text" : "password"}
                               value={currentPassword}
                               onChange={(e) => setCurrentPassword(e.target.value)}
+                              disabled={isPasswordSubmitting}
                               required
                             />
                             <button
                               type="button"
                               className="absolute right-3 top-1/2 transform -translate-y-1/2"
                               onClick={() => setShowPassword(!showPassword)}
+                              disabled={isPasswordSubmitting}
                             >
                               {showPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -534,6 +587,7 @@ export default function SettingsPage() {
                             type={showPassword ? "text" : "password"}
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
+                            disabled={isPasswordSubmitting}
                             required
                             minLength={8}
                           />
@@ -547,6 +601,7 @@ export default function SettingsPage() {
                             type={showPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
+                            disabled={isPasswordSubmitting}
                             required
                           />
                         </div>
@@ -556,12 +611,56 @@ export default function SettingsPage() {
                         <Button type="button" variant="outline" onClick={() => router.push("/profile")}>
                           Cancel
                         </Button>
-                        <Button type="submit" disabled={isSubmitting}>
-                          {isSubmitting ? "Updating..." : "Update Password"}
+                        <Button type="submit" disabled={isPasswordSubmitting}>
+                          {isPasswordSubmitting ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Updating...
+                            </span>
+                          ) : (
+                            "Update Password"
+                          )}
                         </Button>
                       </CardFooter>
                     </form>
                   </Card>
+                  )}
+
+                  {passwordChangeSuccess && (
+                    <Card className="mt-4 border-green-200 bg-green-50 dark:border-green-900/60 dark:bg-green-950/30">
+                      <CardHeader>
+                        <CardTitle className="text-green-800 dark:text-green-100">Password updated</CardTitle>
+                        <CardDescription className="text-green-700 dark:text-green-200">
+                          We emailed you a security confirmation. Choose how you want to stay signed in.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <p className="text-sm text-green-800/90 dark:text-green-100/90">
+                          For safety, you can sign out here or everywhere. You can also stay signed in on this device.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <Button
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => handleLogoutDecisions({ logoutHere: true, logoutEverywhere: false })}
+                          >
+                            Sign out here
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleLogoutDecisions({ logoutHere: true, logoutEverywhere: true })}
+                          >
+                            Sign out everywhere
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleLogoutDecisions({ logoutHere: false, logoutEverywhere: false })}
+                          >
+                            Stay signed in
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <Card className="mt-6">
                     <CardHeader>

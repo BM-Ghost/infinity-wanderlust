@@ -49,8 +49,10 @@ export default function ProfilePage() {
   // Fetch all users, uploads, reviews, events, bookings
   const { data: users = [], isLoading: isUsersLoading } = useUsers(1)
   const { data: uploads = [], isLoading: isUploadsLoading } = useUploads(1)
-  const { data: reviews = [], isLoading: isReviewsLoading } = useReviews(1)
-  const { data: events = [], isLoading: isEventsLoading } = useEvents(1)
+  const { data: reviewsData, isLoading: isReviewsLoading } = useReviews({ page: 1, perPage: 20 })
+  const reviews = reviewsData?.items ?? []
+  const { data: eventsData, isLoading: isEventsLoading } = useEvents({ page: 1, perPage: 20 })
+  const events = eventsData?.items ?? []
   const { data: bookings = [], isLoading: isBookingsLoading } = useBookings(user?.id || "")
 
   // Find the current user from users list

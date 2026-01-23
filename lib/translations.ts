@@ -103,8 +103,11 @@ export const translations = {
     loginSubtitle: "Sign in to your account to continue your journey",
     registerTitle: "Join Our Community",
     registerSubtitle: "Create an account to share your travel experiences",
+    forgotPasswordTitle: "Forgot your password?",
+    forgotPasswordSubtitle: "Enter your email to get a 6-digit code or reset link.",
     forgotPassword: "Forgot Password?",
     resetPassword: "Reset Password",
+    resetPasswordTitle: "Create a new password",
     resetPasswordSubtitle:
       "Enter your email to receive password reset instructions",
     dontHaveAccount: "Don't have an account?",
@@ -210,8 +213,12 @@ export const translations = {
     registerTitle: "Únete a Nuestra Comunidad",
     registerSubtitle:
       "Crea una cuenta para compartir tus experiencias de viaje",
+    forgotPasswordTitle: "¿Olvidaste tu contraseña?",
+    forgotPasswordSubtitle:
+      "Ingresa tu correo para recibir un código de 6 dígitos o un enlace de restablecimiento.",
     forgotPassword: "¿Olvidaste tu Contraseña?",
     resetPassword: "Restablecer Contraseña",
+    resetPasswordTitle: "Crea una nueva contraseña",
     resetPasswordSubtitle:
       "Ingresa tu correo para recibir instrucciones de restablecimiento",
     dontHaveAccount: "¿No tienes una cuenta?",
@@ -315,8 +322,12 @@ export const translations = {
     loginSubtitle: "Connectez-vous pour continuer votre voyage",
     registerTitle: "Rejoignez notre communauté",
     registerSubtitle: "Créez un compte pour partager vos aventures",
+    forgotPasswordTitle: "Mot de passe oublié ?",
+    forgotPasswordSubtitle:
+      "Saisissez votre e-mail pour recevoir un code à 6 chiffres ou un lien de réinitialisation.",
     forgotPassword: "Mot de passe oublié ?",
     resetPassword: "Réinitialiser le mot de passe",
+    resetPasswordTitle: "Créer un nouveau mot de passe",
     resetPasswordSubtitle: "Entrez votre e-mail pour recevoir les instructions",
     dontHaveAccount: "Pas encore de compte ?",
     alreadyHaveAccount: "Vous avez déjà un compte ?",
@@ -417,8 +428,12 @@ export const translations = {
     loginSubtitle: "Melde dich an, um deine Reise fortzusetzen",
     registerTitle: "Werde Teil unserer Community",
     registerSubtitle: "Erstelle ein Konto und teile deine Reiseerlebnisse",
+    forgotPasswordTitle: "Passwort vergessen?",
+    forgotPasswordSubtitle:
+      "Gib deine E-Mail ein, um einen 6-stelligen Code oder einen Reset-Link zu erhalten.",
     forgotPassword: "Passwort vergessen?",
     resetPassword: "Passwort zurücksetzen",
+    resetPasswordTitle: "Neues Passwort erstellen",
     resetPasswordSubtitle:
       "Gib deine E-Mail-Adresse ein, um Anweisungen zu erhalten",
     dontHaveAccount: "Noch kein Konto?",
@@ -520,8 +535,11 @@ export const translations = {
     loginSubtitle: "登录以继续您的旅程",
     registerTitle: "加入我们的社区",
     registerSubtitle: "创建账户分享您的旅行故事",
+    forgotPasswordTitle: "忘记密码？",
+    forgotPasswordSubtitle: "输入邮箱以获取6位验证码或重置链接。",
     forgotPassword: "忘记密码？",
     resetPassword: "重设密码",
+    resetPasswordTitle: "创建新密码",
     resetPasswordSubtitle: "请输入您的电子邮件以接收重设密码说明",
     dontHaveAccount: "还没有账户？",
     alreadyHaveAccount: "已经有账户？",

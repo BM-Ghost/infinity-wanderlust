@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "infinity-wanderlust",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -41,6 +41,7 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@tanstack/react-query": "^5.80.2",
     "@tanstack/react-query-devtools": "^5.76.1",
+    "@types/nodemailer": "^7.0.5",
     "autoprefixer": "^10.4.20",
     "axios": "^1.9.0",
     "class-variance-authority": "^0.7.1",
@@ -55,6 +56,7 @@
     "mapbox-gl": "^3.12.0",
     "next": "15.2.4",
     "next-themes": "latest",
+    "nodemailer": "^7.0.12",
     "pocketbase": "latest",
     "react": "^19",
     "react-day-picker": "8.10.1",
