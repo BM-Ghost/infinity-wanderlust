@@ -1,80 +1,84 @@
-"use client";
+"use client"
 
-import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState, useRef } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   MapPin,
   Calendar,
   Star,
   ArrowRight,
   ChevronRight,
-  ChevronLeft,
-} from "lucide-react";
-import { useTranslation } from "@/lib/translations";
-import { ImageCollage } from "@/components/image-collage";
-import { Skeleton } from "@/components/ui/skeleton";
-import { motion } from "framer-motion";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useReviews } from "@/hooks/useReviews";
-import { useEvents } from "@/hooks/useEvents";
+  Instagram,
+  Camera,
+  Heart,
+  Globe,
+  Play,
+  Sparkles,
+} from "lucide-react"
+import { useTranslation } from "@/lib/translations"
+import { ImageCollage } from "@/components/image-collage"
+import { Skeleton } from "@/components/ui/skeleton"
+import { motion } from "framer-motion"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useReviews } from "@/hooks/useReviews"
+import { useEvents } from "@/hooks/useEvents"
+import { useArticles } from "@/hooks/useArticles"
+import { InstagramFeed } from "@/components/instagram-feed"
 
 export default function HomePage() {
-  const { t } = useTranslation();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
-  const baseUrl = "https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_"
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
 
-  const { data: reviewsData, isLoading, isError } = useReviews({
+  const { data: reviewsData, isLoading } = useReviews({
     page: 1,
-    perPage: 4, // Show 4 featured reviews
-    enabled: true
-  });
-  const reviews = reviewsData?.items || [];
-  
+    perPage: 4,
+    enabled: true,
+  })
+  const reviews = reviewsData?.items || []
+
   const { data: eventsData, isLoading: isLoadingEvents } = useEvents({
     page: 1,
-    perPage: 10, // Show up to 10 upcoming events
+    perPage: 10,
     enabled: true,
-    sort: "start_date", // Sort by start date
-    filter: `start_date > "${new Date().toISOString().split('T')[0]}"` // Only future events
-  });
-  
-  // Get the first 3 upcoming events
-  const upcomingEvents = eventsData?.items.slice(0, 3) || [];
+    sort: "start_date",
+    filter: `start_date > "${new Date().toISOString().split("T")[0]}"`,
+  })
+
+  const upcomingEvents = eventsData?.items.slice(0, 3) || []
+
+  const { data: articlesData, isLoading: isLoadingArticles } = useArticles({
+    page: 1,
+    perPage: 1,
+    enabled: true,
+  })
+  const latestArticle = articlesData?.items?.[0] || null
 
   const checkScrollPosition = () => {
-    if (!scrollContainerRef.current) return;
-
-    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-    setCanScrollLeft(scrollLeft > 0);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
-  };
-
+    if (!scrollContainerRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current
+    setCanScrollLeft(scrollLeft > 0)
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
+  }
   useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
+    const scrollContainer = scrollContainerRef.current
     if (scrollContainer) {
-      scrollContainer.addEventListener("scroll", checkScrollPosition);
-      checkScrollPosition();
-
+      scrollContainer.addEventListener("scroll", checkScrollPosition)
+      checkScrollPosition()
       return () => {
-        scrollContainer.removeEventListener("scroll", checkScrollPosition);
-      };
+        scrollContainer.removeEventListener("scroll", checkScrollPosition)
+      }
     }
-  }, [reviews]);
-
-  const scrollLeft = () => {
-    scrollContainerRef.current?.scrollBy({ left: -300, behavior: "smooth" });
-  };
+  }, [reviews])
 
   const scrollRight = () => {
-    scrollContainerRef.current?.scrollBy({ left: 300, behavior: "smooth" });
-  };
+    scrollContainerRef.current?.scrollBy({ left: 300, behavior: "smooth" })
+  }
 
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -87,7 +91,7 @@ export default function HomePage() {
         ease: "easeOut",
       },
     }),
-  };
+  }
 
   const getEventImageUrl = (event: any): string => {
     if (event.imageUrl) return event.imageUrl
@@ -98,415 +102,727 @@ export default function HomePage() {
   }
 
   const getReviewImageUrl = (review: any, photoIndex: number): string => {
-    console.log("review:", review);
     if (review.photos && review.photos.length > 0) {
-      const imageUrl = `https://remain-faceghost.pockethost.io/api/files/${review.collectionId}/${review.id}/${review.photos[photoIndex]}`;
-      console.log("getReviewImageUrl:", imageUrl);
-      return imageUrl;
+      return `https://remain-faceghost.pockethost.io/api/files/${review.collectionId}/${review.id}/${review.photos[photoIndex]}`
     }
-    return "/placeholder.svg";
-  };
+    return "/placeholder.svg"
+  }
 
-  console.log("Featured Destinations:", reviews);
-
-  // Get the latest 6 reviews (or fewer if not enough)
-  const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 6) : [];
+  const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 3) : []
 
   return (
-    <div className="homepage-bg">
+    <div className="homepage-bg relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-emerald-950/60 via-black to-black" />
+      <div className="pointer-events-none absolute -top-32 -right-16 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 -left-20 h-[420px] w-[420px] rounded-full bg-emerald-400/8 blur-3xl" />
       {/* Hero Section */}
-      <section className="homepage-section-1 relative py-24 md:py-32">
-        <div className="container relative z-10">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
-              {t("heroTitle")}
-            </h1>
-            <p className="text-xl text-white/90 mb-8">{t("heroSubtitle")}</p>
-            <div className="flex flex-wrap gap-4">
-              <Button size="lg" asChild>
-                <Link href="/gallery">{t("exploreButton")}</Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="bg-white/10 text-white border-white/30 hover:bg-white/20"
-              >
-                <Link href="/about">{t("learnMoreButton")}</Link>
-              </Button>
-            </div>
-          </div>
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-20">
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/images/samburu_plane.jpg"
+            alt="Travel Adventure"
+            fill
+            className="object-cover object-center"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-transparent" />
         </div>
-      </section>
 
-      {/* Featured Destinations with Sunset Background */}
-      <section className="homepage-section-2 py-16">
-        <div className="container">
-          <div className="flex justify-between items-center mb-10">
-            <h2 className="text-3xl font-bold text-white">
-              {t("featuredDestinations")}
-            </h2>
-            <Button
-              variant="ghost"
-              asChild
-              className="text-white hover:text-white/80"
-            >
-              <Link href="/gallery" className="flex items-center">
-                {t("viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="relative">
-            {/* Scroll left button */}
-            {canScrollLeft && (
-              <Button
-                variant="secondary"
-                size="icon"
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-lg bg-background/80 backdrop-blur-sm"
-                onClick={scrollLeft}
+        <div className="container relative z-10">
+          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-16 items-center">
+            <div className="max-w-3xl">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                className="text-white space-y-8"
               >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-            )}
 
-            {/* Scroll right button */}
-            {canScrollRight && (
-              <Button
-                variant="secondary"
-                size="icon"
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-lg bg-background/80 backdrop-blur-sm"
-                onClick={scrollRight}
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            )}
+                <h1 className="text-6xl md:text-7xl lg:text-8xl font-light leading-tight tracking-tight">
+                  Travel with me.
+                  <br />
+                  Explore beyond the ordinary.
+                </h1>
 
-            {/* Scrollable container */}
-            <div
-              ref={scrollContainerRef}
-              className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory"
-              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-            >
-              {isLoading ? (
-                // Loading skeletons
-                Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={`skeleton-${index}`}
-                    className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
+                <p className="text-xl md:text-2xl text-white/85 font-light leading-relaxed max-w-2xl">
+                  Short reels, long stories, late-night edits, and sunrise runs to the gate. I show up as a traveler first, vlogger second—so you feel the trip, not the script.
+                </p>
+
+                <div className="flex flex-wrap gap-3 pt-4">
+                  <Button
+                    size="lg"
+                    className="bg-white text-black hover:bg-white/90 font-light px-8"
+                    asChild
                   >
-                    <Card className="bg-background/90 backdrop-blur-sm">
-                      <Skeleton className="h-64 w-full" />
-                      <CardContent className="p-6">
-                        <div className="flex items-center gap-2">
-                          <Skeleton className="h-8 w-8 rounded-full" />
-                          <div>
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-3 w-16 mt-1" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                ))
-              ) : reviews?.length === 0 && isError ? (
-                <div className="w-full text-center py-10">
-                  <p className="text-white text-lg">
-                    No featured destinations found. Be the first to share your photos!
-                  </p>
-                  <Button asChild className="mt-4">
-                    <Link href="/reviews/">Share Your Photos</Link>
+                    <Link href="/reviews" className="flex items-center gap-2">
+                      Read stories
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light px-8"
+                    asChild
+                  >
+                    <Link href="/reviews">Write your own</Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light px-8"
+                    asChild
+                  >
+                    <Link href="/contact">Plan a trip</Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    className="text-white hover:bg-white/5 font-light px-8"
+                    asChild
+                  >
+                    <Link href="/about">About her</Link>
                   </Button>
                 </div>
-              ) : (
-                reviews.map((review: any, index: number) => (
+
+                {/* Stats */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="flex flex-wrap gap-10 pt-10"
+                >
+                  <div>
+                    <div className="text-3xl font-light text-white">{reviews.length || 50}+</div>
+                    <div className="text-xs text-white/50 uppercase tracking-widest mt-2">Stories</div>
+                  </div>
+                  <div className="w-px bg-white/10 hidden sm:block" />
+                  <div>
+                    <div className="text-3xl font-light text-white">{upcomingEvents.length || 12}+</div>
+                    <div className="text-xs text-white/50 uppercase tracking-widest mt-2">Adventures</div>
+                  </div>
+                  <div className="w-px bg-white/10 hidden sm:block" />
+                  <div>
+                    <div className="text-3xl font-light text-white">50+</div>
+                    <div className="text-xs text-white/50 uppercase tracking-widest mt-2">Countries</div>
+                  </div>
+                  <div className="w-px bg-white/10 hidden sm:block" />
+                  <div>
+                    <div className="text-3xl font-light text-white">24/7</div>
+                    <div className="text-xs text-white/50 uppercase tracking-widest mt-2">Community</div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 80 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="hidden lg:flex justify-end"
+            >
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      
+
+      {/* Upcoming Events */}
+      {!isLoadingEvents && upcomingEvents?.length > 0 && (
+        <section className="py-30">
+          <div className="container">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-5xl md:text-6xl font-light text-white mb-20 leading-tight">
+                Join an adventure
+              </h2>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {upcomingEvents.map((event, i) => (
+                  <motion.div
+                    key={event.id}
+                    initial="hidden"
+                    whileInView="visible"
+                    variants={cardVariants}
+                    custom={i}
+                  >
+                    <Link href={`/events/${event.id}`}>
+                      <Card className="overflow-hidden bg-white/5 border-white/10 hover:bg-white/8 transition-all duration-300 cursor-pointer h-full">
+                        <div className="relative h-64 overflow-hidden">
+                          <Image
+                            src={getEventImageUrl(event) || "/placeholder.svg"}
+                            alt={event.title}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          <div className="absolute bottom-4 left-4 right-4 text-white">
+                            <h3 className="text-xl font-light">{event.title}</h3>
+                            <p className="text-sm text-white/70 mt-2">{event.destination}</p>
+                          </div>
+                        </div>
+
+                        <CardContent className="p-6 space-y-4">
+                          <div className="flex items-center gap-2 text-sm text-white/60">
+                            <Calendar className="w-4 h-4" />
+                            <span className="font-light">
+                              {new Date(event.start_date).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}{" "}
+                              -{" "}
+                              {new Date(event.end_date).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-white/60 font-light">
+                              {event.spots_left} spots left
+                            </span>
+                            <Button
+                              size="sm"
+                              className="bg-white text-black hover:bg-white/90 font-light h-8"
+                            >
+                              Book
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="text-center mt-16">
+                <Button
+                  variant="outline"
+                  className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light"
+                  asChild
+                >
+                  <Link href="/events" className="flex items-center gap-2">
+                    View all adventures
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* Community & Contact */}
+      <section className="py-28 bg-gradient-to-b from-black/75 via-black/70 to-black/80">
+        <div className="container">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-6xl space-y-12"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+              <div className="space-y-4">
+                <p className="text-sm uppercase tracking-[0.25em] text-white/50">Community first</p>
+                <h2 className="text-5xl md:text-6xl font-light text-white leading-tight">
+                  Travel with me, contribute, and co-create.
+                </h2>
+                <p className="text-lg text-white/60 font-light max-w-2xl leading-relaxed">
+                  Every reel, review, and itinerary is shaped with the community. Share your voice, plan your own adventure, and stay close on socials.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild className="bg-white text-black hover:bg-white/90 font-light">
+                  <Link href="/reviews">Tell your story</Link>
+                </Button>
+                <Button asChild variant="outline" className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light">
+                  <Link href="/contact">Design an itinerary</Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card className="bg-white/5 border-white/10 hover:bg-white/8 transition-colors duration-300 h-full">
+                <CardContent className="p-6 space-y-4 h-full flex flex-col">
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h3 className="text-lg font-light text-white">Follow & engage</h3>
+                    <p className="text-white/60 text-sm font-light leading-relaxed">
+                      Live reels, comment threads, DMs open. Let me know where to fly next.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 font-light h-9 px-4">
+                      <Link href="https://www.instagram.com/infinity_wanderlust/" target="_blank" rel="noreferrer">Instagram</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline" className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light h-9 px-4">
+                      <Link href="https://www.tiktok.com/@infinity_wanderlust" target="_blank" rel="noreferrer">TikTok</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/5 border-white/10 hover:bg-white/8 transition-colors duration-300 h-full">
+                <CardContent className="p-6 space-y-4 h-full flex flex-col">
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h3 className="text-lg font-light text-white">Share your story</h3>
+                    <p className="text-white/60 text-sm font-light leading-relaxed">
+                      Write reviews, drop photos, add tips. Your memories help the next traveler move.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 font-light h-9 px-4 w-fit">
+                    <Link href="/reviews">Start writing</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white/5 border-white/10 hover:bg-white/8 transition-colors duration-300 h-full">
+                <CardContent className="p-6 space-y-4 h-full flex flex-col">
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h3 className="text-lg font-light text-white">Plan together</h3>
+                    <p className="text-white/60 text-sm font-light leading-relaxed">
+                      Need a custom itinerary or want to join a hosted trip? Let's build it side-by-side.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 font-light h-9 px-4">
+                      <Link href="/contact">Contact</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline" className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light h-9 px-4">
+                      <Link href="/events">See trips</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Social Section */}
+      <section className="py-30 bg-white/2">
+        <div className="container">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-12"
+          >
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <h2 className="text-5xl md:text-6xl font-light text-white leading-tight">Follow the journey</h2>
+                <p className="text-lg text-white/60 font-light mt-3 max-w-2xl">
+                  Daily reels, live stories, and behind-the-scenes clips. See it as it happens.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  asChild
+                  className="bg-white text-black hover:bg-white/90 font-light px-8"
+                >
+                  <Link
+                    href="https://www.instagram.com/infinity_wanderlust/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2"
+                  >
+                    <Instagram className="h-4 w-4" />
+                    Instagram
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light px-8"
+                >
+                  <Link
+                    href="https://www.tiktok.com/@infinity_wanderlust"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2"
+                  >
+                    <Play className="h-4 w-4" />
+                    TikTok
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-[2fr_1fr] gap-8 items-stretch">
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 shadow-xl min-h-[360px]">
+                <InstagramFeed />
+              </div>
+
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-white/15 min-h-[360px]">
+                <Image
+                  src="/images/glow_red.jpg"
+                  alt="TikTok teaser"
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/55 to-black/20" />
+                <div className="absolute inset-0 flex flex-col justify-end p-6 text-white">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+                      <Play className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-sm uppercase tracking-wide text-white/70">TikTok Spotlight</div>
+                      <div className="text-xl font-light">Behind-the-scenes reels</div>
+                    </div>
+                  </div>
+                  <p className="text-white/70 font-light mb-4">
+                    Quick cuts from flights, markets, sunsets, and candid moments you won't see elsewhere.
+                  </p>
+                  <Button
+                    asChild
+                    className="bg-white text-black hover:bg-white/90 font-light w-fit"
+                  >
+                    <Link
+                      href="https://www.tiktok.com/@infinity_wanderlust"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Watch on TikTok
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Blog Highlights */}
+      {!isLoadingArticles && latestArticle && (
+        <section className="py-28 bg-white/2">
+          <div className="container">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="max-w-5xl space-y-6"
+            >
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div className="space-y-3">
+                  <h2 className="text-5xl md:text-6xl font-light text-white leading-tight">Latest blog</h2>
+                  <p className="text-white/65 font-light text-lg max-w-3xl">
+                    Deep dives, itineraries, and long-form stories—her main focus. Catch up on the newest post before you plan.
+                  </p>
+                </div>
+                <Button asChild className="bg-white text-black hover:bg-white/90 font-light">
+                  <Link href="/articles">Read the blog</Link>
+                </Button>
+              </div>
+
+              <Card className="bg-white/5 border-white/10 hover:bg-white/8 transition-colors duration-300 overflow-hidden">
+                {latestArticle.photos && (Array.isArray(latestArticle.photos) ? latestArticle.photos.length > 0 : latestArticle.photos) && (
+                  <div className="relative h-64 w-full overflow-hidden">
+                    <ImageCollage
+                      images={
+                        Array.isArray(latestArticle.photos)
+                          ? latestArticle.photos.map((photo: string) => {
+                              if (typeof latestArticle.collectionId === 'string' && typeof latestArticle.id === 'string') {
+                                return `https://remain-faceghost.pockethost.io/api/files/${latestArticle.collectionId}/${latestArticle.id}/${photo}`
+                              }
+                              return photo
+                            })
+                          : []
+                      }
+                      alt={latestArticle.destination || 'Blog featured image'}
+                    />
+                  </div>
+                )}
+                <CardContent className="p-8 space-y-4">
+                  <div className="flex flex-wrap items-center gap-3 text-white/70 text-sm font-light">
+                    <span className="bg-white/10 px-3 py-1 rounded-full">Featured</span>
+                    <span>Stories • Community • Tips</span>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-light text-white">{latestArticle.destination}</h3>
+                  <p className="text-white/70 font-light leading-relaxed">
+                    {latestArticle.review_text && latestArticle.review_text.length > 250
+                      ? latestArticle.review_text.substring(0, 250) + '...'
+                      : latestArticle.review_text}
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-sm text-white/50 font-light">
+                    <span>
+                      {new Date(latestArticle.created).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </span>
+                    <span className="w-px h-4 bg-white/15" />
+                    <Link href={`/articles/${latestArticle.id}`} className="underline underline-offset-4 decoration-white/40 hover:text-white">Read full article</Link>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* Stories, Why Follow, Community Destinations (ordered after Social) */}
+      <section className="py-28 bg-gradient-to-b from-black/70 via-black/65 to-black/80">
+        <div className="container space-y-20">
+          {!isLoading && latestReviews?.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="space-y-10"
+            >
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <h2 className="text-5xl md:text-6xl font-light text-white leading-tight">Recent stories</h2>
+                <Button
+                  variant="outline"
+                  className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light"
+                  asChild
+                >
+                  <Link href="/reviews" className="flex items-center gap-2">
+                    View all stories
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {latestReviews.map((review, i) => (
                   <motion.div
                     key={review.id}
                     initial="hidden"
-                    animate="visible"
+                    whileInView="visible"
                     variants={cardVariants}
-                    className="min-w-[300px] md:min-w-[350px] lg:min-w-[400px] flex-shrink-0 px-3 snap-start"
+                    custom={i}
                   >
-                    <Card className="bg-transparent hover:bg-gradient-to-br hover:from-green-900/90 hover:via-green-800/90 hover:to-green-700/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg max-w-[350px] min-w-[320px] w-full mx-auto transition-colors duration-300">
-                      {reviews.length > 0 && (
-                        <div className="relative">
-                          <ImageCollage
-                            images={
-                              Array.isArray(review.photos)
-                                ? review.photos.map((photo: string, idx: number) => getReviewImageUrl(review, idx))
-                                : []
-                            }
-                            alt={review.destination}
-                          />
-                          {/* Top overlays */}
-                          <div className="absolute top-3 left-3 flex items-center z-10">
-                            {/* Avatar */}
-                            <Avatar className="h-10 w-10 border-2 border-green-300/60 shadow-lg bg-green-900/80">
+                    <Link href={`/reviews/${review.id}`}>
+                      <Card className="bg-white/5 border-white/10 hover:bg-white/8 transition-all duration-300 cursor-pointer h-full">
+                        <CardContent className="p-8 space-y-6 h-full flex flex-col">
+                          <div className="flex items-start gap-4 flex-1">
+                            <Avatar className="h-10 w-10 flex-shrink-0">
                               <AvatarImage src={review.authorAvatar ?? undefined} />
-                              <AvatarFallback>{review.authorName?.charAt(0).toUpperCase()}</AvatarFallback>
+                              <AvatarFallback>
+                                {review.authorName?.charAt(0).toUpperCase()}
+                              </AvatarFallback>
                             </Avatar>
-                            {/* Destination pill */}
-                            <span className="ml-2 bg-transparent text-white-100 text-xs font-semibold px-3 py-1 backdrop-blur-sm rounded-full shadow border border-green-500/40">
-                              {review.destination}
-                            </span>
-                          </div>
-                          {/* Rating badge top-right */}
-                          <div className="absolute top-3 right-3 z-10">
-                            <div className="bg-yellow-400/90 rounded-full px-3 py-1 flex items-center shadow">
-                              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 mr-1" />
-                              <span className="text-sm font-bold text-gray-900">{review.rating}</span>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-light text-white text-sm">{review.authorName}</h3>
+                              <p className="text-xs text-white/50 mt-1">{review.destination}</p>
                             </div>
                           </div>
-                          {/* Optional: dark overlay for better text contrast */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none rounded-xl" />
-                        </div>
-                      )}
-                      {/* CTA below image, visually outside card */}
-                      <div className="flex justify-center">
-                        <Link href={`/reviews/${review.id}`}>
-                          <span
-                            className={` block w-fit italic text-green-200 bg-transparent hover:bg-green-900/90 active:bg-green-900 hover:text-green-50 transition rounded-lg px-4 py-2 cursor-pointer whitespace-normal break-words shadow-lg backdrop-blur-smborder border-green-900/10 -mt-8z-20`}
-                            style={{
-                              backgroundColor: "transparent",
-                              fontStyle: "italic",
-                              boxShadow: "0 4px 24px 0 rgba(0,0,0,0.10)",
-                              position: "relative",
-                            }}
-                          >
-                            Read more about {review.destination} as reviewed by {review.authorName}
+
+                          <p className="text-white/70 font-light leading-relaxed line-clamp-3 text-sm">
+                            {review.review_text}
+                          </p>
+
+                          <div className="flex gap-1">
+                            {Array.from({ length: Math.min(review.rating, 5) }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-white text-white" />
+                            ))}
+                          </div>
+
+                          <span className="text-xs text-white/40 mt-auto">
+                            {review.formattedDate}
                           </span>
-                        </Link>
-                      </div>
-                    </Card>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   </motion.div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
-      {/* Upcoming Events with Beach Background */}
-      <section className="homepage-section-3 py-16">
-        <div className="container">
-          <div className="flex justify-between items-center mb-10">
-            <h2 className="text-3xl font-bold text-white">
-              {t("upcomingEvents")}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-4xl mx-auto"
+          >
+            <h2 className="text-5xl md:text-6xl font-light text-white mb-14 leading-tight">
+              Why follow <br /> this journey
             </h2>
-            <Button
-              variant="ghost"
-              asChild
-              className="text-white hover:text-white/80"
-            >
-              <Link href="/events" className="flex items-center">
-                {t("viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoadingEvents ? (
-              // Loading skeletons
-              Array.from({ length: 2 }).map((_, index) => (
-                <Card
-                  key={`event-skeleton-${index}`}
-                  className="overflow-hidden bg-background/90 backdrop-blur-sm"
-                >
-                  <div className="flex flex-col md:flex-row">
-                    <Skeleton className="w-full md:w-1/3 h-48" />
-                    <CardContent className="flex-1 p-6">
-                      <Skeleton className="h-6 w-3/4 mb-2" />
-                      <Skeleton className="h-4 w-1/2 mb-4" />
-                      <Skeleton className="h-4 w-full mb-2" />
-                      <Skeleton className="h-4 w-2/3 mb-4" />
-                      <Skeleton className="h-10 w-full" />
-                    </CardContent>
-                  </div>
-                </Card>
-              ))
-            ) : (upcomingEvents ?? []).length === 0 ? (
-              <div className="col-span-2 text-center py-10">
-                <p className="text-white text-lg">No upcoming events found.</p>
-                <Button asChild className="mt-4">
-                  <Link href="/create-event">Create an Event</Link>
+            <div className="grid md:grid-cols-3 gap-10">
+              <Card className="bg-white/5 border-white/10 backdrop-blur p-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-light text-white">Authentic Stories</h3>
+                <p className="text-white/70 font-light leading-relaxed">
+                  Unfiltered moments, close-up interviews, and raw field notes so you feel the ground under every step.
+                </p>
+              </Card>
+
+              <Card className="bg-white/5 border-white/10 backdrop-blur p-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                  <Globe className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-light text-white">Cultural Depth</h3>
+                <p className="text-white/70 font-light leading-relaxed">
+                  Markets, rituals, kitchens, and conversations—stories built with locals, not just about them.
+                </p>
+              </Card>
+
+              <Card className="bg-white/5 border-white/10 backdrop-blur p-6 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                  <Heart className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-light text-white">Join Adventures</h3>
+                <p className="text-white/70 font-light leading-relaxed">
+                  Hosted trips and meetups where the community hikes, eats, and creates new reels together.
+                </p>
+              </Card>
+            </div>
+          </motion.div>
+
+          {!isLoading && reviews?.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="space-y-10"
+            >
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                  <h2 className="text-5xl md:text-6xl font-light text-white leading-tight">
+                    Community destinations
+                  </h2>
+                  <p className="text-white/65 font-light mt-3 max-w-2xl">
+                    A living stream of spots loved by you and by me—fresh reviews, shared itineraries, and places our crew keeps returning to.
+                  </p>
+                </div>
+                <Button asChild variant="outline" className="bg-transparent text-white border-white/30 hover:bg-white/5 font-light">
+                  <Link href="/reviews">Add your destination</Link>
                 </Button>
               </div>
-            ) : (
-              (upcomingEvents ?? []).map((event) => (
-                <Card
-                  key={event.id}
-                  className="overflow-hidden rounded-2xl shadow-md bg-transparent backdrop-blur-sm transition-colors duration-300 hover:bg-green-500/20"
+
+              <div className="relative">
+                <div
+                  ref={scrollContainerRef}
+                  className="flex overflow-x-auto pb-4 gap-3 hide-scrollbar snap-x snap-mandatory"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 >
-                  {/* Image with Overlays */}
-                  <div className="relative w-full aspect-[3/2] overflow-hidden">
-                    <Image
-                      src={
-                        getEventImageUrl(event) || "/placeholder.svg?height=400&width=600"
-                      }
-                      alt={event.title}
-                      fill
-                      className="object-cover object-center transition-transform duration-300 hover:scale-105"
-                    />
+                  {isLoading
+                    ? Array.from({ length: 3 }).map((_, index) => (
+                        <div
+                          key={`skeleton-${index}`}
+                          className="min-w-[280px] md:min-w-[320px] flex-shrink-0 snap-start"
+                        >
+                          <Skeleton className="h-96 w-full rounded-2xl" />
+                        </div>
+                      ))
+                    : reviews.map((review: any, index: number) => (
+                        <motion.div
+                          key={review.id}
+                          initial="hidden"
+                          whileInView="visible"
+                          variants={cardVariants}
+                          custom={index}
+                          className="min-w-[260px] md:min-w-[300px] flex-shrink-0 snap-start"
+                        >
+                          <Link href={`/reviews/${review.id}`}>
+                            <div className="group cursor-pointer space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-lg text-white font-light">{review.destination}</h3>
+                                  <p className="text-xs text-white/50">by {review.authorName}</p>
+                                </div>
+                                <div className="flex gap-1">
+                                  {Array.from({ length: Math.min(review.rating, 5) }).map((_, i) => (
+                                    <Star key={i} className="w-3.5 h-3.5 fill-white text-white" />
+                                  ))}
+                                </div>
+                              </div>
 
-                    {/* Top-left Location */}
-                    <div className="absolute top-3 left-3 bg-background/80 text-sm px-3 py-1 rounded-full shadow-md flex items-center gap-1 text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {event.destination}
-                    </div>
+                              <div className="relative h-80 overflow-hidden rounded-2xl">
+                                <ImageCollage
+                                  images={
+                                    Array.isArray(review.photos)
+                                      ? review.photos.map((photo: string, idx: number) =>
+                                          getReviewImageUrl(review, idx)
+                                        )
+                                      : []
+                                  }
+                                  alt={review.destination}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                              </div>
+                            </div>
+                          </Link>
+                        </motion.div>
+                      ))}
+                </div>
 
-                    {/* Top-right Spots Left */}
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="outline" className="bg-primary/50 text-white shadow-md">
-                        {event.spots_left} spots left
-                      </Badge>
-                    </div>
-
-                    {/* Bottom-center Book Button */}
-                    <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
-                      <Button
-                        asChild
-                        size="sm"
-                        className="rounded-full px-5 shadow-lg backdrop-blur bg-green-500/50 hover:bg-green-500 transition-colors"
-                      >
-                        <Link href={`/events/${event.id}`}>{t("bookNow")}</Link>
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <CardContent className="p-4 pt-5 space-y-2">
-                    <h3 className="text-lg font-semibold">{event.title}</h3>
-
-                    <div className="flex items-center text-sm text-muted-foreground gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {new Date(event.start_date).toLocaleDateString()} -{" "}
-                      {new Date(event.end_date).toLocaleDateString()}
-                    </div>
-
-                    {/* Days left */}
-                    <div className="text-sm text-white font-medium">
-                      {
-                        (() => {
-                          const today = new Date();
-                          const start = new Date(event.start_date);
-                          const timeDiff = start.getTime() - today.getTime();
-                          const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-                          return daysLeft > 0
-                            ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} to event`
-                            : "Event has started or passed";
-                        })()
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-
-
-              ))
-            )}
-          </div>
+                {canScrollRight && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute -right-6 top-1/3 text-white hover:bg-white/10"
+                    onClick={scrollRight}
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          )}
         </div>
       </section>
-      {/* Latest Reviews */}
-      {/* Latest Reviews Section */}
-      <section className="homepage-section-4 py-16">
-        <div className="container">
-          <div className="flex justify-between items-center mb-10">
-            <h2 className="text-3xl font-bold text-white">{t("latestReviews")}</h2>
-            <Button variant="ghost" asChild className="text-white hover:text-white/80">
-              <Link href="/reviews" className="flex items-center">
-                {t("viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
+
+      {/* Final CTA */}
+      <section className="py-32 relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/images/explore.jpg"
+            alt="Join the adventure"
+            fill
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-black/75" />
+        </div>
+
+        <div className="container relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-3xl"
+          >
+            <h2 className="text-5xl md:text-7xl font-light text-white mb-8 leading-tight">
+              Ready to wander?
+            </h2>
+
+            <p className="text-lg text-white/70 font-light mb-10 max-w-2xl leading-relaxed">
+              Start your own adventure. Discover destinations through authentic stories and connect with fellow travelers.
+            </p>
+
+            <Button
+              size="lg"
+              className="bg-white text-black hover:bg-white/90 font-light px-10"
+              asChild
+            >
+              <Link href="/reviews" className="flex items-center gap-2">
+                Explore now
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <Card
-                  key={`loading-review-${i}`}
-                  className="bg-background/80 backdrop-blur-sm p-4"
-                >
-                  <Skeleton className="h-6 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-5/6 mb-2" />
-                  <div className="flex items-center gap-3 mt-4">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1">
-                      <Skeleton className="h-4 w-1/2" />
-                    </div>
-                  </div>
-                </Card>
-              ))
-            ) : latestReviews?.length === 0 ? (
-              <div className="col-span-full text-center py-10">
-                <p className="text-white text-lg">
-                  No recent reviews. Be the first to share your experience!
-                </p>
-                <Button asChild className="mt-4">
-                  <Link href="/reviews/">Write a Review</Link>
-                </Button>
-              </div>
-            ) : (
-              latestReviews.map((review, i) => {
-                return (
-                  <motion.div
-                    key={review.id}
-                    custom={i}
-                    initial="hidden"
-                    animate="visible"
-                    variants={cardVariants}
-                  >
-
-                    <Card className="bg-background/80 backdrop-blur-sm p-4 hover:shadow-xl transition-shadow rounded-lg">
-                      <div className="flex items-center mb-4">
-                        {/* Avatar */}
-                        <div className="flex-shrink-0">
-                          <Avatar className="h-12 w-12 border-2 border-white/20 shadow-md">
-                            <AvatarImage
-                              src={review.authorAvatar ?? undefined}
-                              className="object-cover h-12 w-12 rounded-full"
-                            />
-                            <AvatarFallback className="h-12 w-12 flex items-center justify-center text-lg bg-muted rounded-full">
-                              {review.authorName?.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        {/* Author & meta */}
-                        <div className="ml-4 flex flex-col justify-center">
-                          <h3 className="font-semibold text-white leading-tight">{review.authorName}</h3>
-                          {review.destination && (
-                            <span className="inline-block bg-white-100/10 text-white-300 text-xs px-2 py-0.5 rounded-full mt-1 mb-0.5 w-fit">
-                              {review.destination}
-                            </span>
-                          )}
-                          <span className="text-xs text-muted-foreground mt-0.5">{review.formattedDate}</span>
-                        </div>
-                        {/* Stars */}
-                        <div className="ml-auto flex items-center gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-4 w-4 ${i < review.rating
-                                ? "text-yellow-400 fill-yellow-400"
-                                : "text-muted-foreground"
-                                }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-muted-foreground line-clamp-3 mb-1">
-                        “{review.review_text}”
-                      </p>
-                      <Button variant="link" asChild className="mt-2 px-0 text-white hover:text-white/80">
-                        <Link href={`/reviews`}>{t("readMore")}</Link>
-                      </Button>
-                    </Card>
-                  </motion.div>
-                );
-              })
-            )}
-          </div>
+          </motion.div>
         </div>
       </section>
     </div>
-  );
+  )
 }

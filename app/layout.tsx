@@ -4,10 +4,12 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { Providers } from "@/components/providers"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import dynamic from "next/dynamic"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { fetchUsers } from "@/hooks/use-pb-users"
+import { Toaster } from "@/components/ui/toaster"
 
 // Dynamically import DevTools to prevent chunk loading errors
 const ReactQueryDevtools = dynamic(
@@ -17,18 +19,20 @@ const ReactQueryDevtools = dynamic(
 
 const inter = Inter({ subsets: ["latin"] })
 
-// Instantiate the query client once
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 30, // 30 minutes
+// Create query client with stable reference
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5, // 5 minutes
+        gcTime: 1000 * 60 * 30, // 30 minutes
+      },
     },
-  },
-});
+  })
+}
 
 // Prefetch users data on app load
-function PrefetchUsers() {
+function PrefetchUsers({ queryClient }: { queryClient: QueryClient }) {
   useEffect(() => {
     // Prefetch first page of users
     queryClient.prefetchQuery({
@@ -45,7 +49,7 @@ function PrefetchUsers() {
     })
 
     console.log("[PrefetchUsers] Users data prefetched")
-  }, [])
+  }, [queryClient])
 
   return null
 }
@@ -55,16 +59,21 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const [queryClient] = useState(() => createQueryClient())
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <QueryClientProvider client={queryClient}>
-          <PrefetchUsers />
-          <Navbar />
-          {children}
-          <ReactQueryDevtools/>
-          <Footer />
-        </QueryClientProvider>
+        <Providers>
+          <QueryClientProvider client={queryClient}>
+            <PrefetchUsers queryClient={queryClient} />
+            <Navbar />
+            {children}
+            <Footer />
+            <Toaster />
+            <ReactQueryDevtools />
+          </QueryClientProvider>
+        </Providers>
       </body>
     </html>
   )

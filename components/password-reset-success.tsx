@@ -53,7 +53,7 @@ export function PasswordResetSuccess() {
                 delay: piece.delay,
                 ease: "easeIn",
               }}
-              className="fixed w-2 h-2 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full"
+              className="fixed w-2 h-2 bg-emerald-600/60 rounded-full"
               style={{
                 left: `calc(50% + ${piece.x}px)`,
                 top: "-10px",
@@ -70,7 +70,7 @@ export function PasswordResetSuccess() {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <Card className="border-0 shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 p-8">
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-900 dark:to-slate-800 p-8">
               {/* Animated success icon */}
               <motion.div
                 className="flex justify-center mb-6"
@@ -93,7 +93,7 @@ export function PasswordResetSuccess() {
                   <div className="relative">
                     {/* Outer glow ring */}
                     <motion.div
-                      className="absolute inset-0 rounded-full bg-green-400 blur-xl opacity-30"
+                      className="absolute inset-0 rounded-full bg-emerald-500/30 blur-xl opacity-30"
                       animate={{
                         scale: [1, 1.2, 1],
                       }}
@@ -103,7 +103,7 @@ export function PasswordResetSuccess() {
                       }}
                     />
                     {/* Icon */}
-                    <CheckCircle className="w-20 h-20 text-green-500 relative z-10" strokeWidth={1.5} />
+                    <CheckCircle className="w-20 h-20 text-emerald-500 relative z-10" strokeWidth={1.5} />
                   </div>
                 </motion.div>
               </motion.div>
@@ -115,10 +115,10 @@ export function PasswordResetSuccess() {
                 animate={isVisible ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.6, delay: 0.4 }}
               >
-                <h1 className="text-3xl font-bold text-green-900 dark:text-green-100 mb-2">
+                <h1 className="text-3xl font-bold text-white mb-2">
                   Password Reset Successful!
                 </h1>
-                <p className="text-green-700 dark:text-green-300 flex items-center justify-center gap-2">
+                <p className="text-gray-300 flex items-center justify-center gap-2">
                   <Sparkles className="w-4 h-4" />
                   Your password has been updated securely
                 </p>
@@ -126,7 +126,7 @@ export function PasswordResetSuccess() {
 
               {/* Subtext */}
               <motion.p
-                className="text-center text-sm text-green-600 dark:text-green-400 mb-8"
+                className="text-center text-sm text-gray-400 mb-8"
                 initial={{ opacity: 0 }}
                 animate={isVisible ? { opacity: 1 } : {}}
                 transition={{ duration: 0.6, delay: 0.5 }}
@@ -156,7 +156,7 @@ export function PasswordResetSuccess() {
                   <Link href="/login?secure=1">
                     <Button
                       size="lg"
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold group"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold group"
                     >
                       Go to Login
                       <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
