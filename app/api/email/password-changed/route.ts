@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { sendPasswordChangedEmail } from "@/lib/email"
 
-export const runtime = 'edge';
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()

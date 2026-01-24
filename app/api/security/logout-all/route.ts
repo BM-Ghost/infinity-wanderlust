@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { getPocketBaseAdmin } from "@/lib/pocketbase"
 
-export const runtime = 'edge';
-
 export async function POST(request: Request) {
   try {
     const { userId } = await request.json()
