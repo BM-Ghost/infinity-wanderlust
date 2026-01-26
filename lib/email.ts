@@ -1,19 +1,86 @@
 import nodemailer from "nodemailer"
 
-// Create reusable transporter
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
-    },
-    tls: {
-      family: 4, // Force IPv4 to avoid IPv6 connectivity issues
-    },
-  })
+const MAILCHANNELS_ENDPOINT = "https://api.mailchannels.net/tx/v1/send"
+
+type SendMailPayload = {
+    to: string
+    subject: string
+    html: string
+}
+
+async function sendMail({ to, subject, html }: SendMailPayload) {
+    const fromEmail = process.env.SMTP_FROM || "no-reply@infinitywanderlust.com"
+    const fromName = "Infinity Wanderlust"
+
+    // MailChannels only accepts traffic from Cloudflare Workers/Pages IPs.
+    // In Cloudflare environment, use MailChannels.
+    const isCloudflare = Boolean(
+        process.env.CF_PAGES || process.env.CF_PAGES_BRANCH || process.env.CF_PAGES_COMMIT_SHA
+    )
+
+    if (isCloudflare) {
+        // Production: use MailChannels
+        const response = await fetch(MAILCHANNELS_ENDPOINT, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({
+                personalizations: [
+                    {
+                        to: [{ email: to }],
+                    },
+                ],
+                from: { email: fromEmail, name: fromName },
+                subject,
+                content: [
+                    {
+                        type: "text/html",
+                        value: html,
+                    },
+                ],
+            }),
+        })
+
+        if (!response.ok) {
+            const body = await response.text()
+            throw new Error(`MailChannels error ${response.status}: ${body}`)
+        }
+
+        return true
+    } else {
+        // Local dev: use SMTP if configured, otherwise skip
+        const hasSmtp = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
+        
+        if (!hasSmtp) {
+            console.warn("[sendMail] SMTP not configured. Skipping email in local dev. Configure SMTP_HOST, SMTP_USER, SMTP_PASSWORD to enable.")
+            return true
+        }
+
+        // Use nodemailer for local SMTP
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT || "587"),
+            secure: process.env.SMTP_SECURE === "true",
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASSWORD,
+            },
+            tls: {
+                family: 4,
+            },
+        })
+
+        await transporter.sendMail({
+            from: `"${fromName}" <${fromEmail}>`,
+            to,
+            subject,
+            html,
+        })
+
+        console.log("[sendMail] Email sent via local SMTP to", to)
+        return true
+    }
 }
 
 interface PasswordResetEmailData {
@@ -31,12 +98,6 @@ interface PasswordChangedEmailData {
 
 export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
   try {
-    const transporter = createTransporter()
-
-    // Verify connection
-    await transporter.verify()
-    console.log("[sendPasswordResetEmail] SMTP connection verified")
-
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${data.resetToken}`
 
     const htmlTemplate = `
@@ -164,27 +225,23 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
 </body>
 </html>`
 
-    const mailOptions = {
-      from: `"Infinity Wanderlust" <${process.env.SMTP_FROM}>`,
-      to: data.to,
-      subject: "Password Reset - Infinity Wanderlust",
-      html: htmlTemplate,
-    }
+        await sendMail({
+            to: data.to,
+            subject: "Password Reset - Infinity Wanderlust",
+            html: htmlTemplate,
+        })
 
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[sendPasswordResetEmail] Email sent successfully:", info.messageId)
+        console.log("[sendPasswordResetEmail] Email sent successfully")
 
-    return { success: true, messageId: info.messageId }
+        return { success: true, messageId: "mailchannels" }
   } catch (error: any) {
     console.error("[sendPasswordResetEmail] Error sending email:", error)
-    throw new Error(`Failed to send password reset email: ${error.message}`)
+        throw new Error(`Failed to send password reset email: ${error.message}`)
   }
 }
 
 export async function sendPasswordResetConfirmation(email: string, userName: string) {
   try {
-    const transporter = createTransporter()
-
     const htmlTemplate = `
 <!DOCTYPE html>
 <html lang="en">
@@ -259,17 +316,15 @@ export async function sendPasswordResetConfirmation(email: string, userName: str
 </body>
 </html>`
 
-    const mailOptions = {
-      from: `"Infinity Wanderlust" <${process.env.SMTP_FROM}>`,
-      to: email,
-      subject: "Password Reset Successful - Infinity Wanderlust",
-      html: htmlTemplate,
-    }
+        await sendMail({
+            to: email,
+            subject: "Password Reset Successful - Infinity Wanderlust",
+            html: htmlTemplate,
+        })
 
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[sendPasswordResetConfirmation] Confirmation email sent:", info.messageId)
+        console.log("[sendPasswordResetConfirmation] Confirmation email sent")
 
-    return { success: true, messageId: info.messageId }
+        return { success: true, messageId: "mailchannels" }
   } catch (error: any) {
     console.error("[sendPasswordResetConfirmation] Error sending confirmation email:", error)
     // Don't throw error for confirmation emails - they're not critical
@@ -279,9 +334,6 @@ export async function sendPasswordResetConfirmation(email: string, userName: str
 
 export async function sendPasswordChangedEmail(data: PasswordChangedEmailData) {
     try {
-        const transporter = createTransporter()
-        await transporter.verify()
-
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
         const secureUrl = `${appUrl}/forgot-password?alert=secure-account${data.to ? `&email=${encodeURIComponent(data.to)}` : ''}`
 
@@ -322,11 +374,10 @@ export async function sendPasswordChangedEmail(data: PasswordChangedEmailData) {
 </body>
 </html>`
 
-        await transporter.sendMail({
-            from: process.env.SMTP_FROM || "Infinity Wanderlust <no-reply@infinitywanderlust.com>",
-            to: data.to,
-            subject: "Your password was updated",
-            html: htmlTemplate,
+        await sendMail({
+          to: data.to,
+          subject: "Your password was updated",
+          html: htmlTemplate,
         })
 
         console.log("[sendPasswordChangedEmail] Email sent to", data.to)
