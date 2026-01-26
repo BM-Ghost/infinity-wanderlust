@@ -1,5 +1,3 @@
-import nodemailer from "nodemailer"
-
 const MAILCHANNELS_ENDPOINT = "https://api.mailchannels.net/tx/v1/send"
 
 type SendMailPayload = {
@@ -12,14 +10,8 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
     const fromEmail = process.env.SMTP_FROM || "no-reply@infinitywanderlust.com"
     const fromName = "Infinity Wanderlust"
 
-    // MailChannels only accepts traffic from Cloudflare Workers/Pages IPs.
-    // In Cloudflare environment, use MailChannels.
-    const isCloudflare = Boolean(
-        process.env.CF_PAGES || process.env.CF_PAGES_BRANCH || process.env.CF_PAGES_COMMIT_SHA
-    )
-
-    if (isCloudflare) {
-        // Production: use MailChannels
+    try {
+        // Use MailChannels for all environments (edge-compatible)
         const response = await fetch(MAILCHANNELS_ENDPOINT, {
             method: "POST",
             headers: {
@@ -44,42 +36,15 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
 
         if (!response.ok) {
             const body = await response.text()
+            console.error(`[sendMail] MailChannels error ${response.status}: ${body}`)
             throw new Error(`MailChannels error ${response.status}: ${body}`)
         }
 
+        console.log(`[sendMail] Email sent to ${to}`)
         return true
-    } else {
-        // Local dev: use SMTP if configured, otherwise skip
-        const hasSmtp = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
-        
-        if (!hasSmtp) {
-            console.warn("[sendMail] SMTP not configured. Skipping email in local dev. Configure SMTP_HOST, SMTP_USER, SMTP_PASSWORD to enable.")
-            return true
-        }
-
-        // Use nodemailer for local SMTP
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT || "587"),
-            secure: process.env.SMTP_SECURE === "true",
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASSWORD,
-            },
-            tls: {
-                family: 4,
-            },
-        })
-
-        await transporter.sendMail({
-            from: `"${fromName}" <${fromEmail}>`,
-            to,
-            subject,
-            html,
-        })
-
-        console.log("[sendMail] Email sent via local SMTP to", to)
-        return true
+    } catch (error) {
+        console.error("[sendMail] Failed to send email:", error)
+        throw error
     }
 }
 
