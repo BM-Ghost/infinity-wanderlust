@@ -44,6 +44,7 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
             method: "POST",
             headers: {
                 "content-type": "application/json",
+                "X-Custom-Domain-Lockdown": "v=mc1 cfid=infinity-wanderlust.pages.dev",
             },
             body: JSON.stringify(payload),
         })
