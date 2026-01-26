@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useTranslation } from "@/lib/translations"
-import { requestPasswordReset } from "@/actions/password-reset"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -38,20 +37,26 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
 
     try {
-      const result = await requestPasswordReset(email)
+      const response = await fetch("/api/password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
 
-      if (result.success) {
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        setError(result.message || result.error || "Failed to send reset code")
+        toast({
+          variant: "destructive",
+          title: "Reset failed",
+          description: result.message || result.error || "Something went wrong",
+        })
+      } else {
         setSuccess(true)
         toast({
           title: "Password reset code sent",
           description: "Please check your email for the verification code.",
-        })
-      } else {
-        setError(result.message)
-        toast({
-          variant: "destructive",
-          title: "Reset failed",
-          description: result.message,
         })
       }
     } catch (err: any) {
