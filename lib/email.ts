@@ -12,26 +12,35 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
 
     try {
         // Use MailChannels for all environments (edge-compatible)
+        const payload = {
+            personalizations: [
+                {
+                    to: [{ email: to }],
+                },
+            ],
+            from: { email: fromEmail, name: fromName },
+            subject,
+            content: [
+                {
+                    type: "text/html",
+                    value: html,
+                },
+            ],
+        }
+
+        console.log("[sendMail] Sending via MailChannels", {
+            to,
+            fromEmail,
+            subject,
+            hasHtml: Boolean(html),
+        })
+
         const response = await fetch(MAILCHANNELS_ENDPOINT, {
             method: "POST",
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify({
-                personalizations: [
-                    {
-                        to: [{ email: to }],
-                    },
-                ],
-                from: { email: fromEmail, name: fromName },
-                subject,
-                content: [
-                    {
-                        type: "text/html",
-                        value: html,
-                    },
-                ],
-            }),
+            body: JSON.stringify(payload),
         })
 
         if (!response.ok) {
