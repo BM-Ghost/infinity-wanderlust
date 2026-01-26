@@ -1,5 +1,9 @@
 const MAILCHANNELS_ENDPOINT = "https://api.mailchannels.net/tx/v1/send"
 
+// Hard-coded From address for MailChannels (must be your domain)
+const FROM_EMAIL = "no-reply@infinity-wanderlust.com"
+const FROM_NAME = "Infinity Wanderlust"
+
 type SendMailPayload = {
     to: string
     subject: string
@@ -7,8 +11,9 @@ type SendMailPayload = {
 }
 
 async function sendMail({ to, subject, html }: SendMailPayload) {
-    const fromEmail = process.env.SMTP_FROM || "no-reply@infinitywanderlust.com"
-    const fromName = "Infinity Wanderlust"
+    // Log env var to verify if it's set (for debugging)
+    console.log("[sendMail] SMTP_FROM env var =", process.env.SMTP_FROM)
+    console.log("[sendMail] Using hardcoded FROM_EMAIL =", FROM_EMAIL)
 
     try {
         // Use MailChannels for all environments (edge-compatible)
@@ -18,7 +23,7 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
                     to: [{ email: to }],
                 },
             ],
-            from: { email: fromEmail, name: fromName },
+            from: { email: FROM_EMAIL, name: FROM_NAME },
             subject,
             content: [
                 {
@@ -30,7 +35,7 @@ async function sendMail({ to, subject, html }: SendMailPayload) {
 
         console.log("[sendMail] Sending via MailChannels", {
             to,
-            fromEmail,
+            fromEmail: FROM_EMAIL,
             subject,
             hasHtml: Boolean(html),
         })
