@@ -172,20 +172,25 @@ export async function verifyResetCode(email: string, code: string): Promise<{ su
     let user
     try {
       user = await pb.collection("users").getFirstListItem(`email="${email}"`)
+      console.log("[verifyResetCode] Found user:", user.id)
     } catch (error) {
+      console.log("[verifyResetCode] User not found for email:", email)
       return {
         success: false,
         message: "User not found",
       }
     }
 
-    // Find valid reset request
-    const resetRequest = await pb.collection("password_resets").getFirstListItem(
-      `user_id="${user.id}" && verification_code="${code}" && used=false`
-    )
-
-    if (!resetRequest) {
-      console.log("[verifyResetCode] No valid reset request found")
+    // Find valid reset request (wrap in try-catch since getFirstListItem throws 404)
+    let resetRequest
+    try {
+      resetRequest = await pb.collection("password_resets").getFirstListItem(
+        `user_id="${user.id}" && verification_code="${code}" && used=false`
+      )
+      console.log("[verifyResetCode] Found reset request:", resetRequest.id)
+    } catch (error: any) {
+      console.log("[verifyResetCode] No valid reset request found. Filter:", `user_id="${user.id}" && verification_code="${code}" && used=false`)
+      console.log("[verifyResetCode] Error details:", error.status, error.message)
       return {
         success: false,
         message: "Invalid verification code",
@@ -194,7 +199,7 @@ export async function verifyResetCode(email: string, code: string): Promise<{ su
 
     // Check if expired
     if (new Date(resetRequest.expires_at) < new Date()) {
-      console.log("[verifyResetCode] Code expired")
+      console.log("[verifyResetCode] Code expired at:", resetRequest.expires_at)
       return {
         success: false,
         message: "Verification code has expired",
@@ -254,12 +259,14 @@ export async function confirmPasswordReset(
       // 6-digit code verification
       console.log("[confirmPasswordReset] Validating 6-digit code:", tokenOrCode)
 
-      // Find the reset request by code
-      resetRequest = await pb.collection("password_resets").getFirstListItem(
-        `verification_code="${tokenOrCode}" && used=false`
-      )
-
-      if (!resetRequest) {
+      // Find the reset request by code (wrap in try-catch since getFirstListItem throws 404)
+      try {
+        resetRequest = await pb.collection("password_resets").getFirstListItem(
+          `verification_code="${tokenOrCode}" && used=false`
+        )
+        console.log("[confirmPasswordReset] Found reset request via code:", resetRequest.id)
+      } catch (error: any) {
+        console.log("[confirmPasswordReset] No valid reset request found for code:", tokenOrCode)
         return {
           success: false,
           message: "Invalid or expired verification code",
@@ -269,11 +276,13 @@ export async function confirmPasswordReset(
       // Token-based reset (from email link)
       console.log("[confirmPasswordReset] Validating reset token:", tokenOrCode)
 
-      resetRequest = await pb.collection("password_resets").getFirstListItem(
-        `reset_token="${tokenOrCode}" && used=false`
-      )
-
-      if (!resetRequest) {
+      try {
+        resetRequest = await pb.collection("password_resets").getFirstListItem(
+          `reset_token="${tokenOrCode}" && used=false`
+        )
+        console.log("[confirmPasswordReset] Found reset request via token:", resetRequest.id)
+      } catch (error: any) {
+        console.log("[confirmPasswordReset] No valid reset request found for token:", tokenOrCode)
         return {
           success: false,
           message: "Invalid or expired reset link",
