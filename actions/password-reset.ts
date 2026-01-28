@@ -79,27 +79,49 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
 
     // Generate verification code (6 digits)
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+    console.log("[requestPasswordReset] 🔐 Generated verification code:", verificationCode)
+    console.log("[requestPasswordReset] Code type:", typeof verificationCode)
+    console.log("[requestPasswordReset] Code length:", verificationCode.length)
 
     // Generate reset token for email link
     const resetToken = crypto.randomUUID()
+    console.log("[requestPasswordReset] 🔑 Generated reset token:", resetToken)
 
     // Calculate expiry (24 hours from now)
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24)
+    console.log("[requestPasswordReset] ⏰ Expires at:", expiresAt.toISOString())
 
     // Store reset request in PocketBase (try direct creation)
     let resetRequest
     try {
-      resetRequest = await pb.collection("password_resets").create({
+      const resetData = {
         user_id: user.id,
         verification_code: verificationCode,
         reset_token: resetToken,
         expires_at: expiresAt.toISOString(),
         used: false,
+      }
+      console.log("[requestPasswordReset] 💾 Saving to PocketBase:", {
+        user_id: resetData.user_id,
+        verification_code: resetData.verification_code,
+        code_type: typeof resetData.verification_code,
+        reset_token: resetData.reset_token,
+        expires_at: resetData.expires_at,
+        used: resetData.used,
       })
-      console.log("[requestPasswordReset] Created reset request:", resetRequest.id)
+      
+      resetRequest = await pb.collection("password_resets").create(resetData)
+      console.log("[requestPasswordReset] ✅ Created reset request:", resetRequest.id)
+      console.log("[requestPasswordReset] 📋 Saved record:", {
+        id: resetRequest.id,
+        verification_code: resetRequest.verification_code,
+        code_type: typeof resetRequest.verification_code,
+        user_id: resetRequest.user_id,
+        used: resetRequest.used,
+      })
     } catch (createError: any) {
-      console.error("[requestPasswordReset] Failed to create reset request:", createError)
+      console.error("[requestPasswordReset] ❌ Failed to create reset request:", createError)
 
       if (createError.status === 404) {
         return {
@@ -116,15 +138,16 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
 
     // Send email with both code and link
     try {
+      console.log("[requestPasswordReset] 📧 Sending email with code:", verificationCode)
       await sendPasswordResetEmail({
         to: email,
         verificationCode,
         resetToken,
         userName: user.name || user.email,
       })
-      console.log("[requestPasswordReset] Email sent successfully")
+      console.log("[requestPasswordReset] ✅ Email sent successfully")
     } catch (emailError) {
-      console.error("[requestPasswordReset] Email sending failed:", emailError)
+      console.error("[requestPasswordReset] ❌ Email sending failed:", emailError)
       // Don't fail the whole request if email fails, but log it
     }
 
@@ -158,7 +181,12 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
 // Verify reset code
 export async function verifyResetCode(email: string, code: string): Promise<{ success: boolean; message: string; userId?: string }> {
   try {
-    console.log("[verifyResetCode] Verifying code for:", email, "code:", code)
+    console.log("[verifyResetCode] ========== VERIFICATION START ==========")
+    console.log("[verifyResetCode] Input email:", email)
+    console.log("[verifyResetCode] Input code:", code)
+    console.log("[verifyResetCode] Code type:", typeof code)
+    console.log("[verifyResetCode] Code length:", code.length)
+    console.log("[verifyResetCode] Code trimmed:", code.trim())
 
     const pb = getPocketBase()
     if (!pb) {
@@ -172,25 +200,73 @@ export async function verifyResetCode(email: string, code: string): Promise<{ su
     let user
     try {
       user = await pb.collection("users").getFirstListItem(`email="${email}"`)
-      console.log("[verifyResetCode] Found user:", user.id)
+      console.log("[verifyResetCode] ✅ Found user ID:", user.id, "Email:", user.email)
     } catch (error) {
-      console.log("[verifyResetCode] User not found for email:", email)
+      console.log("[verifyResetCode] ❌ User not found for email:", email)
       return {
         success: false,
         message: "User not found",
       }
     }
 
-    // Find valid reset request (wrap in try-catch since getFirstListItem throws 404)
+    // First, get ALL reset requests for this user to see what's in the database
+    console.log("[verifyResetCode] Fetching all password resets for user:", user.id)
+    try {
+      const allResets = await pb.collection("password_resets").getList(1, 10, {
+        filter: `user_id="${user.id}"`,
+        sort: "-created",
+      })
+      console.log("[verifyResetCode] Found", allResets.items.length, "reset requests for this user:")
+      allResets.items.forEach((reset, index) => {
+        console.log(`[verifyResetCode] Reset #${index + 1}:`, {
+          id: reset.id,
+          verification_code: reset.verification_code,
+          code_type: typeof reset.verification_code,
+          code_length: reset.verification_code?.length,
+          used: reset.used,
+          expires_at: reset.expires_at,
+          created: reset.created,
+        })
+      })
+    } catch (error) {
+      console.log("[verifyResetCode] Could not fetch all resets:", error)
+    }
+
+    // Now try to find the matching reset request
+    console.log("[verifyResetCode] Searching for matching code...")
+    const filterQuery = `user_id="${user.id}" && verification_code="${code}" && used=false`
+    console.log("[verifyResetCode] Filter query:", filterQuery)
+
     let resetRequest
     try {
-      resetRequest = await pb.collection("password_resets").getFirstListItem(
-        `user_id="${user.id}" && verification_code="${code}" && used=false`
-      )
-      console.log("[verifyResetCode] Found reset request:", resetRequest.id)
+      resetRequest = await pb.collection("password_resets").getFirstListItem(filterQuery)
+      console.log("[verifyResetCode] ✅ Found reset request:", {
+        id: resetRequest.id,
+        verification_code: resetRequest.verification_code,
+        used: resetRequest.used,
+        expires_at: resetRequest.expires_at,
+      })
     } catch (error: any) {
-      console.log("[verifyResetCode] No valid reset request found. Filter:", `user_id="${user.id}" && verification_code="${code}" && used=false`)
-      console.log("[verifyResetCode] Error details:", error.status, error.message)
+      console.log("[verifyResetCode] ❌ No matching reset request found")
+      console.log("[verifyResetCode] Error status:", error.status)
+      console.log("[verifyResetCode] Error message:", error.message)
+      console.log("[verifyResetCode] Error data:", JSON.stringify(error.data || {}))
+      
+      // Try to manually compare codes from the list
+      try {
+        const allResets = await pb.collection("password_resets").getList(1, 10, {
+          filter: `user_id="${user.id}" && used=false`,
+        })
+        console.log("[verifyResetCode] Manual comparison:")
+        allResets.items.forEach((reset) => {
+          const dbCode = String(reset.verification_code)
+          const inputCode = String(code)
+          console.log(`[verifyResetCode] DB Code: "${dbCode}" (${dbCode.length} chars) vs Input: "${inputCode}" (${inputCode.length} chars) - Match: ${dbCode === inputCode}`)
+        })
+      } catch (e) {
+        console.log("[verifyResetCode] Could not perform manual comparison:", e)
+      }
+
       return {
         success: false,
         message: "Invalid verification code",
