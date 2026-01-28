@@ -1,7 +1,5 @@
-const MAILCHANNELS_ENDPOINT = "https://api.mailchannels.net/tx/v1/send"
-
-// Hard-coded From address for MailChannels (must be your domain)
-const FROM_EMAIL = "no-reply@infinity-wanderlust.com"
+const RESEND_ENDPOINT = "https://api.resend.com/emails"
+const FROM_EMAIL = "noreply@infinity-wanderlust.com"
 const FROM_NAME = "Infinity Wanderlust"
 
 type SendMailPayload = {
@@ -11,51 +9,44 @@ type SendMailPayload = {
 }
 
 async function sendMail({ to, subject, html }: SendMailPayload) {
-    // Log env var to verify if it's set (for debugging)
-    console.log("[sendMail] SMTP_FROM env var =", process.env.SMTP_FROM)
-    console.log("[sendMail] Using hardcoded FROM_EMAIL =", FROM_EMAIL)
-
     try {
-        // Use MailChannels for all environments (edge-compatible)
-        const payload = {
-            personalizations: [
-                {
-                    to: [{ email: to }],
-                },
-            ],
-            from: { email: FROM_EMAIL, name: FROM_NAME },
-            subject,
-            content: [
-                {
-                    type: "text/html",
-                    value: html,
-                },
-            ],
+        const apiKey = process.env.RESEND_EMAIL_API_KEY
+        
+        if (!apiKey) {
+            throw new Error("RESEND_EMAIL_API_KEY is not configured")
         }
 
-        console.log("[sendMail] Sending via MailChannels", {
+        const payload = {
+            from: `${FROM_NAME} <${FROM_EMAIL}>`,
             to,
-            fromEmail: FROM_EMAIL,
+            subject,
+            html,
+        }
+
+        console.log("[sendMail] Sending via Resend", {
+            to,
+            from: FROM_EMAIL,
             subject,
             hasHtml: Boolean(html),
         })
 
-        const response = await fetch(MAILCHANNELS_ENDPOINT, {
+        const response = await fetch(RESEND_ENDPOINT, {
             method: "POST",
             headers: {
-                "content-type": "application/json",
-                "X-Custom-Domain-Lockdown": "v=mc1 cfid=infinity-wanderlust.pages.dev",
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
             },
             body: JSON.stringify(payload),
         })
 
         if (!response.ok) {
             const body = await response.text()
-            console.error(`[sendMail] MailChannels error ${response.status}: ${body}`)
-            throw new Error(`MailChannels error ${response.status}: ${body}`)
+            console.error(`[sendMail] Resend error ${response.status}: ${body}`)
+            throw new Error(`Resend error ${response.status}: ${body}`)
         }
 
-        console.log(`[sendMail] Email sent to ${to}`)
+        const result = await response.json()
+        console.log(`[sendMail] Email sent to ${to}, ID: ${result.id}`)
         return true
     } catch (error) {
         console.error("[sendMail] Failed to send email:", error)
