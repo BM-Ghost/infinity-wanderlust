@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useTranslation } from "@/lib/translations"
-import { confirmPasswordReset, verifyResetCode } from "@/actions/password-reset"
+import { confirmPasswordReset } from "@/actions/password-reset"
 import { PasswordResetSuccess } from "@/components/password-reset-success"
 
 function ResetPasswordForm() {
@@ -88,7 +88,22 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
-      const result = await verifyResetCode(email, code)
+      console.log("[handleVerifyCode] CLIENT: Starting verification")
+      console.log("[handleVerifyCode] CLIENT: Email:", email)
+      console.log("[handleVerifyCode] CLIENT: Code:", code)
+      console.log("[handleVerifyCode] CLIENT: Code type:", typeof code)
+      console.log("[handleVerifyCode] CLIENT: Code length:", code.length)
+      
+      // Call the API endpoint instead of server action directly
+      const response = await fetch("/api/password-reset/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      })
+      
+      const result = await response.json()
+      
+      console.log("[handleVerifyCode] CLIENT: API response:", result)
 
       if (result.success) {
         setStep('password')
@@ -105,7 +120,7 @@ function ResetPasswordForm() {
         })
       }
     } catch (err: any) {
-      console.error("Code verification error:", err)
+      console.error("[handleVerifyCode] CLIENT: Error:", err)
       setError("Failed to verify code. Please try again.")
       toast({
         variant: "destructive",
