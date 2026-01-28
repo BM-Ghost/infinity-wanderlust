@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useTranslation } from "@/lib/translations"
-import { confirmPasswordReset } from "@/actions/password-reset"
 import { PasswordResetSuccess } from "@/components/password-reset-success"
 
 function ResetPasswordForm() {
@@ -18,8 +17,6 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const { t } = useTranslation()
   const { toast } = useToast()
-
-  const [step, setStep] = useState<'code' | 'password' | 'success'>('code')
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -146,8 +143,19 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
+      console.log("[handleResetPassword] CLIENT: Starting password reset")
       const resetToken = token || code
-      const result = await confirmPasswordReset(resetToken, newPassword, confirmPassword)
+      console.log("[handleResetPassword] CLIENT: Using token/code:", resetToken?.substring(0, 10) + "...")
+      
+      // Call the API endpoint instead of server action directly
+      const response = await fetch("/api/password-reset/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenOrCode: resetToken, newPassword, confirmPassword }),
+      })
+      
+      const result = await response.json()
+      console.log("[handleResetPassword] CLIENT: API response:", result)
 
       if (result.success) {
         // Show success screen instead of redirecting immediately
@@ -165,7 +173,7 @@ function ResetPasswordForm() {
         })
       }
     } catch (err: any) {
-      console.error("Password reset error:", err)
+      console.error("[handleResetPassword] CLIENT: Error:", err)
       setError("Failed to reset password. Please try again.")
       toast({
         variant: "destructive",
