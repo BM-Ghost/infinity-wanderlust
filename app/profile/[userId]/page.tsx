@@ -16,9 +16,17 @@ import { useState } from "react"
 export default function UserProfilePage() {
   const { userId } = useParams()
   const router = useRouter()
-  const { data: users = [] } = useUsers(1)
-  const { data: uploads = [] } = useUploads(1)
-  const { data: reviews = [] } = useReviews(1)
+  const { data: usersData = [] } = useUsers(1)
+  const { data: uploadsData = [] } = useUploads(1)
+  const { data: reviewsData = { items: [] } } = useReviews({
+    page: 1,
+    perPage: 50,
+    enabled: true,
+  })
+
+  const users = usersData || []
+  const uploads = uploadsData || []
+  const reviews = reviewsData?.items || []
 
   const user = users.find((u: any) => u.id === userId)
   if (!user) return <div>User not found</div>

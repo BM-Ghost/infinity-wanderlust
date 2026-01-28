@@ -41,8 +41,13 @@ export default function EventDetailPage() {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
   const eventId = params.id as string
-  const { data: events = [], isLoading } = useEvents(1, eventId);
-  const event = Array.isArray(events) ? events[0] : events;
+  const { data: eventsData = { items: [] }, isLoading } = useEvents({
+    page: 1,
+    perPage: 50,
+    eventId: eventId,
+    enabled: !!eventId,
+  })
+  const event = eventsData?.items?.[0] || null
 
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;

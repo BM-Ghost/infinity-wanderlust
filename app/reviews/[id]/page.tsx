@@ -39,11 +39,16 @@ export default function ReviewDetailPage() {
   const [relatedReviews, setRelatedReviews] = useState<any[]>([])
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
-  const { data: reviews, isLoading, isError } = useReviews(1)
+  const { data: reviewsData, isLoading, isError } = useReviews({
+    page: 1,
+    perPage: 50,
+    enabled: true,
+  })
+  const reviews = reviewsData?.items || []
 
   // FIX: Move state updates into useEffect
   useEffect(() => {
-    if (reviews && id) {
+    if (reviews && reviews.length > 0 && id) {
       const foundReview = reviews.find((review: any) => review.id === id) || null
       setReview(foundReview)
       setRelatedReviews(reviews.filter((r: any) => r.id !== id))
