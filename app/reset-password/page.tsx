@@ -17,6 +17,8 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const { t } = useTranslation()
   const { toast } = useToast()
+
+  const [step, setStep] = useState<'code' | 'password' | 'success'>('code')
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
   const [newPassword, setNewPassword] = useState("")
