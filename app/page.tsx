@@ -27,6 +27,7 @@ import { useReviews } from "@/hooks/useReviews"
 import { useEvents } from "@/hooks/useEvents"
 import { useArticles } from "@/hooks/useArticles"
 import { InstagramFeed } from "@/components/instagram-feed"
+import { AboutPreview } from "@/components/about-preview"
 
 export default function HomePage() {
   const { t } = useTranslation()
@@ -116,7 +117,7 @@ export default function HomePage() {
       <div className="pointer-events-none absolute -top-32 -right-16 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 -left-20 h-[420px] w-[420px] rounded-full bg-emerald-400/8 blur-3xl" />
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center overflow-hidden pt-20">
+      <section className="relative min-h-screen flex items-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <Image
             src="/images/samburu_plane.jpg"
@@ -823,6 +824,9 @@ export default function HomePage() {
           </motion.div>
         </div>
       </section>
+      
+      {/* About Preview Section - Only on homepage for sitelinks */}
+      <AboutPreview />
     </div>
   )
 }
