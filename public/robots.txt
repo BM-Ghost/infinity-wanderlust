@@ -1,0 +1,25 @@
+# Robots file for Infinity Wanderlust
+# Allow all search engines to crawl and index the site
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /.well-known/
+
+# Sitemap location
+Sitemap: https://infinity-wanderlust.com/sitemap.xml
+
+# Specific rules for common crawlers
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Block AI crawlers if needed (uncomment to enable)
+# User-agent: GPTBot
+# User-agent: ChatGPT-User
+# User-agent: CCBot
+# Disallow: /

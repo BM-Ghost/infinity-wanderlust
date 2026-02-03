@@ -9,12 +9,12 @@ export function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="bg-primary/10 border-t">
+    <footer className="bg-primary/10 border-t" role="contentinfo">
       <div className="container py-2 md:py-2">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand and Socials */}
           <div className="space-y-4 break-words">
-            <h3 className="text-lg font-bold text-primary">Infinity Wanderlust</h3>
+            <h2 className="text-lg font-bold text-primary">Infinity Wanderlust</h2>
             <p className="text-sm text-muted-foreground">{t("footerTagline")}</p>
             <div className="flex space-x-4">
               <Link
@@ -22,39 +22,53 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Follow us on Instagram"
               >
                 <Instagram className="h-5 w-5" />
                 <span className="sr-only">Instagram</span>
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link 
+                href="https://www.facebook.com/infinitywanderlust" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Follow us on Facebook"
+              >
                 <Facebook className="h-5 w-5" />
                 <span className="sr-only">Facebook</span>
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link 
+                href="https://twitter.com/infinitywanderlust" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                aria-label="Follow us on Twitter"
+              >
                 <Twitter className="h-5 w-5" />
                 <span className="sr-only">Twitter</span>
               </Link>
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="space-y-4 break-words">
+          {/* Quick Links - SEO Sitelinks Section */}
+          <nav className="space-y-4 break-words">
             <h3 className="text-lg font-bold">{t("quickLinks")}</h3>
             <ul className="space-y-2">
               <li><Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("home")}</Link></li>
-              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("about")}</Link></li>
-              <li><Link href="/gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("gallery")}</Link></li>
               <li><Link href="/events" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("events")}</Link></li>
+              <li><Link href="/articles" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("articles")}</Link></li>
+              <li><Link href="/gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("gallery")}</Link></li>
               <li><Link href="/reviews" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("reviews")}</Link></li>
+              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">{t("about")}</Link></li>
             </ul>
-          </div>
+          </nav>
 
           {/* Contact Info */}
-          <div className="space-y-4 break-words">
+          <address className="space-y-4 break-words not-italic">
             <h3 className="text-lg font-bold">{t("contact")}</h3>
             <ul className="space-y-3">
               <li className="flex items-start break-all">
-                <Mail className="h-5 w-5 mr-2 text-primary" />
+                <Mail className="h-5 w-5 mr-2 text-primary flex-shrink-0" />
                 <a
                   href="mailto:infinitywanderlusttravels@gmail.com"
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -63,7 +77,7 @@ export function Footer() {
                 </a>
               </li>
               <li className="flex items-start">
-                <MapPin className="h-5 w-5 mr-2 text-primary" />
+                <MapPin className="h-5 w-5 mr-2 text-primary flex-shrink-0" />
                 <span className="text-sm text-muted-foreground break-words">
                   Infinity Wanderlust Travels
                   <br />
@@ -73,7 +87,7 @@ export function Footer() {
                 </span>
               </li>
               <li className="flex items-start">
-                <Phone className="h-5 w-5 mr-2 text-primary" />
+                <Phone className="h-5 w-5 mr-2 text-primary flex-shrink-0" />
                 <a
                   href="tel:+254706492887"
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -82,7 +96,7 @@ export function Footer() {
                 </a>
               </li>
             </ul>
-          </div>
+          </address>
 
           {/* Newsletter */}
           <div className="space-y-4 break-words">
@@ -94,6 +108,7 @@ export function Footer() {
                 placeholder={t("emailPlaceholder")}
                 className="px-3 py-2 bg-background border rounded-md text-sm w-full break-words"
                 required
+                aria-label="Email address"
               />
               <button
                 type="submit"

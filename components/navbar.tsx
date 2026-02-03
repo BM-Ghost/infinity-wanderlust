@@ -107,15 +107,16 @@ export function Navbar() {
       ? "bg-[#004d00]/30 backdrop-blur-sm shadow-md" // Dark green, slightly transparent
       : "bg-transparent"
   }`}
+  role="banner"
 >
 
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" aria-label="Infinity Wanderlust - Travel Events Platform">
           <span className="text-xl font-bold text-primary">Infinity Wanderlust</span>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex items-center gap-6" role="navigation" aria-label="Main navigation">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -123,6 +124,7 @@ export function Navbar() {
               className={`text-sm font-medium transition-colors hover:text-primary ${
                 pathname === link.href ? "text-primary" : "text-muted-foreground"
               }`}
+              aria-current={pathname === link.href ? 'page' : undefined}
             >
               {link.label}
             </Link>
