@@ -59,17 +59,6 @@ const nextConfig = {
       },
     ]
   },
-  // Rewrite routes for better SEO
-  async rewrites() {
-    return {
-      beforeFiles: [
-        {
-          source: '/sitemap.xml',
-          destination: '/api/sitemap',
-        },
-      ],
-    }
-  },
 }
 
 export default nextConfig
