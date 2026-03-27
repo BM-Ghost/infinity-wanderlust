@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
+import { fetchReviewById } from "@/lib/reviews"
 import { useQueryClient } from "@tanstack/react-query"
 
 export default function ReviewDetailPage() {
@@ -48,19 +49,44 @@ export default function ReviewDetailPage() {
   })
   const reviews = reviewsData?.items || []
 
-  // Load review and related reviews when data is available
+  // Load the requested article by id
   useEffect(() => {
-    if (reviews && id) {
-      const foundReview = reviews.find((review: any) => review.id === id) || null
-      if (foundReview) {
-        setReview(foundReview)
-        setRelatedReviews(reviews.filter((r: any) => r.id !== id).slice(0, 3)) // Limit to 3 related reviews
-      } else if (!isLoading) {
-        // If review not found and not loading, redirect to articles page
-        router.push('/articles')
+    let isMounted = true
+
+    const loadArticle = async () => {
+      if (!id || typeof id !== "string") return
+
+      try {
+        const fetchedReview = await fetchReviewById(id)
+
+        if (!isMounted) return
+
+        if (fetchedReview) {
+          setReview(fetchedReview)
+          return
+        }
+
+        router.push("/articles")
+      } catch {
+        if (isMounted) {
+          router.push("/articles")
+        }
       }
     }
-  }, [reviews, id, isLoading, router])
+
+    loadArticle()
+
+    return () => {
+      isMounted = false
+    }
+  }, [id, router])
+
+  // Load related reviews when list data is available
+  useEffect(() => {
+    if (reviews && id && typeof id === "string") {
+      setRelatedReviews(reviews.filter((r: any) => r.id !== id).slice(0, 3)) // Limit to 3 related reviews
+    }
+  }, [reviews, id])
 
   // Handle like action
   const handleLike = () => {

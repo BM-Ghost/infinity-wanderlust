@@ -111,6 +111,25 @@ export async function fetchReviews(
   }
 }
 
+export async function fetchReviewById(id: string): Promise<ReviewWithAuthor | null> {
+  const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
+
+  try {
+    const record = await pb.collection("reviews").getOne(id, {
+      expand: "reviewer",
+      $autoCancel: false,
+    })
+
+    return formatReview(record)
+  } catch (error: any) {
+    if (error?.status === 404) {
+      return null
+    }
+    throw new Error(error?.message || "Failed to fetch article")
+  }
+}
+
 // Create a new review
 export async function createReview(
   data: { destination: string; rating: number; review_text: string; photos?: File[]; },

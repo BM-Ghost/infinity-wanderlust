@@ -20,7 +20,7 @@ export default function ArticlesPage() {
   const router = useRouter()
   const { user } = useAuth()
   const isAuthenticated = !!user
-  const isAdmin = user?.email === 'infinitywanderlusttravels@gmail.com'
+  const isAdmin = user?.email?.toLowerCase() === 'infinitywanderlusttravels@gmail.com'
   const { toast } = useToast()
   
   const [currentPage, setCurrentPage] = useState(1)
@@ -153,7 +153,7 @@ export default function ArticlesPage() {
           </div>
           
           {isAdmin && (
-            <Button onClick={() => router.push('/reviews/create')}>
+            <Button onClick={() => router.push('/articles/create')}>
               <Plus className="mr-2 h-4 w-4" />
               Write Article
             </Button>
@@ -350,7 +350,7 @@ export default function ArticlesPage() {
               {searchQuery ? 'No articles match your search.' : 'No articles have been published yet.'}
             </p>
             {isAdmin && !searchQuery && (
-              <Button className="mt-4" onClick={() => router.push('/reviews/create')}>
+              <Button className="mt-4" onClick={() => router.push('/articles/create')}>
                 <Plus className="mr-2 h-4 w-4" />
                 Write Your First Article
               </Button>
