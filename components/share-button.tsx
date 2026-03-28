@@ -8,7 +8,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useToast } from "@/components/ui/use-toast"
-import { motion } from "framer-motion"
 import {
   Share2,
   Twitter,
@@ -16,6 +15,7 @@ import {
   Copy,
   Instagram,
   Music2,
+  CheckCheck,
 } from "lucide-react"
 
 interface ShareButtonProps {
@@ -32,96 +32,103 @@ export function ShareButton({
   className = "",
 }: ShareButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const { toast } = useToast()
 
   const handleCopyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(url)
-      toast({
-        title: "Copied to clipboard",
-        description: "Share the link on Instagram, TikTok, or anywhere else!",
-        duration: 2000,
-      })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
       setIsOpen(false)
-    } catch (err) {
       toast({
-        title: "Failed to copy",
-        description: "Please try again",
-        variant: "destructive",
+        title: "Link copied!",
+        description: "Paste it anywhere — Instagram bio, TikTok caption, or a message.",
+        duration: 2500,
       })
+    } catch {
+      toast({ title: "Failed to copy", description: "Please try again", variant: "destructive" })
     }
   }
 
   const shareTwitter = () => {
-    const tweetText = encodeURIComponent(
-      `${title}\n\n${description ? description + "\n\n" : ""}Check out this post on Infinity Wanderlust Travels!\n\n${url}`
-    )
-    window.open(
-      `https://twitter.com/intent/tweet?text=${tweetText}`,
-      "_blank",
-      "width=550,height=420"
-    )
+    const text = encodeURIComponent(`${title}\n\n${url}`)
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "width=550,height=420")
     setIsOpen(false)
   }
 
   const shareLinkedIn = () => {
-    const linkedInUrl = new URL("https://www.linkedin.com/sharing/share-offsite/")
-    linkedInUrl.searchParams.append("url", url)
-    window.open(linkedInUrl.toString(), "_blank", "width=550,height=420")
+    const u = new URL("https://www.linkedin.com/sharing/share-offsite/")
+    u.searchParams.append("url", url)
+    window.open(u.toString(), "_blank", "width=550,height=420")
     setIsOpen(false)
   }
 
-  const shareInstagram = () => {
-    handleCopyToClipboard()
+  const shareInstagram = async () => {
+    await navigator.clipboard.writeText(url).catch(() => {})
+    setIsOpen(false)
     toast({
-      title: "Ready to share on Instagram!",
-      description: "The link is copied. Open Instagram and paste it in your Story or Post.",
+      title: "Ready for Instagram!",
+      description: "Link copied — paste it in your Story link or bio.",
+      duration: 3000,
     })
   }
 
-  const shareTikTok = () => {
-    handleCopyToClipboard()
+  const shareTikTok = async () => {
+    await navigator.clipboard.writeText(url).catch(() => {})
+    setIsOpen(false)
     toast({
-      title: "Ready to share on TikTok!",
-      description: "The link is copied. Add it to your TikTok video or share in captions.",
+      title: "Ready for TikTok!",
+      description: "Link copied — paste it in your video caption or bio.",
+      duration: 3000,
     })
   }
 
   const shareOptions = [
     {
-      label: "Twitter",
+      label: "Twitter / X",
+      hint: "Post a tweet",
       icon: Twitter,
       onClick: shareTwitter,
-      color: "text-sky-500",
-      bgColor: "hover:bg-sky-50 dark:hover:bg-sky-950",
+      iconColor: "text-sky-500",
+      hoverBg: "hover:bg-sky-50 dark:hover:bg-sky-950/50",
+      border: "border-sky-100 dark:border-sky-900/40",
     },
     {
       label: "LinkedIn",
+      hint: "Share professionally",
       icon: Linkedin,
       onClick: shareLinkedIn,
-      color: "text-blue-600",
-      bgColor: "hover:bg-blue-50 dark:hover:bg-blue-950",
+      iconColor: "text-blue-600",
+      hoverBg: "hover:bg-blue-50 dark:hover:bg-blue-950/50",
+      border: "border-blue-100 dark:border-blue-900/40",
     },
     {
       label: "Instagram",
+      hint: "Copy link for Story or bio",
       icon: Instagram,
       onClick: shareInstagram,
-      color: "text-pink-500",
-      bgColor: "hover:bg-pink-50 dark:hover:bg-pink-950",
+      iconColor: "text-pink-500",
+      hoverBg: "hover:bg-pink-50 dark:hover:bg-pink-950/50",
+      border: "border-pink-100 dark:border-pink-900/40",
     },
     {
       label: "TikTok",
+      hint: "Copy link for caption or bio",
       icon: Music2,
       onClick: shareTikTok,
-      color: "text-neutral-900 dark:text-neutral-100",
-      bgColor: "hover:bg-neutral-100 dark:hover:bg-neutral-800",
+      iconColor: "text-foreground",
+      hoverBg: "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
+      border: "border-neutral-200 dark:border-neutral-700",
     },
     {
-      label: "Copy Link",
-      icon: Copy,
+      label: "Copy link",
+      hint: url.length > 36 ? url.substring(0, 36) + "…" : url,
+      icon: copied ? CheckCheck : Copy,
       onClick: handleCopyToClipboard,
-      color: "text-neutral-600 dark:text-neutral-400",
-      bgColor: "hover:bg-neutral-100 dark:hover:bg-neutral-800",
+      iconColor: copied ? "text-green-500" : "text-muted-foreground",
+      hoverBg: "hover:bg-neutral-100 dark:hover:bg-neutral-800/50",
+      border: "border-neutral-200 dark:border-neutral-700",
     },
   ]
 
@@ -132,43 +139,43 @@ export function ShareButton({
           variant="outline"
           size="icon"
           className={`rounded-full ${className}`}
-          title="Share this content"
+          title="Share"
         >
           <Share2 className="h-4 w-4" />
           <span className="sr-only">Share</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">Share this post</h3>
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            {shareOptions.map((option, index) => {
-              const Icon = option.icon
-              return (
-                <motion.button
-                  key={option.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={option.onClick}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg transition-colors ${option.bgColor}`}
-                  title={option.label}
-                >
-                  <Icon className={`h-5 w-5 ${option.color}`} />
-                  <span className="text-xs mt-1 text-center font-medium">
-                    {option.label}
-                  </span>
-                </motion.button>
-              )
-            })}
-          </div>
-          <div className="pt-2 mt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground">
-              Share this amazing travel story with your friends!
-            </p>
-          </div>
+
+      <PopoverContent side="top" align="end" className="w-72 p-0 overflow-hidden shadow-xl">
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-border bg-muted/40">
+          <p className="text-sm font-semibold">Share this post</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[220px]">{title}</p>
+        </div>
+
+        {/* Options list */}
+        <div className="py-1">
+          {shareOptions.map((option) => {
+            const Icon = option.icon
+            return (
+              <button
+                key={option.label}
+                onClick={option.onClick}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${option.hoverBg}`}
+              >
+                {/* Icon badge */}
+                <span className={`flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full border ${option.border} bg-background`}>
+                  <Icon className={`h-4 w-4 ${option.iconColor}`} />
+                </span>
+
+                {/* Text */}
+                <span className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium leading-none">{option.label}</span>
+                  <span className="text-xs text-muted-foreground mt-0.5 truncate">{option.hint}</span>
+                </span>
+              </button>
+            )
+          })}
         </div>
       </PopoverContent>
     </Popover>
