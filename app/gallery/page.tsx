@@ -24,7 +24,8 @@ export default function GalleryPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUpload, setSelectedUpload] = useState<any | null>(null)
 
-  const { data: uploads = [], isLoading, isError } = useUploads(1)
+  const { data: uploadsData = { items: [], error: undefined }, isLoading, isError } = useUploads(1)
+  const uploads = uploadsData.items || []
 
   const filteredUploads = uploads.filter((upload) => {
     const caption = upload.caption?.toLowerCase() || ""

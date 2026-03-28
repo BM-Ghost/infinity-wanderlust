@@ -18,15 +18,17 @@ export default function UserProfilePage() {
   const { userId } = useParams()
   const router = useRouter()
   const { data: usersData = [] } = useUsers(1)
-  const { data: uploadsData = [] } = useUploads(1)
+  const users = usersData || []
+  
+  const { data: uploadsData = { items: [], error: undefined } } = useUploads(1)
+  const uploads = uploadsData.items || []
+  
   const { data: reviewsData = { items: [] } } = useReviews({
     page: 1,
     perPage: 50,
     enabled: true,
   })
 
-  const users = usersData || []
-  const uploads = uploadsData || []
   const reviews = reviewsData?.items || []
 
   const user = users.find((u: any) => u.id === userId)

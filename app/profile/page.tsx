@@ -47,13 +47,20 @@ export default function ProfilePage() {
   const { toast } = useToast()
 
   // Fetch all users, uploads, reviews, events, bookings
-  const { data: users = [], isLoading: isUsersLoading } = useUsers(1)
-  const { data: uploads = [], isLoading: isUploadsLoading } = useUploads(1)
+  const { data: usersData = [], isLoading: isUsersLoading } = useUsers(1)
+  const users = usersData || []
+  
+  const { data: uploadsData = { items: [], error: undefined }, isLoading: isUploadsLoading } = useUploads(1)
+  const uploads = uploadsData.items || []
+  
   const { data: reviewsData, isLoading: isReviewsLoading } = useReviews({ page: 1, perPage: 20 })
   const reviews = reviewsData?.items ?? []
+  
   const { data: eventsData, isLoading: isEventsLoading } = useEvents({ page: 1, perPage: 20 })
   const events = eventsData?.items ?? []
-  const { data: bookings = [], isLoading: isBookingsLoading } = useBookings(user?.id || "")
+  
+  const { data: bookingsData = { items: [], error: undefined }, isLoading: isBookingsLoading } = useBookings(user?.id || "")
+  const bookings = bookingsData.items || []
 
   // Find the current user from users list
   const currentUser = users.find((u: any) => u.id === user?.id) || user

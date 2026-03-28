@@ -78,7 +78,8 @@ export default function MyBookingsPage() {
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const queryClient = new QueryClient()
-  const { data: bookings = [], isLoading } = useBookings(user?.id || "")
+  const { data: bookingsData = { items: [], error: undefined }, isLoading } = useBookings(user?.id || "")
+  const bookings = bookingsData.items || []
 
   useEffect(() => {
     const pb = getPocketBase()
