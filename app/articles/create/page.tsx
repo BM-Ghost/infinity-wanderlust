@@ -7,7 +7,7 @@ import { Loader2, ImagePlus, X, ArrowLeft } from "lucide-react"
 import { useEffect } from "react"
 
 import { useAuth } from "@/components/auth-provider"
-import { createReview, updateReview, fetchReviewById } from "@/lib/reviews"
+import { createReview, updateReview, fetchReviewById, markAsBlogContent, stripBlogMarker } from "@/lib/reviews"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -42,7 +42,7 @@ export default function CreateArticlePage() {
         const article = await fetchReviewById(editId)
         if (article) {
           setTitle(article.destination)
-          setContent(article.review_text)
+          setContent(stripBlogMarker(article.review_text))
         } else {
           toast({ variant: "destructive", title: "Article not found" })
           router.replace("/articles")
@@ -98,19 +98,20 @@ export default function CreateArticlePage() {
 
     setIsSubmitting(true)
     try {
+      const blogContent = markAsBlogContent(content)
       let result
       if (isEditMode && editId) {
         result = await updateReview(editId, {
           destination: trimmedTitle,
           rating: 5,
-          review_text: content,
+          review_text: blogContent,
           photos: coverImage ? [coverImage] : [],
         })
       } else {
         result = await createReview({
           destination: trimmedTitle,
           rating: 5,
-          review_text: content,
+          review_text: blogContent,
           photos: coverImage ? [coverImage] : [],
         })
       }

@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
-import { fetchReviewById, deleteReview } from "@/lib/reviews"
+import { fetchReviewById, deleteReview, isBlogReview, stripBlogMarker } from "@/lib/reviews"
 import { useQueryClient } from "@tanstack/react-query"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
 import { useToast } from "@/components/ui/use-toast"
@@ -55,9 +55,9 @@ export default function ReviewDetailPage() {
     page: 1,
     perPage: 10,
     enabled: true,
-    filter: `reviewer.email = "${ADMIN_EMAIL}"`,
+    filter: "",
   })
-  const reviews = reviewsData?.items || []
+  const reviews = (reviewsData?.items || []).filter((item) => isBlogReview(item))
 
   // Load the requested article by id
   useEffect(() => {
@@ -72,6 +72,10 @@ export default function ReviewDetailPage() {
         if (!isMounted) return
 
         if (fetchedReview) {
+          if (!isBlogReview(fetchedReview)) {
+            router.push("/reviews")
+            return
+          }
           setReview(fetchedReview)
           return
         }
@@ -317,7 +321,7 @@ export default function ReviewDetailPage() {
                 <h2 className="text-2xl font-bold mb-4">My experience in {review.destination}</h2>
 
                 <div className="mb-6">
-                  <RichTextRenderer content={review.review_text} className="text-muted-foreground" />
+                  <RichTextRenderer content={stripBlogMarker(review.review_text)} className="text-muted-foreground" />
                 </div>
 
                 {/* Photo gallery */}
@@ -470,7 +474,7 @@ export default function ReviewDetailPage() {
                               </div>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              {relatedReview.review_text}
+                              {stripBlogMarker(relatedReview.review_text)}
                             </p>
                             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                               <span className="flex items-center">

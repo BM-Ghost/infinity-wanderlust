@@ -60,6 +60,7 @@ import {
   updateReview,
   deleteReview,
   type ReviewWithAuthor,
+  isBlogReview,
   likeReview,
 } from "@/lib/reviews"
 import {
@@ -97,9 +98,9 @@ export default function ReviewsPage() {
     page: 1,
     perPage: 10,
     enabled: true,
-    filter: `reviewer.email != "${ADMIN_EMAIL}"`,
+    filter: "",
   })
-  const reviews = reviewsData.items || []
+  const reviews = (reviewsData.items || []).filter((item) => !isBlogReview(item))
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -190,7 +191,7 @@ export default function ReviewsPage() {
     setError(null)
 
     try {
-      let filter = `reviewer.email != "${ADMIN_EMAIL}"`
+      let filter = ""
       const pb = getPocketBase()
 
       // Apply filters based on active tab

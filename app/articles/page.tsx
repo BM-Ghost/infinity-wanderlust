@@ -16,7 +16,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { useArticles } from "@/hooks/useArticles"
-import { ReviewWithAuthor, deleteReview } from "@/lib/reviews"
+import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@/lib/reviews"
 import { ImageCollage } from "@/components/image-collage"
 
 export default function ArticlesPage() {
@@ -30,14 +30,14 @@ export default function ArticlesPage() {
   const [searchQuery, setSearchQuery] = useState("")
 
   const { data, isLoading, isError } = useArticles({ page: currentPage, perPage: 12, enabled: true })
-  const articles = data?.items || []
+  const articles = (data?.items || []).filter((article) => isBlogReview(article))
   const totalPages = data?.totalPages || 1
 
   const filteredArticles = searchQuery
     ? articles.filter(
         (a) =>
           a.destination?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.review_text?.toLowerCase().includes(searchQuery.toLowerCase())
+          stripBlogMarker(a.review_text || "").toLowerCase().includes(searchQuery.toLowerCase())
       )
     : articles
 
@@ -210,6 +210,7 @@ export default function ArticlesPage() {
                 const avatarUrl = getAvatarUrl(article)
                 const authorName = article.authorName || article.expand?.reviewer?.name || "Anonymous"
                 const initials = authorName.charAt(0).toUpperCase()
+                const displayContent = stripBlogMarker(article.review_text || "")
 
                 return (
                   <Card
@@ -224,7 +225,7 @@ export default function ArticlesPage() {
                       {/* Reading time badge */}
                       <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 font-medium">
                         <Clock className="h-3 w-3" />
-                        {estimateReadTime(article.review_text)}
+                        {estimateReadTime(displayContent)}
                       </span>
 
                       {/* Rating badge */}
@@ -268,10 +269,10 @@ export default function ArticlesPage() {
                         </h2>
 
                         <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mb-3">
-                          {truncateText(article.review_text || "No content available")}
+                          {truncateText(displayContent || "No content available")}
                         </p>
 
-                        {article.review_text && article.review_text.length > 120 && (
+                        {displayContent && displayContent.length > 120 && (
                           <Link
                             href={`/articles/${article.id}`}
                             className="text-primary text-sm font-semibold inline-flex items-center hover:underline"

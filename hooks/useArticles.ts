@@ -1,8 +1,6 @@
 import { useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
-import { fetchReviews, ReviewWithAuthor } from "@/lib/reviews";
+import { fetchReviews, isBlogReview, ReviewWithAuthor } from "@/lib/reviews";
 import { ClientResponseError } from "pocketbase";
-
-const ADMIN_EMAIL = 'infinitywanderlusttravels@gmail.com';
 
 export interface ArticlesData {
   items: ReviewWithAuthor[];
@@ -25,25 +23,30 @@ export const useArticles = ({
   initialData,
 }: UseArticlesOptions) => {
   const queryClient = useQueryClient();
-  const filter = `reviewer.email = "${ADMIN_EMAIL}"`;
   const sort = "-created";
   
   const queryOptions: UseQueryOptions<ArticlesData, Error> = {
-    queryKey: ["articles", page, perPage, sort, filter],
+    queryKey: ["articles", page, perPage, sort],
     queryFn: async () => {
       try {
-        const result = await fetchReviews(page, perPage, sort, filter);
+        const result = await fetchReviews(1, 200, sort, "");
+        const blogItems = (result.items as ReviewWithAuthor[]).filter((item) => isBlogReview(item));
+        const totalItems = blogItems.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+        const startIndex = (page - 1) * perPage;
+        const paginatedItems = blogItems.slice(startIndex, startIndex + perPage);
+
         return {
-          items: result.items as ReviewWithAuthor[],
-          totalItems: result.totalItems,
-          totalPages: result.totalPages,
+          items: paginatedItems,
+          totalItems,
+          totalPages,
           // Include error from fetchReviews if any
           ...(result.error && { error: result.error })
         };
       } catch (error) {
         if (error instanceof ClientResponseError && !navigator.onLine) {
           // Return cached data if offline
-          const cachedData = queryClient.getQueryData<ArticlesData>(["articles", page, perPage, sort, filter]);
+          const cachedData = queryClient.getQueryData<ArticlesData>(["articles", page, perPage, sort]);
           
           if (cachedData) {
             return cachedData;

@@ -1,6 +1,33 @@
 import { getPocketBase } from "@/lib/pocketbase"
 import { useQuery } from "@tanstack/react-query"
 
+export const BLOG_CONTENT_MARKER = "<!--IWT_BLOG-->"
+
+export function isBlogContent(content: string | undefined | null): boolean {
+  if (!content) return false
+  return content.trimStart().startsWith(BLOG_CONTENT_MARKER)
+}
+
+export function markAsBlogContent(content: string): string {
+  if (isBlogContent(content)) return content
+  return `${BLOG_CONTENT_MARKER}\n${content}`
+}
+
+export function stripBlogMarker(content: string | undefined | null): string {
+  if (!content) return ""
+  if (!isBlogContent(content)) return content
+  return content.trimStart().replace(BLOG_CONTENT_MARKER, "").trimStart()
+}
+
+export function isBlogReview(review: { review_text?: string; reviewer?: string; rating?: number }): boolean {
+  if (isBlogContent(review.review_text)) return true
+
+  // Legacy fallback for older admin blogs created before marker rollout.
+  // These are typically long-form posts with no exposed reviewer relation.
+  const textLength = (review.review_text || "").replace(/<[^>]*>/g, " ").trim().length
+  return !review.reviewer && (review.rating || 0) >= 5 && textLength >= 500
+}
+
 export type Review = {
   id: string
   created: string
