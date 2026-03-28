@@ -96,13 +96,13 @@ export default function ContactPage() {
                     Call Us
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                {/* <CardContent>
                   <p className="text-sm text-muted-foreground">
                     <a href="tel:+254706492887" className="hover:text-primary">
                       +254 706 492 887
                     </a>
                   </p>
-                </CardContent>
+                </CardContent> */}
               </Card>
 
               <Card>

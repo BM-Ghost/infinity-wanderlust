@@ -86,7 +86,7 @@ export function Footer() {
                   Kenya
                 </span>
               </li>
-              <li className="flex items-start">
+              {/* <li className="flex items-start">
                 <Phone className="h-5 w-5 mr-2 text-primary flex-shrink-0" />
                 <a
                   href="tel:+254706492887"
@@ -94,7 +94,7 @@ export function Footer() {
                 >
                   +254 706 492 887
                 </a>
-              </li>
+              </li> */}
             </ul>
           </address>
 

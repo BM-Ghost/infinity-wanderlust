@@ -18,7 +18,7 @@ export const organizationSchema = {
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'Customer Support',
-    telephone: '+254706492887',
+    telephone: 'Coming soon',
     email: 'infinitywanderlusttravels@gmail.com',
   },
   address: {
