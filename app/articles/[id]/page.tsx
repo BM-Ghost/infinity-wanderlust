@@ -1,7 +1,7 @@
 "use client"
 export const runtime = 'edge'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, lazy } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -13,13 +13,13 @@ import { Badge } from "@/components/ui/badge"
 import { useTranslation } from "@/lib/translations"
 import { useAuth } from "@/components/auth-provider"
 import { ImageCollage } from "@/components/image-collage";
+import { ShareButton } from "@/components/share-button"
 import {
   Star,
   MapPin,
   Calendar,
   Heart,
   MessageSquare,
-  Share2,
   ArrowLeft,
   ChevronRight,
   Camera,
@@ -62,7 +62,7 @@ export default function ReviewDetailPage() {
   
   const { data: reviewsData, isLoading, isError } = useReviews({
     page: 1,
-    perPage: 10,
+    perPage: 6,
     enabled: true,
     filter: "",
   })
@@ -345,12 +345,15 @@ export default function ReviewDetailPage() {
                 {/* Photo gallery */}
                 {review.photoUrl && (
                   <div className="mb-6">
-                    <div className="relative aspect-video rounded-lg overflow-hidden">
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
                       <Image
                         src={review.photoUrl || "/placeholder.svg"}
                         alt={`Photo of ${review.destination}`}
                         fill
                         className="object-cover"
+                        priority={false}
+                        placeholder="blur"
+                        blurDataURL="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720'%3E%3Crect fill='%23f3f4f6' width='1280' height='720'/%3E%3C/svg%3E"
                       />
                       <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center">
                         <Camera className="h-3 w-3 mr-1" />
@@ -400,10 +403,11 @@ export default function ReviewDetailPage() {
                     {isBookmarked ? "Saved" : "Save"}
                   </Button>
 
-                  <Button variant="outline" size="sm">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share
-                  </Button>
+                  <ShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                    title={review.title || review.destination}
+                    description={stripBlogMarker(review.content).substring(0, 150)}
+                  />
                 </div>
               </CardContent>
             </Card>

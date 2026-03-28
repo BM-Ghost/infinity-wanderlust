@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Improve all transitions */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Optimize images and performance */
+img {
+  @apply will-change-transform;
+}
+
+/* Better link transitions */
+a {
+  @apply transition-all duration-200;
+}
+
+/* Smooth button transitions */
+button {
+  @apply transition-all duration-200;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

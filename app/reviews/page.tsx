@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
+import { ShareButton } from "@/components/share-button"
 import {
   Star,
   Calendar,
@@ -1133,6 +1134,11 @@ export default function ReviewsPage() {
             </span>
           </Button>
         </div>
+        <ShareButton
+          url={typeof window !== "undefined" ? `${window.location.origin}/reviews/${review.id}` : ""}
+          title={`Review from ${review.expand?.reviewer?.name || 'Anonymous'} about ${review.destination}`}
+          description={review.review_text?.substring(0, 100) || "Check out this travel review"}
+        />
       </div>
     )
   }

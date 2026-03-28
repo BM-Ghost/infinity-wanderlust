@@ -1,7 +1,7 @@
 "use client"
 export const runtime = 'edge'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -14,13 +14,13 @@ import { useTranslation } from "@/lib/translations"
 import { useAuth } from "@/components/auth-provider"
 import { ImageCollage } from "@/components/image-collage";
 import { RichTextRenderer } from "@/components/rich-text-renderer"
+import { ShareButton } from "@/components/share-button"
 import {
   Star,
   MapPin,
   Calendar,
   Heart,
   MessageSquare,
-  Share2,
   ArrowLeft,
   ChevronRight,
   Camera,
@@ -277,10 +277,11 @@ export default function ReviewDetailPage() {
                     {isBookmarked ? "Saved" : "Save"}
                   </Button>
 
-                  <Button variant="outline" size="sm">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share
-                  </Button>
+                  <ShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                    title={`Review from ${review.expand?.reviewer?.name || 'Anonymous'} about ${review.destination}`}
+                    description={review.review_text.substring(0, 150)}
+                  />
                 </div>
               </CardContent>
             </Card>

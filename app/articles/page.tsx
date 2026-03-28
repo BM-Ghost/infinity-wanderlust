@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
+import { ShareButton } from "@/components/share-button"
 import {
   Calendar, User, Plus, Search, X, Star, MessageSquare, Heart,
   ChevronRight, Pencil, Trash2, BookOpen, Clock, Plane
@@ -320,10 +321,18 @@ export default function ArticlesPage() {
                               {article.comments_count || 0}
                             </span>
                           </div>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {formatDate(article.created)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {formatDate(article.created)}
+                            </span>
+                            <ShareButton
+                              url={typeof window !== "undefined" ? `${window.location.origin}/articles/${article.id}` : ""}
+                              title={article.destination || "Travel Article"}
+                              description={truncateText(displayContent || "", 80)}
+                              className="h-8 w-8"
+                            />
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -334,6 +343,7 @@ export default function ArticlesPage() {
                               width={28}
                               height={28}
                               className="h-7 w-7 rounded-full object-cover ring-2 ring-background"
+                              priority={false}
                             />
                           ) : (
                             <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary ring-2 ring-background">
