@@ -87,7 +87,7 @@ export default function ContactPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <Label htmlFor="name" className="text-sm font-medium">Your Name</Label>
-                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Glory Bundi" required />
+                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Write your name here" required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
