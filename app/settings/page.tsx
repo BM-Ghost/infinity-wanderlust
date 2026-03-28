@@ -287,10 +287,13 @@ export default function SettingsPage() {
         console.warn("auth_number bump failed (non-blocking)", bumpError)
       }
 
-      // Fire-and-forget email notification
+      // Fire-and-forget email notification — pass the user's auth token so the route can verify the sender
       fetch("/api/email/password-changed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${pb.authStore.token}`,
+        },
         body: JSON.stringify({ to: userEmail, userName, logoutAll: true }),
       }).catch((err) => console.warn("password-changed email send failed", err))
 
@@ -329,14 +332,15 @@ export default function SettingsPage() {
     const pb = getPocketBase()
 
     if (logoutEverywhere) {
-      // Call server to bump auth_number for cross-session signout
+      // Call server to invalidate all sessions; send the user's own token for auth
       try {
-        const userId = pb?.authStore.model?.id
-        if (userId) {
+        if (pb?.authStore.token) {
           await fetch("/api/security/logout-all", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId }),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${pb.authStore.token}`,
+            },
           })
         }
       } catch (e) {

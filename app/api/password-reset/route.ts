@@ -12,16 +12,10 @@ export async function POST(request: Request) {
     }
 
     const result = await requestPasswordReset(email)
-    
     return NextResponse.json(result)
-  } catch (error) {
-    console.error("/api/password-reset error:", error)
+  } catch {
     return NextResponse.json(
-      { 
-        success: false, 
-        error: "Failed to process password reset request",
-        message: error instanceof Error ? error.message : "Unknown error"
-      },
+      { success: false, message: "Failed to process password reset request" },
       { status: 500 }
     )
   }
