@@ -36,6 +36,7 @@ import { getPocketBase } from "@/lib/pocketbase"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { PasswordStrength, isPasswordValid } from "@/components/ui/password-strength"
 
 export default function SettingsPage() {
   const { user, refreshUser, signOut } = useAuth()
@@ -244,20 +245,20 @@ export default function SettingsPage() {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!isPasswordValid(newPassword)) {
+      toast({
+        variant: "destructive",
+        title: "Weak password",
+        description: "Please meet all password requirements before saving.",
+      })
+      return
+    }
+
     if (newPassword !== confirmPassword) {
       toast({
         variant: "destructive",
         title: "Passwords don't match",
         description: "New password and confirmation must match.",
-      })
-      return
-    }
-
-    if (newPassword.length < 8) {
-      toast({
-        variant: "destructive",
-        title: "Password too short",
-        description: "Password must be at least 8 characters long.",
       })
       return
     }
@@ -586,28 +587,57 @@ export default function SettingsPage() {
 
                         <div className="grid gap-2">
                           <Label htmlFor="newPassword">New Password</Label>
-                          <Input
-                            id="newPassword"
-                            type={showPassword ? "text" : "password"}
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            disabled={isPasswordSubmitting}
-                            required
-                            minLength={8}
-                          />
-                          <p className="text-xs text-muted-foreground">Password must be at least 8 characters long</p>
+                          <div className="relative">
+                            <Input
+                              id="newPassword"
+                              type={showPassword ? "text" : "password"}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              disabled={isPasswordSubmitting}
+                              required
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                              onClick={() => setShowPassword(!showPassword)}
+                              disabled={isPasswordSubmitting}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
+                          <PasswordStrength password={newPassword} confirmPassword={confirmPassword} />
                         </div>
 
                         <div className="grid gap-2">
                           <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                          <Input
-                            id="confirmPassword"
-                            type={showPassword ? "text" : "password"}
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            disabled={isPasswordSubmitting}
-                            required
-                          />
+                          <div className="relative">
+                            <Input
+                              id="confirmPassword"
+                              type={showPassword ? "text" : "password"}
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              disabled={isPasswordSubmitting}
+                              required
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                              onClick={() => setShowPassword(!showPassword)}
+                              disabled={isPasswordSubmitting}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </CardContent>
 
@@ -615,7 +645,10 @@ export default function SettingsPage() {
                         <Button type="button" variant="outline" onClick={() => router.push("/profile")}>
                           Cancel
                         </Button>
-                        <Button type="submit" disabled={isPasswordSubmitting}>
+                        <Button
+                          type="submit"
+                          disabled={isPasswordSubmitting || !currentPassword || !isPasswordValid(newPassword) || newPassword !== confirmPassword}
+                        >
                           {isPasswordSubmitting ? (
                             <span className="inline-flex items-center gap-2">
                               <Loader2 className="h-4 w-4 animate-spin" /> Updating...

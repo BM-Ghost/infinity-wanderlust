@@ -85,7 +85,7 @@ const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -149,6 +149,10 @@ export default function ReviewsPage() {
   const [showUserSearch, setShowUserSearch] = useState<{ [reviewId: string]: boolean }>({})
   const [cursorPosition, setCursorPosition] = useState<{ [reviewId: string]: number }>({})
   const [commentInputRefs] = useState<{ [reviewId: string]: HTMLTextAreaElement | null }>({})
+  const [pendingReviewLikes, setPendingReviewLikes] = useState<{ [reviewId: string]: boolean }>({})
+  const [optimisticReviewLikes, setOptimisticReviewLikes] = useState<{ [reviewId: string]: number }>({})
+  const [pendingCommentLikes, setPendingCommentLikes] = useState<{ [commentId: string]: boolean }>({})
+  const [submittingComments, setSubmittingComments] = useState<{ [reviewId: string]: boolean }>({})
 
 
   const getReviewImageUrl = (review: any, photoIndex: number): string => {
@@ -292,6 +296,10 @@ export default function ReviewsPage() {
 
   // Toggle comments visibility
   const toggleComments = (reviewId: string) => {
+    if (!user || isAuthLoading) {
+      return
+    }
+
     const newValue = !showComments[reviewId]
     setShowComments((prev) => ({ ...prev, [reviewId]: newValue }))
 
@@ -516,7 +524,16 @@ export default function ReviewsPage() {
 
   // Add a function to handle comment submission that updates the UI
   const handleSubmitComment = async (reviewId: string, parentCommentId?: string) => {
+    if (!user || isAuthLoading) {
+      return
+    }
+
+    if (submittingComments[reviewId]) {
+      return
+    }
+
     if (!commentText[reviewId]?.trim()) return
+    setSubmittingComments((prev) => ({ ...prev, [reviewId]: true }))
 
     try {
       // Use the provided parentCommentId or the one from state
@@ -581,6 +598,10 @@ export default function ReviewsPage() {
         title: "Comment failed",
         description: err.message || "There was an error posting your comment. Please try again.",
       })
+    } finally {
+      if (isMounted.current) {
+        setSubmittingComments((prev) => ({ ...prev, [reviewId]: false }))
+      }
     }
   }
 
@@ -646,59 +667,70 @@ export default function ReviewsPage() {
 
   // Handle liking a comment
   const handleLikeComment = async (reviewId: string, commentId: string, isReply = false, parentCommentId?: string) => {
+    if (!user || isAuthLoading || pendingCommentLikes[commentId]) {
+      return
+    }
+
+    const previousComments = JSON.parse(JSON.stringify(reviewComments[reviewId] || []))
+
+    setPendingCommentLikes((prev) => ({ ...prev, [commentId]: true }))
+
+    // Optimistic UI update
+    if (isReply && parentCommentId) {
+      setReviewComments((prev) => {
+        const updatedComments = [...(prev[reviewId] || [])]
+        const parentIndex = updatedComments.findIndex((c) => c.id === parentCommentId)
+
+        if (parentIndex !== -1 && updatedComments[parentIndex].replies) {
+          const replyIndex = updatedComments[parentIndex].replies!.findIndex((reply) => reply.id === commentId)
+
+          if (replyIndex !== -1) {
+            const updatedReplies = [...updatedComments[parentIndex].replies!]
+            updatedReplies[replyIndex] = {
+              ...updatedReplies[replyIndex],
+              likes_count: (updatedReplies[replyIndex].likes_count || 0) + 1,
+            }
+
+            updatedComments[parentIndex] = {
+              ...updatedComments[parentIndex],
+              replies: updatedReplies,
+            }
+          }
+        }
+
+        return { ...prev, [reviewId]: updatedComments }
+      })
+    } else {
+      setReviewComments((prev) => {
+        const updatedComments = [...(prev[reviewId] || [])]
+        const commentIndex = updatedComments.findIndex((c) => c.id === commentId)
+
+        if (commentIndex !== -1) {
+          updatedComments[commentIndex] = {
+            ...updatedComments[commentIndex],
+            likes_count: (updatedComments[commentIndex].likes_count || 0) + 1,
+          }
+        }
+
+        return { ...prev, [reviewId]: updatedComments }
+      })
+    }
+
     try {
       const success = await likeComment(commentId)
-
-      if (success) {
-        if (isReply && parentCommentId) {
-          // This is a reply - update its like count within the parent comment
-          setReviewComments((prev) => {
-            const updatedComments = [...(prev[reviewId] || [])]
-            const parentIndex = updatedComments.findIndex((c) => c.id === parentCommentId)
-
-            if (parentIndex !== -1 && updatedComments[parentIndex].replies) {
-              const replyIndex = updatedComments[parentIndex].replies!.findIndex((reply) => reply.id === commentId)
-
-              if (replyIndex !== -1) {
-                const updatedReplies = [...updatedComments[parentIndex].replies!]
-                updatedReplies[replyIndex] = {
-                  ...updatedReplies[replyIndex],
-                  likes_count: (updatedReplies[replyIndex].likes_count || 0) + 1,
-                }
-
-                updatedComments[parentIndex] = {
-                  ...updatedComments[parentIndex],
-                  replies: updatedReplies,
-                }
-              }
-            }
-
-            return { ...prev, [reviewId]: updatedComments }
-          })
-        } else {
-          // This is a top-level comment
-          setReviewComments((prev) => {
-            const updatedComments = [...(prev[reviewId] || [])]
-            const commentIndex = updatedComments.findIndex((c) => c.id === commentId)
-
-            if (commentIndex !== -1) {
-              updatedComments[commentIndex] = {
-                ...updatedComments[commentIndex],
-                likes_count: (updatedComments[commentIndex].likes_count || 0) + 1,
-              }
-            }
-
-            return { ...prev, [reviewId]: updatedComments }
-          })
-        }
+      if (!success) {
+        throw new Error("Failed to like comment")
       }
     } catch (err: any) {
+      setReviewComments((prev) => ({ ...prev, [reviewId]: previousComments }))
       console.error("Error liking comment:", err)
       toast({
         variant: "destructive",
         title: "Action failed",
         description: err.message || "There was an error liking this comment. Please try again.",
       })
+    } finally {
+      setPendingCommentLikes((prev) => ({ ...prev, [commentId]: false }))
     }
   }
 
@@ -966,15 +998,18 @@ export default function ReviewsPage() {
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs h-7 px-2"
-              onClick={() => handleLikeComment(reviewId, comment.id, isReply, parentCommentId)}
-            >
-              <Heart className="h-3 w-3 mr-1" />
-              {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
-            </Button>
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 px-2"
+                onClick={() => handleLikeComment(reviewId, comment.id, isReply, parentCommentId)}
+                disabled={!!pendingCommentLikes[comment.id]}
+              >
+                <Heart className="h-3 w-3 mr-1" />
+                {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
+              </Button>
+            )}
           </div>
 
           {/* Show view replies button for parent comments with replies */}
@@ -1031,7 +1066,7 @@ export default function ReviewsPage() {
                       <div className="flex justify-end mt-2">
                         <Button
                           size="sm"
-                          disabled={!commentText[`${reviewId}-reply-${comment.id}`]?.trim()}
+                          disabled={!commentText[`${reviewId}-reply-${comment.id}`]?.trim() || !!submittingComments[reviewId]}
                           onClick={() => {
                             if (commentText[`${reviewId}-reply-${comment.id}`]?.trim()) {
                               // Set the comment text for the review
@@ -1066,15 +1101,16 @@ export default function ReviewsPage() {
   )
 
   // Add this function to handle liking a review
-  const handleLikeReview = async (reviewId: string) => {
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Authentication required",
-        description: "Please sign in to like reviews.",
-      })
+  const handleLikeReview = async (reviewId: string, currentLikesCount: number) => {
+    if (!user || isAuthLoading || pendingReviewLikes[reviewId]) {
       return
     }
+
+    setPendingReviewLikes((prev) => ({ ...prev, [reviewId]: true }))
+    setOptimisticReviewLikes((prev) => ({
+      ...prev,
+      [reviewId]: (prev[reviewId] ?? currentLikesCount) + 1,
+    }))
 
     try {
       const success = await likeReview(reviewId)
@@ -1089,28 +1125,41 @@ export default function ReviewsPage() {
         })
       }
     } catch (err: any) {
+      setOptimisticReviewLikes((prev) => ({
+        ...prev,
+        [reviewId]: currentLikesCount,
+      }))
       console.error("Error liking review:", err)
       toast({
         variant: "destructive",
         title: "Action failed",
         description: err.message || "There was an error liking this review. Please try again.",
       })
+    } finally {
+      setPendingReviewLikes((prev) => ({ ...prev, [reviewId]: false }))
     }
   }
 
   // Add animation to the like button
   const renderLikeButton = (reviewId: string, likesCount: number) => {
+    if (!user || isAuthLoading) {
+      return null
+    }
+
+    const displayLikesCount = optimisticReviewLikes[reviewId] ?? likesCount
+
     return (
       <Button
         variant="ghost"
         size="sm"
         className="flex items-center gap-2 group"
-        onClick={() => handleLikeReview(reviewId)}
+        onClick={() => handleLikeReview(reviewId, displayLikesCount)}
+        disabled={!!pendingReviewLikes[reviewId]}
       >
         <Heart
-          className={`h-4 w-4 transition-all duration-300 ${likesCount > 0 ? "fill-red-500 text-red-500" : "group-hover:scale-110 group-hover:text-red-400"}`}
+          className={`h-4 w-4 transition-all duration-300 ${displayLikesCount > 0 ? "fill-red-500 text-red-500" : "group-hover:scale-110 group-hover:text-red-400"}`}
         />
-        <span>{likesCount > 0 ? likesCount : ""}</span>
+        <span>{displayLikesCount > 0 ? displayLikesCount : ""}</span>
       </Button>
     )
   }
@@ -1118,22 +1167,24 @@ export default function ReviewsPage() {
   // Add a stats bar to show review metrics
   const ReviewStats = ({ review }: { review: ReviewWithAuthor }) => {
     return (
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 rounded-md mt-4">
-        <div className="flex items-center gap-4">
-          {renderLikeButton(review.id, review.likes_count || 0)}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-2"
-            onClick={() => toggleComments(review.id)}
-          >
-            <MessageSquare className="h-4 w-4" />
-            <span>
-              {showComments[review.id] ? "Hide" : ""}
-              {!showComments[review.id] && review.comments_count > 0 && review.comments_count}
-            </span>
-          </Button>
-        </div>
+      <div className={`flex items-center ${user ? "justify-between" : "justify-end"} px-4 py-2 bg-muted/30 rounded-md mt-4`}>
+        {user && (
+          <div className="flex items-center gap-4">
+            {renderLikeButton(review.id, review.likes_count || 0)}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-2"
+              onClick={() => toggleComments(review.id)}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>
+                {showComments[review.id] ? "Hide" : ""}
+                {!showComments[review.id] && review.comments_count > 0 && review.comments_count}
+              </span>
+            </Button>
+          </div>
+        )}
         <ShareButton
           url={typeof window !== "undefined" ? `${window.location.origin}/reviews/${review.id}` : ""}
           title={`Review from ${review.expand?.reviewer?.name || 'Anonymous'} about ${review.destination}`}
@@ -1668,7 +1719,7 @@ export default function ReviewsPage() {
                   </div>
 
                   {/* Comments section */}
-                  {showComments[review.id] && (
+                  {showComments[review.id] && user && (
                     <div className="w-full mt-4 pt-4 border-t">
                       <h4 className="font-medium text-sm mb-3">Comments</h4>
 
@@ -1743,10 +1794,10 @@ export default function ReviewsPage() {
                             <Button
                               className="absolute bottom-2 right-2"
                               size="sm"
-                              disabled={!commentText[review.id]?.trim()}
+                              disabled={!commentText[review.id]?.trim() || !!submittingComments[review.id]}
                               onClick={() => handleSubmitComment(review.id)}
                             >
-                              Post
+                              {submittingComments[review.id] ? "Posting..." : "Post"}
                             </Button>
 
                             {/* User search results */}

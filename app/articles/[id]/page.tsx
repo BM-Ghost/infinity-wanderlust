@@ -50,13 +50,14 @@ export default function ReviewDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
 
   const [review, setReview] = useState<any>(null)
   const [relatedReviews, setRelatedReviews] = useState<any[]>([])
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isLiking, setIsLiking] = useState(false)
   const { toast } = useToast()
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
   
@@ -113,6 +114,11 @@ export default function ReviewDetailPage() {
 
   // Handle like action
   const handleLike = () => {
+    if (!user || isAuthLoading || isLiking) {
+      return
+    }
+
+    setIsLiking(true)
     setIsLiked(!isLiked)
     if (!isLiked) {
       setReview({
@@ -125,6 +131,8 @@ export default function ReviewDetailPage() {
         likes_count: Math.max(0, review.likes_count - 1),
       })
     }
+
+    setTimeout(() => setIsLiking(false), 200)
   }
 
   // Handle bookmark action
@@ -381,22 +389,27 @@ export default function ReviewDetailPage() {
 
                 {/* Action buttons */}
                 <div className="flex flex-wrap gap-3">
-                  <Button
-                    variant={isLiked ? "default" : "outline"}
-                    size="sm"
-                    onClick={handleLike}
-                    className={isLiked ? "bg-red-500 hover:bg-red-600" : ""}
-                  >
-                    <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-white" : ""}`} />
-                    {isLiked ? "Liked" : "Like"} ({review.likes_count})
-                  </Button>
+                  {user && (
+                    <Button
+                      variant={isLiked ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleLike}
+                      disabled={isLiking}
+                      className={isLiked ? "bg-red-500 hover:bg-red-600" : ""}
+                    >
+                      <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-white" : ""}`} />
+                      {isLiked ? "Liked" : "Like"} ({review.likes_count})
+                    </Button>
+                  )}
 
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/articles?destination=${encodeURIComponent(review.destination)}`}>
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Comments ({review.comments_count})
-                    </Link>
-                  </Button>
+                  {user && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/articles?destination=${encodeURIComponent(review.destination)}`}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Comments ({review.comments_count})
+                      </Link>
+                    </Button>
+                  )}
 
                   <Button variant="outline" size="sm" onClick={handleBookmark}>
                     <Bookmark className={`h-4 w-4 mr-2 ${isBookmarked ? "fill-current" : ""}`} />
@@ -500,16 +513,18 @@ export default function ReviewDetailPage() {
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               {stripBlogMarker(relatedReview.review_text)}
                             </p>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              <span className="flex items-center">
-                                <Heart className="h-3 w-3 mr-1" />
-                                {relatedReview.likes_count}
-                              </span>
-                              <span className="flex items-center">
-                                <MessageSquare className="h-3 w-3 mr-1" />
-                                {relatedReview.comments_count}
-                              </span>
-                            </div>
+                            {user && (
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                <span className="flex items-center">
+                                  <Heart className="h-3 w-3 mr-1" />
+                                  {relatedReview.likes_count}
+                                </span>
+                                <span className="flex items-center">
+                                  <MessageSquare className="h-3 w-3 mr-1" />
+                                  {relatedReview.comments_count}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </Link>

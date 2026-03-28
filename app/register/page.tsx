@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth-provider"
-import { Loader2, AlertCircle, X, User, Mail, Lock, CheckCircle } from "lucide-react"
+import { Loader2, AlertCircle, X, User, Mail, Lock, CheckCircle, Eye, EyeOff } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { PasswordStrength, isPasswordValid } from "@/components/ui/password-strength"
 
 // Hunter.io API key
 const hunterApiKey = "572557b3f832258066fb2fe92f863a806e13c57f"
@@ -37,8 +38,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [showVerification, setShowVerification] = useState(false)
   const [timer, setTimer] = useState(120)
-  const [passwordStrength, setPasswordStrength] = useState(0)
-  const [passwordFeedback, setPasswordFeedback] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
 
   // Timer for resending verification email
   useEffect(() => {
@@ -59,60 +59,6 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     setCredentials((prev) => ({ ...prev, [id]: value }))
-
-    // Check password strength
-    if (id === "password") {
-      checkPasswordStrength(value)
-    }
-  }
-
-  // Check password strength
-  const checkPasswordStrength = (password: string) => {
-    if (!password) {
-      setPasswordStrength(0)
-      setPasswordFeedback("")
-      return
-    }
-
-    let strength = 0
-    let feedback = ""
-
-    // Length check
-    if (password.length >= 8) {
-      strength += 1
-    } else {
-      feedback = "Password should be at least 8 characters"
-    }
-
-    // Contains uppercase
-    if (/[A-Z]/.test(password)) {
-      strength += 1
-    }
-
-    // Contains lowercase
-    if (/[a-z]/.test(password)) {
-      strength += 1
-    }
-
-    // Contains numbers
-    if (/[0-9]/.test(password)) {
-      strength += 1
-    }
-
-    // Contains special characters
-    if (/[^A-Za-z0-9]/.test(password)) {
-      strength += 1
-    }
-
-    setPasswordStrength(strength)
-
-    if (strength < 3 && !feedback) {
-      feedback = "Consider adding uppercase, numbers, or special characters"
-    } else if (strength >= 3) {
-      feedback = "Strong password"
-    }
-
-    setPasswordFeedback(feedback)
   }
 
   // Handle form submission
@@ -120,13 +66,13 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
 
-    if (credentials.password !== credentials.passwordConfirm) {
-      setError("Passwords don't match. Please make sure your passwords match.")
+    if (!isPasswordValid(credentials.password)) {
+      setError("Please make sure your password meets all the requirements.")
       return
     }
 
-    if (credentials.password.length < 8) {
-      setError("Password must be at least 8 characters long.")
+    if (credentials.password !== credentials.passwordConfirm) {
+      setError("Passwords don't match.")
       return
     }
 
@@ -154,12 +100,19 @@ export default function RegisterPage() {
         console.error("Sign up error:", signUpError)
 
         // Display a more user-friendly error message
-        if (signUpError.message.includes("email already exists")) {
+        const msg = signUpError.message || ""
+        if (
+          msg.includes("email") &&
+          (msg.toLowerCase().includes("already in use") || msg.toLowerCase().includes("not unique") || msg.toLowerCase().includes("already exists"))
+        ) {
           setError("This email is already registered. Please use a different email or try to log in.")
-        } else if (signUpError.message.includes("username already exists")) {
+        } else if (
+          msg.includes("username") &&
+          (msg.toLowerCase().includes("not unique") || msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already in use"))
+        ) {
           setError("This username is already taken. Please choose a different username.")
         } else {
-          setError(signUpError.message || "Failed to create account. Please try again with different information.")
+          setError(msg || "Failed to create account. Please try again with different information.")
         }
 
         setIsLoading(false)
@@ -199,37 +152,6 @@ export default function RegisterPage() {
         description: error.message || "Please try again later.",
       })
     }
-  }
-
-  // Render password strength indicator
-  const renderPasswordStrength = () => {
-    if (!credentials.password) return null
-
-    return (
-      <div className="mt-1">
-        <div className="flex gap-1 mb-1">
-          {[1, 2, 3, 4, 5].map((level) => (
-            <div
-              key={level}
-              className={`h-1 flex-1 rounded-full ${
-                passwordStrength >= level ? (passwordStrength < 3 ? "bg-orange-500" : "bg-green-500") : "bg-gray-200"
-              }`}
-            />
-          ))}
-        </div>
-        <p
-          className={`text-xs ${
-            passwordStrength < 3
-              ? "text-orange-500"
-              : passwordStrength >= 3
-                ? "text-green-500"
-                : "text-muted-foreground"
-          }`}
-        >
-          {passwordFeedback}
-        </p>
-      </div>
-    )
   }
 
   return (
@@ -357,17 +279,29 @@ export default function RegisterPage() {
                               <Lock className="h-4 w-4 mr-2 text-muted-foreground" />
                               Password
                             </Label>
-                            <Input
-                              id="password"
-                              type="password"
-                              value={credentials.password}
-                              onChange={handleChange}
-                              required
-                              minLength={8}
-                              autoComplete="new-password"
-                              className="bg-background/50"
+                            <div className="relative">
+                              <Input
+                                id="password"
+                                type={showPassword ? "text" : "password"}
+                                value={credentials.password}
+                                onChange={handleChange}
+                                required
+                                autoComplete="new-password"
+                                className="bg-background/50 pr-10"
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowPassword((s) => !s)}
+                                tabIndex={-1}
+                              >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
+                            <PasswordStrength
+                              password={credentials.password}
+                              confirmPassword={credentials.passwordConfirm}
                             />
-                            {renderPasswordStrength()}
                           </div>
 
                           <div className="space-y-2">
@@ -375,19 +309,32 @@ export default function RegisterPage() {
                               <Lock className="h-4 w-4 mr-2 text-muted-foreground" />
                               Confirm Password
                             </Label>
-                            <Input
-                              id="passwordConfirm"
-                              type="password"
-                              value={credentials.passwordConfirm}
-                              onChange={handleChange}
-                              required
-                              minLength={8}
-                              autoComplete="new-password"
-                              className="bg-background/50"
-                            />
+                            <div className="relative">
+                              <Input
+                                id="passwordConfirm"
+                                type={showPassword ? "text" : "password"}
+                                value={credentials.passwordConfirm}
+                                onChange={handleChange}
+                                required
+                                autoComplete="new-password"
+                                className="bg-background/50 pr-10"
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowPassword((s) => !s)}
+                                tabIndex={-1}
+                              >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
                           </div>
 
-                          <Button type="submit" className="w-full mt-6">
+                          <Button
+                            type="submit"
+                            className="w-full mt-6"
+                            disabled={!isPasswordValid(credentials.password) || credentials.password !== credentials.passwordConfirm}
+                          >
                             Create Account
                           </Button>
                         </form>

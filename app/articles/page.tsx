@@ -309,17 +309,21 @@ export default function ArticlesPage() {
                       <div className="mt-auto pt-4 border-t space-y-3">
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <div className="flex items-center gap-4">
-                            <button
-                              onClick={() => handleLike(article.id)}
-                              className="flex items-center gap-1 hover:text-red-500 transition-colors"
-                            >
-                              <Heart className="h-4 w-4" />
-                              <span>{article.likes_count || 0}</span>
-                            </button>
-                            <span className="flex items-center gap-1">
-                              <MessageSquare className="h-4 w-4" />
-                              {article.comments_count || 0}
-                            </span>
+                            {isAuthenticated && (
+                              <>
+                                <button
+                                  onClick={() => handleLike(article.id)}
+                                  className="flex items-center gap-1 hover:text-red-500 transition-colors"
+                                >
+                                  <Heart className="h-4 w-4" />
+                                  <span>{article.likes_count || 0}</span>
+                                </button>
+                                <span className="flex items-center gap-1">
+                                  <MessageSquare className="h-4 w-4" />
+                                  {article.comments_count || 0}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="flex items-center gap-1">

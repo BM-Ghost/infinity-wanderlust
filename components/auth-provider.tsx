@@ -205,7 +205,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Request URL:", createError.url)
         }
 
-        throw new Error(createError.message || "Failed to create record")
+        // Rethrow original ClientResponseError so the outer catch can access .data.data
+        throw createError
       }
     } catch (error: any) {
       console.error("Registration error details:", error)
@@ -213,11 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Extract detailed error information
       let errorMessage = "Failed to create user account"
 
-      if (error.data && error.data.data) {
-        // Extract field-specific errors
+      if (error.data?.data && Object.keys(error.data.data).length > 0) {
+        // Extract field-specific errors from PocketBase ClientResponseError
         const fieldErrors = Object.entries(error.data.data)
-          .map(([field, message]) => `${field}: ${message}`)
-          .join(", ")
+          .map(([field, v]: [string, any]) => v?.message || String(v))
+          .join(". ")
 
         if (fieldErrors) {
           errorMessage = fieldErrors
