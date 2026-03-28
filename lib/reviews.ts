@@ -143,7 +143,10 @@ export async function createReview(
 
   console.log("photos:", data.photos)
   try {
-    const record = await pb.collection("reviews").create(data, {
+    const record = await pb.collection("reviews").create({
+      ...data,
+      reviewer: pb.authStore.model?.id,
+    }, {
       expand: "reviewer", // Make sure to expand reviewer relation
     })
 
@@ -178,9 +181,10 @@ export async function updateReview(
   console.log("photos:", data.photos)
 
   try {
-    // First check if the user owns this review
+    // First check if the user owns this review (admin can edit any)
     const existingReview = await pb.collection("reviews").getOne(id)
-    if (existingReview.reviewer !== pb.authStore.model?.id) {
+    const isAdmin = pb.authStore.model?.email?.toLowerCase() === "infinitywanderlusttravels@gmail.com"
+    if (!isAdmin && existingReview.reviewer !== pb.authStore.model?.id) {
       throw new Error("You can only edit your own reviews")
     }
 
@@ -210,9 +214,10 @@ export async function deleteReview(id: string): Promise<boolean> {
   }
 
   try {
-    // First check if the user owns this review
+    // First check if the user owns this review (admin can delete any)
     const existingReview = await pb.collection("reviews").getOne(id)
-    if (existingReview.reviewer !== pb.authStore.model?.id) {
+    const isAdmin = pb.authStore.model?.email?.toLowerCase() === "infinitywanderlusttravels@gmail.com"
+    if (!isAdmin && existingReview.reviewer !== pb.authStore.model?.id) {
       throw new Error("You can only delete your own reviews")
     }
 
@@ -287,6 +292,13 @@ function formatReview(record: any): ReviewWithAuthor {
     if (record.expand.reviewer.avatar) {
       authorAvatar = `${baseUrl}${record.expand.reviewer.collectionId}/${record.expand.reviewer.id}/${record.expand.reviewer.avatar}`
     }
+  } else if (record.reviewer_name) {
+    authorName = record.reviewer_name
+    if (record.reviewer_avatar && record.user_id) {
+      authorAvatar = `${baseUrl}_pb_users_auth_/${record.user_id}/${record.reviewer_avatar}`
+    }
+  } else if (record.reviewer_email) {
+    authorName = record.reviewer_email.split("@")[0]
   } else {
     console.log("No expanded reviewer found for review:", record.id)
 

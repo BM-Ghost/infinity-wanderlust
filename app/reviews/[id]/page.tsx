@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { useTranslation } from "@/lib/translations"
 import { useAuth } from "@/components/auth-provider"
 import { ImageCollage } from "@/components/image-collage";
+import { RichTextRenderer } from "@/components/rich-text-renderer"
 import {
   Star,
   MapPin,
@@ -30,6 +31,8 @@ import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
 import { useQueryClient } from "@tanstack/react-query"
 
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+
 export default function ReviewDetailPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -44,6 +47,7 @@ export default function ReviewDetailPage() {
     page: 1,
     perPage: 50,
     enabled: true,
+    filter: `reviewer.email != "${ADMIN_EMAIL}"`,
   })
   const reviews = reviewsData?.items || []
 
@@ -211,12 +215,8 @@ export default function ReviewDetailPage() {
                 {/* Review content */}
                 <h2 className="text-2xl font-bold mb-4">My experience in {review.destination}</h2>
 
-                <div className="space-y-4 mb-6">
-                  {review.review_text.split("\n\n").map((paragraph: string, i: number) => (
-                    <p key={i} className="text-muted-foreground">
-                      {paragraph}
-                    </p>
-                  ))}
+                <div className="mb-6">
+                  <RichTextRenderer content={review.review_text} className="text-muted-foreground" />
                 </div>
 
                 {/* Photo gallery */}

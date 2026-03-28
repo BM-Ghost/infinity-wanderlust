@@ -1,6 +1,6 @@
-"use client"
+﻿"use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -9,332 +9,344 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
-import { Calendar, User, Plus, Search, X, Star, MessageSquare, Heart, ChevronRight } from "lucide-react"
+import {
+  Calendar, User, Plus, Search, X, Star, MessageSquare, Heart,
+  ChevronRight, Pencil, Trash2, BookOpen, Clock, Plane
+} from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { useArticles } from "@/hooks/useArticles"
-import { ReviewWithAuthor } from "@/lib/reviews"
+import { ReviewWithAuthor, deleteReview } from "@/lib/reviews"
 import { ImageCollage } from "@/components/image-collage"
 
 export default function ArticlesPage() {
   const router = useRouter()
   const { user } = useAuth()
   const isAuthenticated = !!user
-  const isAdmin = user?.email?.toLowerCase() === 'infinitywanderlusttravels@gmail.com'
+  const isAdmin = user?.email?.toLowerCase() === "infinitywanderlusttravels@gmail.com"
   const { toast } = useToast()
-  
+
   const [currentPage, setCurrentPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState("")
-  
-  // Use the useArticles hook to fetch articles (which are actually admin's reviews)
-  const { data, isLoading, isError } = useArticles({
-    page: currentPage,
-    perPage: 10,
-    enabled: true
-  })
+
+  const { data, isLoading, isError } = useArticles({ page: currentPage, perPage: 12, enabled: true })
   const articles = data?.items || []
   const totalPages = data?.totalPages || 1
-  
-  // Filter articles based on search query
+
   const filteredArticles = searchQuery
-    ? articles.filter(article => 
-        article.destination?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.review_text?.toLowerCase().includes(searchQuery.toLowerCase())
+    ? articles.filter(
+        (a) =>
+          a.destination?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          a.review_text?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : articles
 
-  // Format date for display (matches reviews page format)
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  }
-  
-  // Truncate text for preview
-  const truncateText = (text: string, maxLength: number = 150) => {
-    if (!text) return ''
-    if (text.length <= maxLength) return text
-    return text.substring(0, maxLength) + '...'
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
 
-  // Get review image URLs
+  const truncateText = (text: string, maxLength = 120) => {
+    if (!text) return ""
+    const stripped = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+    if (stripped.length <= maxLength) return stripped
+    return stripped.substring(0, maxLength) + "..."
+  }
+
+  const estimateReadTime = (text: string) => {
+    if (!text) return "1 min"
+    const words = text.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length
+    const mins = Math.max(1, Math.round(words / 200))
+    return `${mins} min read`
+  }
+
   const getReviewImageUrls = (review: ReviewWithAuthor): string[] => {
     const photos = review.photos
-    if (!photos) return ['/placeholder.svg']
-    
-    // If photos is a string, try to parse it as JSON
-    if (typeof photos === 'string') {
+    if (!photos) return ["/placeholder.svg"]
+    if (typeof photos === "string") {
       try {
-        const parsedPhotos = JSON.parse(photos)
-        if (Array.isArray(parsedPhotos) && parsedPhotos.length > 0) {
-          return parsedPhotos
-            .filter((photo: unknown): photo is string => typeof photo === 'string')
-            .map(photo => 
-              `https://remain-faceghost.pockethost.io/api/files/reviews/${review.id}/${photo}`
-            )
+        const parsed = JSON.parse(photos)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed
+            .filter((p: unknown): p is string => typeof p === "string")
+            .map((p) => `https://remain-faceghost.pockethost.io/api/files/reviews/${review.id}/${p}`)
         }
-      } catch (e) {
-        console.error('Error parsing photos:', e)
-      }
-      return ['/placeholder.svg']
+      } catch { /* ignore */ }
+      return ["/placeholder.svg"]
     }
-    
-    // If it's already an array
     if (Array.isArray(photos)) {
       return (photos as unknown[])
-        .filter((photo: unknown): photo is string => typeof photo === 'string')
-        .map((photo: string) => 
-          `https://remain-faceghost.pockethost.io/api/files/reviews/${review.id}/${photo}`
-        )
+        .filter((p: unknown): p is string => typeof p === "string")
+        .map((p: string) => `https://remain-faceghost.pockethost.io/api/files/reviews/${review.id}/${p}`)
     }
-    
-    return ['/placeholder.svg']
+    return ["/placeholder.svg"]
   }
 
-  // Get avatar URL
   const getAvatarUrl = (review: ReviewWithAuthor): string | null => {
-    // First try the formatted authorAvatar
     if (review.authorAvatar) return review.authorAvatar
-    
-    // Fall back to expand.reviewer.avatar
     const reviewer = review.expand?.reviewer
     if (reviewer?.avatar) {
       return `https://remain-faceghost.pockethost.io/api/files/_pb_users_auth_/${reviewer.id}/${reviewer.avatar}`
     }
-    
     return null
   }
-  
-  // Handle search
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Client-side filtering is handled by the filteredArticles variable
+
+  const handleDeleteArticle = async (articleId: string) => {
+    if (!confirm("Are you sure you want to delete this article? This cannot be undone.")) return
+    try {
+      await deleteReview(articleId)
+      toast({ title: "Article deleted", description: "The article has been removed." })
+      setCurrentPage(1)
+      window.location.reload()
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: error?.message || "Could not delete the article." })
+    }
   }
-  
-  // Handle like action
+
   const handleLike = async (articleId: string) => {
     if (!isAuthenticated) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to like articles.",
-        variant: "destructive"
-      })
+      toast({ title: "Authentication required", description: "Please sign in to like articles.", variant: "destructive" })
       return
     }
-    
-    try {
-      // TODO: Implement like functionality
-      toast({
-        title: "Liked!",
-        description: "Thanks for your feedback!"
-      })
-    } catch (error) {
-      console.error("Error liking article:", error)
-      toast({
-        title: "Error",
-        description: "Failed to like the article. Please try again.",
-        variant: "destructive"
-      })
-    }
+    toast({ title: "Liked!", description: "Thanks for your feedback!" })
   }
-  
+
   return (
-    <div className="articles-page min-h-screen">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Blogs</h1>
-            <p className="text-muted-foreground">
-              Read my latest travel stories and experiences
+    <div className="min-h-screen">
+      {/* ── Hero Section ── */}
+      <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
+        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28">
+          <div className="max-w-3xl mx-auto text-center text-white">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
+              <Plane className="h-3.5 w-3.5" /> Travel Blog
+            </span>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg mb-4">
+              Stories &amp; Inspiration
+            </h1>
+            <p className="text-lg md:text-xl text-white/80 leading-relaxed max-w-2xl mx-auto">
+              Discover travel tales, destination guides, and insider tips from around the world.
+            </p>
+
+            {/* Search bar inside hero */}
+            <div className="mt-8 max-w-xl mx-auto">
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                className="relative"
+              >
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search articles by destination or topic..."
+                  className="pl-12 pr-4 h-12 rounded-full bg-background/90 backdrop-blur-sm border-0 shadow-lg text-foreground"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </form>
+            </div>
+
+            {isAdmin && (
+              <Button
+                size="lg"
+                onClick={() => router.push("/articles/create")}
+                className="mt-6"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Write New Article
+              </Button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Content ── */}
+      <div className="container mx-auto px-4 py-12 md:py-16">
+        {/* Article count */}
+        {!isLoading && !isError && (
+          <div className="flex items-center justify-between mb-8">
+            <p className="text-sm text-muted-foreground">
+              {filteredArticles.length} article{filteredArticles.length !== 1 ? "s" : ""}
+              {searchQuery && ` matching "${searchQuery}"`}
             </p>
           </div>
-          
-          {isAdmin && (
-            <Button onClick={() => router.push('/articles/create')}>
-              <Plus className="mr-2 h-4 w-4" />
-              Write Article
-            </Button>
-          )}
-        </div>
-        
-        {/* Search */}
-        <div className="mb-8">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search articles..."
-                className="pl-10 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Button type="submit">
-              <Search className="mr-2 h-4 w-4" />
-              Search
-            </Button>
-          </form>
-        </div>
-        
-        {/* Articles grid */}
+        )}
+
+        {/* Loading */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <Skeleton className="h-48 w-full rounded-t-lg" />
+              <Card key={i} className="overflow-hidden border-0 shadow-md">
+                <Skeleton className="h-52 w-full" />
                 <CardHeader>
-                  <Skeleton className="h-6 w-3/4 mb-2" />
+                  <Skeleton className="h-5 w-3/4 mb-2" />
                   <Skeleton className="h-4 w-1/2" />
                 </CardHeader>
                 <CardContent>
                   <Skeleton className="h-4 w-full mb-2" />
                   <Skeleton className="h-4 w-5/6" />
                 </CardContent>
-                <CardFooter className="flex justify-between">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-16" />
-                </CardFooter>
               </Card>
             ))}
           </div>
         ) : isError ? (
-          <div className="text-center py-12">
-            <h3 className="text-lg font-medium">Error loading articles</h3>
-            <p className="text-muted-foreground mt-2">
-              Please try again later
-            </p>
+          <div className="text-center py-16">
+            <BookOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold">Something went wrong</h3>
+            <p className="text-muted-foreground mt-2">Could not load articles. Please try again later.</p>
           </div>
         ) : filteredArticles.length > 0 ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredArticles.map((article: ReviewWithAuthor) => (
-                <Card key={article.id} className="overflow-hidden flex flex-col h-full group hover:shadow-lg transition-shadow duration-200">
-                  {/* Image Carousel */}
-                  <div className="relative h-48 w-full overflow-hidden">
-                    <ImageCollage 
-                      images={getReviewImageUrls(article)} 
-                      alt={article.destination || 'Article image'}
-                    />
-                  </div>
-                  
-                  {/* Article Content */}
-                  <div className="flex flex-col flex-1 p-4">
-                    <div className="flex-1">
-                      <CardHeader className="p-0 pb-3">
-                        <CardTitle className="text-xl mb-1">
-                          <Link href={`/articles/${article.id}`} className="hover:underline hover:text-primary">
-                            {article.destination || 'Untitled Article'}
-                          </Link>
-                        </CardTitle>
-                        <div className="flex items-center gap-1 text-yellow-500 mb-2">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-4 w-4 ${i < (article.rating || 0) ? 'fill-current' : 'text-muted-foreground/30'}`}
-                            />
-                          ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredArticles.map((article: ReviewWithAuthor) => {
+                const images = getReviewImageUrls(article)
+                const avatarUrl = getAvatarUrl(article)
+                const authorName = article.authorName || article.expand?.reviewer?.name || "Anonymous"
+                const initials = authorName.charAt(0).toUpperCase()
+
+                return (
+                  <Card
+                    key={article.id}
+                    className="group overflow-hidden flex flex-col h-full border-0 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                  >
+                    {/* Image */}
+                    <div className="relative h-52 w-full overflow-hidden">
+                      <ImageCollage images={images} alt={article.destination || "Article image"} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+                      {/* Reading time badge */}
+                      <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 font-medium">
+                        <Clock className="h-3 w-3" />
+                        {estimateReadTime(article.review_text)}
+                      </span>
+
+                      {/* Rating badge */}
+                      {(article.rating ?? 0) > 0 && (
+                        <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-yellow-500/90 text-white text-xs px-2.5 py-1 font-semibold">
+                          <Star className="h-3 w-3 fill-white" />
+                          {article.rating}
+                        </span>
+                      )}
+
+                      {/* Admin actions */}
+                      {isAdmin && (
+                        <div className="absolute bottom-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 rounded-full bg-background/90 shadow hover:bg-background"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/articles/create?edit=${article.id}`) }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 rounded-full bg-background/90 shadow hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteArticle(article.id) }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                      </CardHeader>
-                      
-                      <CardContent className="p-0">
-                        <div className="text-sm text-foreground/90 mb-4">
-                          <p className="line-clamp-3">
-                            {truncateText(article.review_text || 'No content available')}
-                          </p>
-                          {article.review_text && article.review_text.length > 150 && (
-                            <Link 
-                              href={`/articles/${article.id}`} 
-                              className="text-primary text-sm font-medium inline-flex items-center mt-1 hover:underline"
-                            >
-                              Read more <ChevronRight className="ml-1 h-4 w-4" />
-                            </Link>
-                          )}
-                        </div>
-                      </CardContent>
+                      )}
                     </div>
-                    
-                    {/* Footer with stats */}
-                    <div className="mt-auto pt-3 border-t">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <div className="flex items-center mr-4">
-                            <button 
+
+                    {/* Body */}
+                    <div className="flex flex-col flex-1 p-5">
+                      <div className="flex-1">
+                        <h2 className="text-lg font-bold leading-snug mb-2 group-hover:text-primary transition-colors">
+                          <Link href={`/articles/${article.id}`} className="hover:underline">
+                            {article.destination || "Untitled Article"}
+                          </Link>
+                        </h2>
+
+                        <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mb-3">
+                          {truncateText(article.review_text || "No content available")}
+                        </p>
+
+                        {article.review_text && article.review_text.length > 120 && (
+                          <Link
+                            href={`/articles/${article.id}`}
+                            className="text-primary text-sm font-semibold inline-flex items-center hover:underline"
+                          >
+                            Continue Reading <ChevronRight className="ml-0.5 h-4 w-4" />
+                          </Link>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-auto pt-4 border-t space-y-3">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <div className="flex items-center gap-4">
+                            <button
                               onClick={() => handleLike(article.id)}
-                              className="flex items-center hover:text-foreground transition-colors"
+                              className="flex items-center gap-1 hover:text-red-500 transition-colors"
                             >
-                              <Heart className="h-4 w-4 mr-1" />
+                              <Heart className="h-4 w-4" />
                               <span>{article.likes_count || 0}</span>
                             </button>
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-4 w-4" />
+                              {article.comments_count || 0}
+                            </span>
                           </div>
-                          <div className="flex items-center">
-                            <MessageSquare className="h-4 w-4 mr-1" />
-                            <span>{article.comments_count || 0}</span>
-                          </div>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {formatDate(article.created)}
+                          </span>
                         </div>
-                        
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {formatDate(article.created)}
+
+                        <div className="flex items-center gap-2">
+                          {avatarUrl ? (
+                            <Image
+                              src={avatarUrl}
+                              alt={authorName}
+                              width={28}
+                              height={28}
+                              className="h-7 w-7 rounded-full object-cover ring-2 ring-background"
+                            />
+                          ) : (
+                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary ring-2 ring-background">
+                              {initials}
+                            </div>
+                          )}
+                          <span className="text-sm font-medium">{authorName}</span>
                         </div>
-                      </div>
-                      
-                      <div className="mt-2 flex items-center">
-                        {(() => {
-                          const avatarUrl = getAvatarUrl(article)
-                          const authorName = article.authorName || article.expand?.reviewer?.name || 'Anonymous'
-                          const initials = authorName.charAt(0).toUpperCase()
-                          
-                          return (
-                            <>
-                              {avatarUrl ? (
-                                <Image
-                                  src={avatarUrl}
-                                  alt={authorName}
-                                  width={24}
-                                  height={24}
-                                  className="h-6 w-6 rounded-full mr-2 object-cover"
-                                />
-                              ) : (
-                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs mr-2">
-                                  {initials}
-                                </div>
-                              )}
-                              <span className="text-sm text-muted-foreground">
-                                {authorName}
-                              </span>
-                            </>
-                          )
-                        })()}
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
-            
+
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="mt-8 flex justify-center">
-                <div className="flex items-center gap-2">
+              <div className="mt-12 flex justify-center">
+                <div className="inline-flex items-center gap-2 bg-muted/50 rounded-full px-2 py-1">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    className="rounded-full"
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                     disabled={currentPage === 1}
                   >
                     Previous
                   </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
+                  <span className="text-sm text-muted-foreground px-3">
+                    {currentPage} / {totalPages}
                   </span>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    className="rounded-full"
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                     disabled={currentPage === totalPages}
                   >
                     Next
@@ -344,25 +356,26 @@ export default function ArticlesPage() {
             )}
           </>
         ) : (
-          <div className="text-center py-12">
-            <h3 className="text-lg font-medium">No articles found</h3>
-            <p className="text-muted-foreground mt-2">
-              {searchQuery ? 'No articles match your search.' : 'No articles have been published yet.'}
+          <div className="text-center py-16">
+            <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-muted mb-6">
+              <BookOpen className="h-10 w-10 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">
+              {searchQuery ? "No results found" : "No articles yet"}
+            </h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              {searchQuery
+                ? `No articles match "${searchQuery}". Try a different search term.`
+                : "New travel stories and guides coming soon. Stay tuned!"}
             </p>
-            {isAdmin && !searchQuery && (
-              <Button className="mt-4" onClick={() => router.push('/articles/create')}>
-                <Plus className="mr-2 h-4 w-4" />
-                Write Your First Article
+            {searchQuery && (
+              <Button variant="outline" className="mt-5" onClick={() => setSearchQuery("")}>
+                <X className="mr-2 h-4 w-4" /> Clear Search
               </Button>
             )}
-            {searchQuery && (
-              <Button 
-                variant="outline" 
-                className="mt-4" 
-                onClick={() => setSearchQuery('')}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Clear Search
+            {isAdmin && !searchQuery && (
+              <Button className="mt-5" onClick={() => router.push("/articles/create")}>
+                <Plus className="mr-2 h-4 w-4" /> Write Your First Article
               </Button>
             )}
           </div>

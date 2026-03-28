@@ -1,147 +1,192 @@
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
+﻿"use client"
+
+import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Mail, Phone, Clock } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { MapPin, Mail, Phone, Clock, Send, Loader2, Plane } from "lucide-react"
 
 export default function ContactPage() {
+  const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [subject, setSubject] = useState("")
+  const [message, setMessage] = useState("")
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
+      toast({ variant: "destructive", title: "Missing fields", description: "Please fill in all fields before sending." })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/email/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), subject: subject.trim(), message: message.trim() }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Something went wrong")
+      }
+
+      toast({ title: "Message sent!", description: "Thank you for reaching out. We will get back to you shortly." })
+      setName("")
+      setEmail("")
+      setSubject("")
+      setMessage("")
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Send failed", description: err?.message || "Could not send your message. Please try again." })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen">
-
-      <div className="container py-16">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
-          <p className="text-muted-foreground text-lg">
-            Have questions or need assistance? We're here to help you plan your next adventure.
+      {/* Hero Section */}
+      <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
+        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28 text-center text-white">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
+            <Plane className="h-3.5 w-3.5" /> Get In Touch
+          </span>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg mb-4">
+            Let&apos;s Start a Conversation
+          </h1>
+          <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed">
+            Have questions, want to collaborate, or just want to say hello? I&apos;d love to hear from you.
           </p>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Left Column - Contact Form */}
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Get in Touch</h2>
-            <form className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Your Name</Label>
-                  <Input id="name" placeholder="Enter your name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" placeholder="Enter your email" />
-                </div>
-              </div>
+      <div className="container mx-auto px-4 py-12 md:py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14">
+          {/* Contact Form */}
+          <div className="lg:col-span-3">
+            <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Send className="h-5 w-5 text-primary" />
+                  Send Me a Message
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Fill in the form below and I&apos;ll get back to you as soon as possible.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium">Your Name</Label>
+                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Glory Bundi" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
+                      <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
-                <Input id="subject" placeholder="What is this regarding?" />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject" className="text-sm font-medium">Subject</Label>
+                    <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What is this regarding?" required />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="message">Message</Label>
-                <Textarea id="message" placeholder="How can we help you?" rows={5} />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="message" className="text-sm font-medium">Message</Label>
+                    <Textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Share your thoughts, questions, or travel plans..." rows={6} required className="resize-none" />
+                  </div>
 
-              <Button type="submit" className="w-full md:w-auto">
-                Send Message
-              </Button>
-            </form>
+                  <Button type="submit" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
+                    {isSubmitting ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+                    ) : (
+                      <><Send className="mr-2 h-4 w-4" /> Send Message</>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Column - Contact Info */}
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Contact Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-base">
-                    <MapPin className="h-5 w-5 mr-2 text-primary" />
-                    Our Location
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Infinity Wanderlust Travels
-                    <br />
-                    Nairobi CBD
-                    <br />
-                    Kenya
-                  </p>
-                </CardContent>
-              </Card>
+          {/* Contact Info Sidebar */}
+          <div className="lg:col-span-2 space-y-5">
+            <Card className="shadow-md border-0 bg-primary/5 dark:bg-primary/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center text-base gap-2">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MapPin className="h-4 w-4 text-primary" />
+                  </div>
+                  Location
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Infinity Wanderlust Travels<br />
+                  Nairobi CBD<br />
+                  Kenya
+                </p>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-base">
-                    <Mail className="h-5 w-5 mr-2 text-primary" />
-                    Email Us
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    <a href="mailto:infinitywanderlusttravels@gmail.com" className="hover:text-primary">
-                      infinitywanderlusttravels@gmail.com
-                    </a>
-                  </p>
-                </CardContent>
-              </Card>
+            <Card className="shadow-md border-0 bg-primary/5 dark:bg-primary/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center text-base gap-2">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Mail className="h-4 w-4 text-primary" />
+                  </div>
+                  Email
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <a href="mailto:infinitywanderlusttravels@gmail.com" className="text-sm text-primary font-medium hover:underline">
+                  infinitywanderlusttravels@gmail.com
+                </a>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-base">
-                    <Phone className="h-5 w-5 mr-2 text-primary" />
-                    Call Us
-                  </CardTitle>
-                </CardHeader>
-                {/* <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    <a href="tel:+254706492887" className="hover:text-primary">
-                      +254 706 492 887
-                    </a>
-                  </p>
-                </CardContent> */}
-              </Card>
+            <Card className="shadow-md border-0 bg-primary/5 dark:bg-primary/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center text-base gap-2">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
+                  Hours
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Mon &ndash; Fri: 9 am &ndash; 5 pm<br />
+                  Saturday: 10 am &ndash; 2 pm<br />
+                  Sunday: Closed
+                </p>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-base">
-                    <Clock className="h-5 w-5 mr-2 text-primary" />
-                    Business Hours
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Monday - Friday: 9am - 5pm
-                    <br />
-                    Saturday: 10am - 2pm
-                    <br />
-                    Sunday: Closed
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="mt-8">
-              <h3 className="text-xl font-bold mb-4">Our Location</h3>
-              <div className="relative h-[300px] rounded-lg overflow-hidden">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15955.277444357053!2d36.81992678715822!3d-1.2833562999999908!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f10d0f3c0e1e7%3A0xdfdee749e3b4e18a!2sNairobi%20CBD%2C%20Nairobi!5e0!3m2!1sen!2ske!4v1683900149525!5m2!1sen!2ske"
-                  width="100%"
-                  height="300"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                ></iframe>
-              </div>
+            {/* Map */}
+            <div className="rounded-xl overflow-hidden shadow-md border">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15955.277444357053!2d36.81992678715822!3d-1.2833562999999908!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f10d0f3c0e1e7%3A0xdfdee749e3b4e18a!2sNairobi%20CBD%2C%20Nairobi!5e0!3m2!1sen!2ske!4v1683900149525!5m2!1sen!2ske"
+                width="100%"
+                height="220"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Nairobi location map"
+              />
             </div>
           </div>
         </div>
       </div>
-
     </div>
   )
 }

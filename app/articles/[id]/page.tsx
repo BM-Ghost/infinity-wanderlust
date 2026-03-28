@@ -25,11 +25,17 @@ import {
   Camera,
   User,
   Bookmark,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
-import { fetchReviewById } from "@/lib/reviews"
+import { fetchReviewById, deleteReview } from "@/lib/reviews"
 import { useQueryClient } from "@tanstack/react-query"
+import { RichTextRenderer } from "@/components/rich-text-renderer"
+import { useToast } from "@/components/ui/use-toast"
+
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
 export default function ReviewDetailPage() {
   const { id } = useParams()
@@ -41,11 +47,15 @@ export default function ReviewDetailPage() {
   const [relatedReviews, setRelatedReviews] = useState<any[]>([])
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const { toast } = useToast()
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
   
   const { data: reviewsData, isLoading, isError } = useReviews({
     page: 1,
     perPage: 10,
-    enabled: true
+    enabled: true,
+    filter: `reviewer.email = "${ADMIN_EMAIL}"`,
   })
   const reviews = reviewsData?.items || []
 
@@ -268,15 +278,46 @@ export default function ReviewDetailPage() {
                   </div>
                 </div>
 
+                {/* Admin edit/delete buttons */}
+                {isAdmin && (
+                  <div className="flex gap-2 mb-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/articles/create?edit=${review.id}`)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Article
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        if (!confirm("Are you sure you want to delete this article? This cannot be undone.")) return
+                        setIsDeleting(true)
+                        try {
+                          await deleteReview(review.id)
+                          toast({ title: "Article deleted", description: "The article has been removed." })
+                          router.replace("/articles")
+                        } catch (err: any) {
+                          toast({ variant: "destructive", title: "Delete failed", description: err?.message || "Could not delete the article." })
+                        } finally {
+                          setIsDeleting(false)
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                )}
+
                 {/* Review content */}
                 <h2 className="text-2xl font-bold mb-4">My experience in {review.destination}</h2>
 
-                <div className="space-y-4 mb-6">
-                  {review.review_text.split("\n\n").map((paragraph: string, i: number) => (
-                    <p key={i} className="text-muted-foreground">
-                      {paragraph}
-                    </p>
-                  ))}
+                <div className="mb-6">
+                  <RichTextRenderer content={review.review_text} className="text-muted-foreground" />
                 </div>
 
                 {/* Photo gallery */}

@@ -356,3 +356,76 @@ export async function sendPasswordChangedEmail(data: PasswordChangedEmailData) {
         console.error("[sendPasswordChangedEmail] Error sending email:", error)
     }
 }
+
+// ─── Contact Form Email ─────────────────────────────────────────────────────
+
+interface ContactEmailData {
+    senderName: string
+    senderEmail: string
+    subject: string
+    message: string
+}
+
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+
+export async function sendContactEmail(data: ContactEmailData) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
+    const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Contact Message</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #0f172a; background: #f8fafc; padding: 24px; margin: 0; }
+        .card { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 10px 30px rgba(15,23,42,0.08); }
+        .header { text-align: center; margin-bottom: 24px; }
+        .logo { font-size: 24px; font-weight: bold; color: #166534; }
+        .pill { display: inline-block; padding: 6px 14px; background: #ecfdf3; color: #166534; border-radius: 999px; font-weight: 600; font-size: 13px; margin-bottom: 16px; }
+        h1 { font-size: 22px; font-weight: 700; margin: 0 0 20px; color: #0f172a; }
+        .field { margin-bottom: 16px; }
+        .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 4px; }
+        .value { font-size: 15px; color: #1e293b; padding: 10px 14px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .message-box { font-size: 15px; color: #1e293b; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; white-space: pre-wrap; line-height: 1.6; }
+        .reply-btn { display: inline-block; background: #166534; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin-top: 20px; }
+        .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #94a3b8; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="logo">🌍 Infinity Wanderlust</div>
+        </div>
+        <span class="pill">📬 New Contact Message</span>
+        <h1>${data.subject}</h1>
+
+        <div class="field">
+            <div class="label">From</div>
+            <div class="value">${data.senderName} &lt;${data.senderEmail}&gt;</div>
+        </div>
+
+        <div class="field">
+            <div class="label">Message</div>
+            <div class="message-box">${data.message.replace(/\n/g, "<br/>")}</div>
+        </div>
+
+        <a href="mailto:${data.senderEmail}?subject=Re: ${encodeURIComponent(data.subject)}" class="reply-btn">Reply to ${data.senderName}</a>
+
+        <div class="footer">
+            <p>This message was sent via the contact form on <a href="${appUrl}" style="color:#166534;">infinity-wanderlust.com</a></p>
+        </div>
+    </div>
+</body>
+</html>`
+
+    await sendMail({
+        to: ADMIN_EMAIL,
+        subject: `Contact: ${data.subject}`,
+        html: htmlTemplate,
+    })
+
+    console.log("[sendContactEmail] Contact email forwarded to admin")
+    return { success: true }
+}

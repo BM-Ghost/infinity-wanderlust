@@ -76,6 +76,10 @@ import { getPocketBase } from "@/lib/pocketbase"
 import { useReviews } from "@/hooks/useReviews"
 import { useQueryClient } from "@tanstack/react-query"
 import { ImageCollage } from "@/components/image-collage"
+import { RichTextEditor } from "@/components/rich-text-editor"
+import { RichTextRenderer } from "@/components/rich-text-renderer"
+
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
 export default function ReviewsPage() {
   const { t } = useTranslation()
@@ -92,7 +96,8 @@ export default function ReviewsPage() {
   const { data: reviewsData = { items: [], totalItems: 0, totalPages: 0 }, isLoading, isError } = useReviews({
     page: 1,
     perPage: 10,
-    enabled: true
+    enabled: true,
+    filter: `reviewer.email != "${ADMIN_EMAIL}"`,
   })
   const reviews = reviewsData.items || []
 
@@ -185,7 +190,7 @@ export default function ReviewsPage() {
     setError(null)
 
     try {
-      let filter = ""
+      let filter = `reviewer.email != "${ADMIN_EMAIL}"`
       const pb = getPocketBase()
 
       // Apply filters based on active tab
@@ -358,7 +363,7 @@ export default function ReviewsPage() {
   // Handle review submission
   const handleSubmitReview = async () => {
     queryClient.invalidateQueries({ queryKey: ["all-reviews"] })
-    if (!rating || !destination || !reviewText.trim()) {
+    if (!rating || !destination || !reviewText.replace(/<[^>]*>/g, '').trim()) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -427,7 +432,7 @@ export default function ReviewsPage() {
 
   // Handle edit review submission
   const handleSubmitEditReview = async () => {
-    if (!editReviewId || !editRating || !editDestination || !editReviewText.trim()) {
+    if (!editReviewId || !editRating || !editDestination || !editReviewText.replace(/<[^>]*>/g, '').trim()) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -1132,38 +1137,48 @@ export default function ReviewsPage() {
   }
 
   return (
-    <div className="rainforest-bg min-h-screen">
-      <div className="container py-16">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h1 className="text-4xl font-bold mb-4">{t("reviewsTitle")}</h1>
-          <p className="text-muted-foreground text-lg">{t("reviewsSubtitle")}</p>
+    <div className="min-h-screen">
+      {/* ── Hero Section ── */}
+      <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
+        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28">
+          <div className="max-w-3xl mx-auto text-center text-white">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
+              <Star className="h-3.5 w-3.5 fill-white" /> Traveler Reviews
+            </span>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg mb-4">
+              {t("reviewsTitle")}
+            </h1>
+            <p className="text-lg md:text-xl text-white/80 leading-relaxed max-w-2xl mx-auto">
+              {t("reviewsSubtitle")}
+            </p>
 
-          <div className="mt-8">
-            <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-              {user ? (
-                <DialogTrigger asChild>
-                  <Button size="lg">{t("writeReview")}</Button>
-                </DialogTrigger>
-              ) : (
-                <Card className="max-w-md mx-auto bg-background/80 backdrop-blur-sm">
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <LogIn className="h-6 w-6 text-primary" />
+            <div className="mt-8">
+              <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+                {user ? (
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="shadow-lg">{t("writeReview")}</Button>
+                  </DialogTrigger>
+                ) : (
+                  <Card className="max-w-md mx-auto bg-background/80 backdrop-blur-sm border-0 shadow-xl mt-4">
+                    <CardContent className="pt-6">
+                      <div className="flex flex-col items-center text-center gap-4">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <LogIn className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-medium">Sign in to share your experience</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Join our community to share your travel stories and help others plan their adventures
+                          </p>
+                        </div>
+                        <Button asChild className="mt-2">
+                          <Link href="/login">Sign In</Link>
+                        </Button>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-medium">Sign in to share your experience</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Join our community to share your travel stories and help others plan their adventures
-                        </p>
-                      </div>
-                      <Button asChild className="mt-2">
-                        <Link href="/login">Sign In</Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                    </CardContent>
+                  </Card>
+                )}
               <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{t("writeReview")}</DialogTitle>
@@ -1198,13 +1213,11 @@ export default function ReviewsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="review">Your Review *</Label>
-                    <Textarea
-                      id="review"
-                      value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
+                    <RichTextEditor
+                      content={reviewText}
+                      onChange={setReviewText}
                       placeholder="Share your experience..."
-                      rows={5}
-                      required
+                      minHeight="160px"
                     />
                   </div>
 
@@ -1334,13 +1347,11 @@ export default function ReviewsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-review">Your Review *</Label>
-                    <Textarea
-                      id="edit-review"
-                      value={editReviewText}
-                      onChange={(e) => setEditReviewText(e.target.value)}
+                    <RichTextEditor
+                      content={editReviewText}
+                      onChange={setEditReviewText}
                       placeholder="Share your experience..."
-                      rows={5}
-                      required
+                      minHeight="160px"
                     />
                   </div>
 
@@ -1397,7 +1408,7 @@ export default function ReviewsPage() {
                   <Button
                     type="button"
                     onClick={handleSubmitEditReview}
-                    disabled={isEditSubmitting || !editRating || !editDestination || !editReviewText.trim()}
+                    disabled={isEditSubmitting || !editRating || !editDestination || !editReviewText.replace(/<[^>]*>/g, '').trim()}
                   >
                     {isEditSubmitting ? (
                       <>
@@ -1430,9 +1441,13 @@ export default function ReviewsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
         </div>
+      </section>
 
+      {/* ── Content ── */}
+      <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -1562,9 +1577,9 @@ export default function ReviewsPage() {
           <div className="space-y-8">
             {reviews?.map((review) => (
               // Update the review card to include engagement stats
-              <Card key={review?.id} className="overflow-hidden hover:shadow-md transition-shadow duration-200">
-                <CardHeader className="flex flex-row items-start gap-4">
-                  <div className="relative h-12 w-12 rounded-full overflow-hidden bg-muted">
+              <Card key={review?.id} className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-card/80 backdrop-blur-sm">
+                <CardHeader className="flex flex-row items-start gap-4 pb-3">
+                  <div className="relative h-14 w-14 rounded-full overflow-hidden bg-muted ring-2 ring-primary/20 flex-shrink-0">
                     {review.authorAvatar ? (
                       <Image
                         src={review?.authorAvatar || "/placeholder.svg"}
@@ -1578,31 +1593,31 @@ export default function ReviewsPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{review.authorName}</CardTitle>
-                    <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <span className="flex items-center">
-                        <MapPin className="h-3 w-3 mr-1" />
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg font-bold">{review.authorName}</CardTitle>
+                    <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                      <span className="flex items-center text-sm">
+                        <MapPin className="h-3.5 w-3.5 mr-1 text-primary" />
                         {review.destination}
                       </span>
-                      <span className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
+                      <span className="flex items-center text-sm">
+                        <Calendar className="h-3.5 w-3.5 mr-1 text-primary" />
                         {review.formattedDate}
                       </span>
                     </CardDescription>
                   </div>
-                  <div className="flex">
+                  <div className="flex items-center gap-0.5 bg-yellow-50 dark:bg-yellow-500/10 px-2.5 py-1 rounded-full flex-shrink-0">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
                         key={i}
-                        className={`h-4 w-4 ${i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"
+                        className={`h-4 w-4 ${i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30"
                           }`}
                       />
                     ))}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-muted-foreground">{review.review_text}</p>
+                  <RichTextRenderer content={review.review_text} className="text-muted-foreground" />
 
                   <div className="mt-4">
                     <div className="relative aspect-video rounded-md overflow-hidden max-w-lg mx-auto">
@@ -1709,7 +1724,7 @@ export default function ReviewsPage() {
                           <div className="relative">
                             <Textarea
                               id={`comment-input-${review.id}`}
-                              ref={(el) => (commentInputRefs[review.id] = el)}
+                              ref={(el: HTMLTextAreaElement | null) => { commentInputRefs[review.id] = el; }}
                               placeholder="Add a comment... Use @ to mention users"
                               value={commentText[review.id] || ""}
                               onChange={(e) => handleCommentInputChange(review.id, e)}
@@ -1843,7 +1858,6 @@ export default function ReviewsPage() {
           </div>
         )}
       </div>
-
     </div>
   )
 }

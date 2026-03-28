@@ -1,10 +1,8 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
-import { useTranslation } from "@/lib/translations";
 
 export default function AboutPage() {
-  const { t } = useTranslation();
   return (
     <main className="flex-1">
       <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat py-16 md:py-24">
@@ -15,29 +13,45 @@ export default function AboutPage() {
             {/* Left Column: Text Content */}
             <div className="text-white">
               <div className="mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="inline-block text-[1.8rem] font-semibold text-[var(--heading-color)] animate-pulse">
-                    {t("hello")} 🌍
-                  </span>
+                <span className="inline-flex items-center rounded-full bg-white/15 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/90 mb-4">
+                  About Me
+                </span>
+                <h1 className="text-3xl md:text-4xl font-extrabold mb-5 text-[var(--heading-color)] drop-shadow-lg">
+                  Hi, I&apos;m Glory Bundi
+                </h1>
+                <div className="space-y-4 text-base md:text-lg leading-7 text-[var(--text-color)] bg-white/10 backdrop-blur-md rounded-xl p-5 md:p-6 border border-white/15">
+                  <p className="text-lg md:text-xl font-semibold text-white">
+                    Hi, I&apos;m <span className="text-[var(--secondary-color)]">Glory Bundi</span>, thanks for stopping by!
+                  </p>
+
+                  <p>
+                    I&apos;m <strong className="text-white font-semibold">Kenyan</strong>, based in <strong className="text-white font-semibold">Nairobi</strong>, and I&apos;ve built a life where <em>work, travel, and creativity</em> collide. I studied <strong className="text-white font-semibold">International Relations and Diplomacy</strong>, and today I work as a <strong className="text-white font-semibold">content creator and digital marketer</strong>, while also studying <strong className="text-white font-semibold">skin aesthetics</strong>.
+                  </p>
+
+                  <p>
+                    I&apos;m resourceful by nature, which comes in handy when I plan my trips. Whether it&apos;s chasing a <em className="text-[var(--secondary-color)]">sunrise on a beach</em>, indulging in <em className="text-[var(--secondary-color)]">fine dining</em>, exploring <em className="text-[var(--secondary-color)]">vibrant cultures</em>, enjoying a <em className="text-[var(--secondary-color)]">spa</em>, or savoring a <em className="text-[var(--secondary-color)]">luxe escape</em> &mdash; I thrive on experiences that balance <strong className="text-white font-semibold">adventure and refinement</strong>.
+                  </p>
+
+                  <p>
+                    Travel isn&apos;t just about destinations for me; it&apos;s about <strong className="text-white font-semibold">stories, people, flavors</strong>, and the little details that make a journey unforgettable. I capture these moments through <strong className="text-white font-semibold">photos and reels</strong> on <span className="text-[var(--secondary-color)] font-medium">Instagram</span> and <span className="text-[var(--secondary-color)] font-medium">TikTok</span>, sharing both the thrill and the calm, the adventure and the indulgence.
+                  </p>
+
+                  <p className="border-t border-white/15 pt-4 mt-2">
+                    My blog is my space to <strong className="text-white font-semibold">inspire others to explore</strong>, share insights that make travel easier, and celebrate the balance between <em className="text-[var(--secondary-color)]">adventure, culture, and luxury</em>.
+                  </p>
                 </div>
-                <h2 className="text-3xl md:text-4xl font-extrabold mb-4 text-[var(--heading-color)] drop-shadow-lg">
-                  {t("discover")}
-                </h2>
-                <p className="text-base md:text-lg leading-7 text-[var(--text-color)] bg-white/10 backdrop-blur-md rounded-lg p-4">
-                  {t("aboutMe")}
-                </p>
               </div>
 
               {/* Testimonial / Quote */}
               <blockquote className="mt-6 border-l-4 border-[var(--secondary-color)] pl-4 italic text-[var(--text-color)]">
-                “Traveling – it leaves you speechless, then turns you into a storyteller.”
-                <span className="block mt-2 text-sm font-medium text-gray-300">– Ibn Battuta</span>
+                &ldquo;Traveling &ndash; it leaves you speechless, then turns you into a storyteller.&rdquo;
+                <span className="block mt-2 text-sm font-medium text-gray-300">&ndash; Ibn Battuta</span>
               </blockquote>
 
               {/* Scroll indicator */}
               <div className="mt-8 flex justify-start">
                 <div className="animate-bounce text-[var(--secondary-color)] text-lg">
-                  ↓ Scroll to explore more
+                  &darr; Scroll to explore more
                 </div>
               </div>
             </div>

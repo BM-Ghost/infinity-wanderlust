@@ -29,6 +29,8 @@ import { useArticles } from "@/hooks/useArticles"
 import { InstagramFeed } from "@/components/instagram-feed"
 import { AboutPreview } from "@/components/about-preview"
 
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+
 export default function HomePage() {
   const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -40,6 +42,7 @@ export default function HomePage() {
     page: 1,
     perPage: 4,
     enabled: true,
+    filter: `reviewer.email != "${ADMIN_EMAIL}"`,
   })
   const reviews = reviewsData?.items || []
 
