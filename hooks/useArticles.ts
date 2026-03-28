@@ -25,7 +25,7 @@ export const useArticles = ({
   initialData,
 }: UseArticlesOptions) => {
   const queryClient = useQueryClient();
-  const filter = `reviewer.email = '${ADMIN_EMAIL}'`;
+  const filter = `reviewer.email = "${ADMIN_EMAIL}"`;
   const sort = "-created";
   
   const queryOptions: UseQueryOptions<ArticlesData, Error> = {
