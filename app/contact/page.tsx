@@ -55,7 +55,7 @@ export default function ContactPage() {
       {/* Hero Section */}
       <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
-        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28 text-center text-white">
+        <div className="relative z-10 container mx-auto px-4 py-14 md:py-20 text-center text-white">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
             <Plane className="h-3.5 w-3.5" /> Get In Touch
           </span>
@@ -68,7 +68,7 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      <div className="container mx-auto px-4 pt-6 pb-12 md:pt-8 md:pb-14">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14">
           {/* Contact Form */}
           <div className="lg:col-span-3">

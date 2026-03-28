@@ -19,6 +19,8 @@ import { useArticles } from "@/hooks/useArticles"
 import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@/lib/reviews"
 import { ImageCollage } from "@/components/image-collage"
 
+const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
+
 export default function ArticlesPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -43,7 +45,19 @@ export default function ArticlesPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const resolveAuthorName = (review: ReviewWithAuthor) => {
+    const rawName = (review.authorName || review.expand?.reviewer?.name || "").trim()
+    if (!rawName || rawName === "Unknown User" || rawName === "Anonymous") return ADMIN_DISPLAY_NAME
+    return rawName
   }
 
   const truncateText = (text: string, maxLength = 120) => {
@@ -116,7 +130,7 @@ export default function ArticlesPage() {
       {/* ── Hero Section ── */}
       <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
-        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28">
+        <div className="relative z-10 container mx-auto px-4 py-14 md:py-20">
           <div className="max-w-3xl mx-auto text-center text-white">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
               <Plane className="h-3.5 w-3.5" /> Travel Blog
@@ -155,20 +169,28 @@ export default function ArticlesPage() {
             </div>
 
             {isAdmin && (
-              <Button
-                size="lg"
-                onClick={() => router.push("/articles/create")}
-                className="mt-6"
-              >
-                <Plus className="mr-2 h-4 w-4" /> Write New Article
-              </Button>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  size="lg"
+                  onClick={() => router.push("/articles/create")}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Write New Article
+                </Button>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => router.push("/articles/migrate")}
+                >
+                  Migrate Legacy Blogs
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </section>
 
       {/* ── Content ── */}
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      <div className="container mx-auto px-4 pt-6 pb-12 md:pt-8 md:pb-14">
         {/* Article count */}
         {!isLoading && !isError && (
           <div className="flex items-center justify-between mb-8">
@@ -208,7 +230,7 @@ export default function ArticlesPage() {
               {filteredArticles.map((article: ReviewWithAuthor) => {
                 const images = getReviewImageUrls(article)
                 const avatarUrl = getAvatarUrl(article)
-                const authorName = article.authorName || article.expand?.reviewer?.name || "Anonymous"
+                const authorName = resolveAuthorName(article)
                 const initials = authorName.charAt(0).toUpperCase()
                 const displayContent = stripBlogMarker(article.review_text || "")
 

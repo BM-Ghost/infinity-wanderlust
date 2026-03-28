@@ -28,6 +28,95 @@ export function isBlogReview(review: { review_text?: string; reviewer?: string; 
   return !review.reviewer && (review.rating || 0) >= 5 && textLength >= 500
 }
 
+export type LegacyBlogCandidate = {
+  id: string
+  destination: string
+  created: string
+  wordCount: number
+  preview: string
+}
+
+const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+
+function assertAdminSession(pb: NonNullable<ReturnType<typeof getPocketBase>>) {
+  if (!pb?.authStore?.isValid) {
+    throw new Error("You must be signed in as admin to run blog migration")
+  }
+  const email = String(pb.authStore.model?.email || "").toLowerCase()
+  if (email !== ADMIN_EMAIL) {
+    throw new Error("Only admin can run blog migration")
+  }
+}
+
+function toWordCount(text: string): number {
+  return text.replace(/<[^>]*>/g, " ").trim().split(/\s+/).filter(Boolean).length
+}
+
+export async function listLegacyBlogCandidates(maxPages = 5, perPage = 200): Promise<LegacyBlogCandidate[]> {
+  const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
+  assertAdminSession(pb)
+
+  const candidates: LegacyBlogCandidate[] = []
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const result = await pb.collection("reviews").getList(page, perPage, {
+      sort: "-created",
+      $autoCancel: false,
+    })
+
+    for (const record of result.items as any[]) {
+      if (isBlogContent(record.review_text)) continue
+      if (!isBlogReview(record)) continue
+
+      const cleanText = stripBlogMarker(record.review_text || "")
+      candidates.push({
+        id: record.id,
+        destination: record.destination || "Untitled",
+        created: record.created,
+        wordCount: toWordCount(cleanText),
+        preview: cleanText.slice(0, 220),
+      })
+    }
+
+    if (page >= result.totalPages) break
+  }
+
+  return candidates
+}
+
+export async function migrateLegacyBlogsByIds(ids: string[]): Promise<{ migrated: number; skipped: number }> {
+  const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
+  assertAdminSession(pb)
+
+  let migrated = 0
+  let skipped = 0
+
+  for (const id of ids) {
+    const record = await pb.collection("reviews").getOne(id, { $autoCancel: false })
+
+    if (isBlogContent(record.review_text)) {
+      skipped += 1
+      continue
+    }
+
+    if (!isBlogReview(record)) {
+      skipped += 1
+      continue
+    }
+
+    await pb.collection("reviews").update(
+      id,
+      { review_text: markAsBlogContent(record.review_text || "") },
+      { $autoCancel: false },
+    )
+    migrated += 1
+  }
+
+  return { migrated, skipped }
+}
+
 export type Review = {
   id: string
   created: string

@@ -36,6 +36,15 @@ import { RichTextRenderer } from "@/components/rich-text-renderer"
 import { useToast } from "@/components/ui/use-toast"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
+
+const resolveBlogAuthorName = (name?: string) => {
+  const normalized = (name || "").trim()
+  if (!normalized || normalized === "Unknown User" || normalized === "Anonymous") {
+    return ADMIN_DISPLAY_NAME
+  }
+  return normalized
+}
 
 export default function ReviewDetailPage() {
   const { id } = useParams()
@@ -202,6 +211,15 @@ export default function ReviewDetailPage() {
     )
   }
 
+  const postDateTime = new Date(review.created).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  const blogAuthorName = resolveBlogAuthorName(review.authorName)
+
   const getReviewImageUrl = (review: any, photoIndex: number = 0): string => {
     try {
       if (!review) return "/placeholder.svg";
@@ -270,14 +288,14 @@ export default function ReviewDetailPage() {
                 {/* Author info */}
                 <div className="flex items-center mb-6">
                   <Avatar className="h-12 w-12 border">
-                    <AvatarImage src={review.authorAvatar || ""} alt={review.authorName} />
-                    <AvatarFallback>{review.authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={review.authorAvatar || ""} alt={blogAuthorName} />
+                    <AvatarFallback>{blogAuthorName.charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="ml-4">
-                    <div className="font-medium">{review.authorName}</div>
+                    <div className="font-medium">{blogAuthorName}</div>
                     <div className="text-sm text-muted-foreground flex items-center">
                       <Calendar className="h-3 w-3 mr-1" />
-                      {review.formattedDate}
+                      {postDateTime}
                     </div>
                   </div>
                 </div>
@@ -336,7 +354,7 @@ export default function ReviewDetailPage() {
                       />
                       <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center">
                         <Camera className="h-3 w-3 mr-1" />
-                        Photo by {review.authorName}
+                        Photo by {blogAuthorName}
                       </div>
                     </div>
                   </div>
@@ -350,7 +368,7 @@ export default function ReviewDetailPage() {
                   </div>
                   <div className="flex items-center">
                     <Calendar className="h-4 w-4 mr-1" />
-                    {review.formattedDate}
+                    {postDateTime}
                   </div>
                   <div className="flex items-center">
                     <Star className="h-4 w-4 mr-1 fill-yellow-400 text-yellow-400" />
@@ -449,17 +467,19 @@ export default function ReviewDetailPage() {
                 <CardContent className="p-6">
                   <h3 className="text-lg font-bold mb-4">More Articles of {review.destination}</h3>
                   <div className="space-y-4">
-                    {relatedReviews.map((relatedReview, index) => (
+                    {relatedReviews.map((relatedReview) => {
+                      const relatedAuthorName = resolveBlogAuthorName(relatedReview.authorName)
+                      return (
                       <Link key={relatedReview.id} href={`/articles/${relatedReview.id}`} className="block">
                         <div className="flex items-start gap-3 group">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={relatedReview.authorAvatar || ""} alt={relatedReview.authorName} />
-                            <AvatarFallback>{relatedReview.authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                            <AvatarImage src={relatedReview.authorAvatar || ""} alt={relatedAuthorName} />
+                            <AvatarFallback>{relatedAuthorName.charAt(0).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
                             <div className="flex justify-between">
                               <div className="font-medium text-sm group-hover:text-primary transition-colors">
-                                {relatedReview.authorName}
+                                {relatedAuthorName}
                               </div>
                               <div className="flex">
                                 {Array.from({ length: 5 }).map((_, i) => (
@@ -489,7 +509,7 @@ export default function ReviewDetailPage() {
                           </div>
                         </div>
                       </Link>
-                    ))}
+                    )})}
                   </div>
                 </CardContent>
               </Card>

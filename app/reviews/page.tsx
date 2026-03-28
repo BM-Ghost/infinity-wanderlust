@@ -1142,7 +1142,7 @@ export default function ReviewsPage() {
       {/* ── Hero Section ── */}
       <section className="relative bg-[url('/images/explore.jpg')] bg-cover bg-center bg-no-repeat">
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
-        <div className="relative z-10 container mx-auto px-4 py-20 md:py-28">
+        <div className="relative z-10 container mx-auto px-4 py-14 md:py-20">
           <div className="max-w-3xl mx-auto text-center text-white">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur-sm mb-5">
               <Star className="h-3.5 w-3.5 fill-white" /> Traveler Reviews
@@ -1448,7 +1448,7 @@ export default function ReviewsPage() {
       </section>
 
       {/* ── Content ── */}
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      <div className="container mx-auto px-4 pt-6 pb-12 md:pt-8 md:pb-14">
         <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
