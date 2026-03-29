@@ -105,3 +105,54 @@ export async function getUserLikedItemIds(
     return []
   }
 }
+
+/**
+ * Delete all likes for a specific item (called when item is deleted)
+ * Cleans up orphaned like records and updates related counts
+ */
+export async function deleteItemLikes(
+  itemId: string,
+  itemType: LikeItemType,
+): Promise<number> {
+  if (!itemId || !itemType) return 0
+
+  try {
+    const adminPb = await getPocketBaseAdmin()
+    await ensureLikesCollection(adminPb)
+
+    // Get all likes for this item
+    const likes = await adminPb.collection(LIKES_COLLECTION).getFullList({
+      filter: `item_id="${pbEsc(itemId)}" && item_type="${pbEsc(itemType)}"`,
+      fields: "id",
+      $autoCancel: false,
+    })
+
+    // Delete each like record
+    let deletedCount = 0
+    for (const like of likes) {
+      try {
+        await adminPb.collection(LIKES_COLLECTION).delete(like.id)
+        deletedCount++
+      } catch {
+        // Continue on individual like deletion errors
+      }
+    }
+
+    // Update the item's like count to 0
+    const collectionName =
+      itemType === "comment" ? "comments" : itemType === "upload" ? "uploads" : "reviews"
+    try {
+      const item = await adminPb.collection(collectionName).getOne(itemId)
+      if (item) {
+        await adminPb.collection(collectionName).update(itemId, { likes_count: 0 })
+      }
+    } catch {
+      // Item may already be deleted, that's fine
+    }
+
+    return deletedCount
+  } catch (error) {
+    console.error(`Error deleting likes for ${itemType} ${itemId}:`, error)
+    return 0
+  }
+}

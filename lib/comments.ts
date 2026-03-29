@@ -1,5 +1,6 @@
 import { getPocketBase } from "@/lib/pocketbase"
 import { notifyCommentEvents, notifyCommentLike } from "@/lib/notifications"
+import { deleteItemLikes } from "@/actions/likes"
 
 export type Comment = {
   id: string
@@ -330,8 +331,15 @@ export async function deleteComment(commentId: string): Promise<boolean> {
       children.forEach((childId) => queue.push(childId))
     }
 
+    // Delete comments and their likes
     for (const idToDelete of idsToDelete.reverse()) {
+      // Delete all likes for this comment (cleanup orphaned likes)
+      await deleteItemLikes(idToDelete, "comment")
+      
+      // Delete the comment itself
       await pb.collection("comments").delete(idToDelete)
+      
+      // Update review comment count
       await updateReviewCommentCount(reviewId, false)
     }
 
