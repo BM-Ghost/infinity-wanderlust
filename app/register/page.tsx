@@ -22,7 +22,7 @@ const hunterApiKey = "572557b3f832258066fb2fe92f863a806e13c57f"
 export default function RegisterPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const { signUp, requestVerification } = useAuth()
+  const { signUp } = useAuth()
 
   // Form state
   const [credentials, setCredentials] = useState({
@@ -36,24 +36,7 @@ export default function RegisterPage() {
   // UI state
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showVerification, setShowVerification] = useState(false)
-  const [timer, setTimer] = useState(120)
   const [showPassword, setShowPassword] = useState(false)
-
-  // Timer for resending verification email
-  useEffect(() => {
-    let countdown: NodeJS.Timeout | undefined
-
-    if (showVerification && timer > 0) {
-      countdown = setInterval(() => {
-        setTimer((prev) => prev - 1)
-      }, 1000)
-    }
-
-    return () => {
-      if (countdown) clearInterval(countdown)
-    }
-  }, [showVerification, timer])
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,11 +74,8 @@ export default function RegisterPage() {
           credentials.name,
         )
 
-        // Show verification screen
-        setShowVerification(true)
-
-        // Store email in localStorage for verification page
-        localStorage.setItem("pendingVerificationEmail", credentials.email)
+        router.push(`/verify?email=${encodeURIComponent(credentials.email)}`)
+        return
       } catch (signUpError: any) {
         console.error("Sign up error:", signUpError)
 
@@ -123,34 +103,6 @@ export default function RegisterPage() {
       setError(error.message || "Failed to create account. Please try again with different information.")
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Handle verification button click
-  const handleVerification = () => {
-    toast({
-      title: "Thank you for verifying!",
-      description: "You can now log in to your account.",
-    })
-    router.push("/login")
-  }
-
-  // Resend verification email
-  const resendVerificationEmail = async () => {
-    try {
-      await requestVerification(credentials.email)
-      setTimer(120)
-      toast({
-        title: "Verification email sent",
-        description: "Please check your inbox for the verification link.",
-      })
-    } catch (error: any) {
-      console.error("Failed to resend verification:", error)
-      toast({
-        variant: "destructive",
-        title: "Failed to resend verification email",
-        description: error.message || "Please try again later.",
-      })
     }
   }
 
@@ -210,7 +162,7 @@ export default function RegisterPage() {
                   </Alert>
                 )}
 
-                {!error && !showVerification ? (
+                {!error ? (
                   <>
                     <CardHeader className="px-0 pt-0">
                       <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
@@ -352,39 +304,7 @@ export default function RegisterPage() {
                       </CardContent>
                     )}
                   </>
-                ) : (
-                  !error &&
-                  showVerification && (
-                    <div className="flex flex-col items-center py-6">
-                      <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
-                        <Mail className="h-8 w-8 text-primary" />
-                      </div>
-
-                      <CardTitle className="text-2xl font-bold mb-2">Verify Your Email</CardTitle>
-                      <CardDescription className="text-center mb-6">
-                        We've sent a verification link to <span className="font-medium">{credentials.email}</span>.
-                        Please check your inbox and verify your email address.
-                      </CardDescription>
-
-                      <Button onClick={handleVerification} className="w-full mb-6">
-                        I've Verified My Email
-                      </Button>
-
-                      <div className="text-center text-sm text-muted-foreground w-full">
-                        {timer > 0 ? (
-                          <p>
-                            You can resend the email in {Math.floor(timer / 60)}:{timer % 60 < 10 ? "0" : ""}
-                            {timer % 60}
-                          </p>
-                        ) : (
-                          <Button variant="outline" onClick={resendVerificationEmail} className="mt-2">
-                            Resend Verification Email
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                )}
+                ) : null}
               </div>
             </div>
           </Card>

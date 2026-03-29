@@ -61,6 +61,13 @@ interface PasswordResetEmailData {
   userName: string
 }
 
+interface SignupVerificationEmailData {
+    to: string
+    verificationCode: string
+    verificationToken: string
+    userName: string
+}
+
 interface PasswordChangedEmailData {
     to: string
     userName: string
@@ -208,6 +215,147 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
   } catch (error: any) {
     console.error("[sendPasswordResetEmail] Error sending email:", error)
         throw new Error(`Failed to send password reset email: ${error.message}`)
+  }
+}
+
+export async function sendSignupVerificationEmail(data: SignupVerificationEmailData) {
+  try {
+    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify?token=${data.verificationToken}&email=${encodeURIComponent(data.to)}`
+
+    const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - Infinity Wanderlust</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .code-box {
+            background-color: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1e40af;
+            letter-spacing: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 14px;
+            color: #64748b;
+            text-align: center;
+        }
+        .warning {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🌍 Infinity Wanderlust</div>
+            <h1>Verify Your Email</h1>
+        </div>
+
+        <p>Hello ${data.userName},</p>
+
+        <p>Welcome to Infinity Wanderlust. Verify your email with one of the options below:</p>
+
+        <h2>Option 1: Use Verification Code</h2>
+        <p>Enter this 6-digit code on the verification page:</p>
+
+        <div class="code-box">
+            <div class="code">${data.verificationCode}</div>
+        </div>
+
+        <h2>Option 2: Click Verification Link</h2>
+        <p>Click the button below to verify directly:</p>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}" class="button">Verify My Email</a>
+        </div>
+
+        <div class="warning">
+            <strong>Security Notice:</strong> This link and code expire in 24 hours. If you didn't create an account, you can ignore this email.
+        </div>
+
+        <p>If the button doesn't work, copy and paste this link in your browser:</p>
+        <p style="word-break: break-all; color: #2563eb;">${verifyUrl}</p>
+
+        <p>Best regards,<br>The Infinity Wanderlust Team</p>
+
+        <div class="footer">
+            <p>This email was sent to ${data.to}. If you need help, contact support.</p>
+            <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/support">Visit Support</a></p>
+            <p>&copy; 2024 Infinity Wanderlust. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+    await sendMail({
+      to: data.to,
+      subject: "Verify your email - Infinity Wanderlust",
+      html: htmlTemplate,
+    })
+
+    console.log("[sendSignupVerificationEmail] Email sent successfully")
+
+    return { success: true, messageId: "mailchannels" }
+  } catch (error: any) {
+    console.error("[sendSignupVerificationEmail] Error sending email:", error)
+    throw new Error(`Failed to send signup verification email: ${error.message}`)
   }
 }
 

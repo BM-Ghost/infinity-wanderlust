@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth-provider"
-import { getPocketBase } from "@/lib/pocketbase"
 import { AlertCircle, CheckCircle, Mail, Loader2 } from "lucide-react"
 
 export default function VerifyPage() {
@@ -25,6 +24,7 @@ export default function VerifyPage() {
   const [verificationStatus, setVerificationStatus] = useState<"pending" | "success" | "error">("pending")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [timer, setTimer] = useState(120)
+  const [verificationCode, setVerificationCode] = useState("")
 
   // Initialize email from localStorage if available
   useEffect(() => {
@@ -53,12 +53,18 @@ export default function VerifyPage() {
   useEffect(() => {
     const token = searchParams.get("token")
     const verificationToken = searchParams.get("verification")
+    const emailFromQuery = searchParams.get("email")
+
+    if (emailFromQuery && !email) {
+      setEmail(emailFromQuery)
+      localStorage.setItem("pendingVerificationEmail", emailFromQuery)
+    }
 
     if (token || verificationToken) {
       // Handle verification token
       handleVerificationToken(token || (verificationToken as string))
     }
-  }, [searchParams])
+  }, [searchParams, email])
 
   // Handle verification token from email link
   const handleVerificationToken = async (token: string) => {
@@ -66,8 +72,16 @@ export default function VerifyPage() {
     setErrorMessage(null)
 
     try {
-      const pb = getPocketBase()
-      await pb.collection("users").confirmVerification(token)
+      const response = await fetch("/api/verification/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenOrCode: token }),
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || "Failed to verify email. Please try again.")
+      }
 
       setVerificationStatus("success")
       toast({
@@ -79,6 +93,49 @@ export default function VerifyPage() {
       localStorage.removeItem("pendingVerificationEmail")
     } catch (error: any) {
       console.error("Verification error:", error)
+      setVerificationStatus("error")
+      setErrorMessage(error.message || "Failed to verify email. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCodeVerification = async () => {
+    if (!email) {
+      setErrorMessage("Email is required to verify with code.")
+      return
+    }
+
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      setErrorMessage("Please enter a valid 6-digit verification code.")
+      return
+    }
+
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch("/api/verification/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenOrCode: verificationCode.trim(),
+          email: email.trim(),
+        }),
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || "Failed to verify email. Please try again.")
+      }
+
+      setVerificationStatus("success")
+      toast({
+        title: "Email verified!",
+        description: "Your email has been successfully verified. You can now log in.",
+      })
+      localStorage.removeItem("pendingVerificationEmail")
+    } catch (error: any) {
       setVerificationStatus("error")
       setErrorMessage(error.message || "Failed to verify email. Please try again.")
     } finally {
@@ -174,11 +231,24 @@ export default function VerifyPage() {
                   <div className="flex flex-col items-center py-4">
                     <Mail className="h-16 w-16 text-primary mb-4" />
                     <p className="text-center mb-6">
-                      We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the
-                      verification link.
+                      We've sent a verification email to <strong>{email}</strong>. You can use either the link in your
+                      inbox or the 6-digit code.
                     </p>
-                    <Button onClick={handleManualVerification} className="w-full mb-4">
-                      I've Verified My Email
+                    <div className="w-full space-y-3 mb-4">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Enter 6-digit code"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                      />
+                      <Button onClick={handleCodeVerification} className="w-full" disabled={isLoading}>
+                        Verify with Code
+                      </Button>
+                    </div>
+                    <Button onClick={handleManualVerification} variant="outline" className="w-full mb-4">
+                      Continue to Login
                     </Button>
                   </div>
 

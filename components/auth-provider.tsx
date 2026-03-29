@@ -137,11 +137,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Request email verification
   const requestVerification = async (email: string) => {
-    const pb = getPocketBase()
-
     try {
-      await pb?.collection("users").requestVerification(email)
-      console.log("Verification email sent to:", email)
+      const response = await fetch("/api/verification/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const result = await response.json()
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || "Failed to send verification email")
+      }
+
+      console.log("Custom verification email sent to:", email)
     } catch (error: any) {
       console.error("Failed to send verification email:", error)
       throw new Error(error.message || "Failed to send verification email")
@@ -179,9 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const record = await pb.collection("users").create(data)
         console.log("User created successfully:", record)
 
-        // Send verification email using the SDK method
-        await pb.collection("users").requestVerification(email)
-        console.log("Verification email sent to:", email)
+        // Send verification email using the custom app endpoint.
+        await requestVerification(email)
 
         // Store email in localStorage for verification page
         localStorage.setItem("pendingVerificationEmail", email)
