@@ -222,7 +222,7 @@ export default function HomePage() {
                   </div>
                   <div className="w-px bg-white/10 hidden sm:block" />
                   <div>
-                    <div className="text-3xl font-light text-white">50+</div>
+                    <div className="text-3xl font-light text-white">10+</div>
                     <div className="text-xs text-white/50 uppercase tracking-widest mt-2">Countries</div>
                   </div>
                   <div className="w-px bg-white/10 hidden sm:block" />
