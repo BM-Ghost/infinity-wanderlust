@@ -12,6 +12,7 @@ import { Menu, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getPocketBase } from "@/lib/pocketbase"
+import { NotificationBell } from "@/components/notification-bell"
 
 // Helper function to get first name
 function getFirstName(fullName: string | undefined) {
@@ -136,38 +137,44 @@ export function Navbar() {
           <LanguageToggle />
 
           {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-3">
-                  <span className="font-medium">Hi, {getFirstName(user.name)}</span>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={
-                        user.avatar
-                          ? `https://remain-faceghost.pockethost.io/api/files/${user.collectionId}/${user.id}/${user.avatar}`
-                          : ""
-                      }
-                      alt={user.name || user.username}
-                    />
-                    <AvatarFallback>
-                      {(user.name?.charAt(0) || user.username?.charAt(0) || user.email?.charAt(0) || "U").toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href="/profile">{t("profile")}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/my-reviews">{t("myReviews")}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/my-bookings">{t("myBookings")}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSignOut}>{t("signOut")}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              <NotificationBell />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 px-3">
+                    <span className="font-medium">Hi, {getFirstName(user.name)}</span>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={
+                          user.avatar
+                            ? `https://remain-faceghost.pockethost.io/api/files/${user.collectionId}/${user.id}/${user.avatar}`
+                            : ""
+                        }
+                        alt={user.name || user.username}
+                      />
+                      <AvatarFallback>
+                        {(user.name?.charAt(0) || user.username?.charAt(0) || user.email?.charAt(0) || "U").toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">{t("profile")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/notifications">Notifications</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/my-reviews">{t("myReviews")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/my-bookings">{t("myBookings")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>{t("signOut")}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : (
             <Button asChild variant="default">
               <Link href="/login">{t("signIn")}</Link>
@@ -252,6 +259,13 @@ export function Navbar() {
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
                         {t("myBookings")}
+                      </Link>
+                      <Link
+                        href="/notifications"
+                        className="text-sm font-medium"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Notifications
                       </Link>
                       <Button
                         variant="outline"

@@ -1,5 +1,6 @@
 import { getPocketBase } from "@/lib/pocketbase"
 import { useQuery } from "@tanstack/react-query"
+import { notifyReviewLike } from "@/lib/notifications"
 
 export const BLOG_CONTENT_MARKER = "<!--IWT_BLOG-->"
 
@@ -364,6 +365,7 @@ export async function likeReview(reviewId: string): Promise<boolean> {
     const likesCount = (review.likes_count || 0) + 1
 
     await pb.collection("reviews").update(reviewId, { likes_count: likesCount })
+    await notifyReviewLike(reviewId, review.reviewer)
     return true
   } catch (error: any) {
     console.error(`Error liking review with ID ${reviewId}:`, error)

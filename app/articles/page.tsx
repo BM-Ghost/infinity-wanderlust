@@ -17,7 +17,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { useArticles } from "@/hooks/useArticles"
-import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@/lib/reviews"
+import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker, likeReview } from "@/lib/reviews"
 import { ImageCollage } from "@/components/image-collage"
 
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
@@ -31,6 +31,8 @@ export default function ArticlesPage() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState("")
+  const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({})
+  const [optimisticLikes, setOptimisticLikes] = useState<Record<string, number>>({})
 
   const { data, isLoading, isError } = useArticles({ page: currentPage, perPage: 12, enabled: true })
   const articles = (data?.items || []).filter((article) => isBlogReview(article))
@@ -118,12 +120,37 @@ export default function ArticlesPage() {
     }
   }
 
-  const handleLike = async (articleId: string) => {
+  const handleLike = async (articleId: string, currentLikesCount: number) => {
     if (!isAuthenticated) {
       toast({ title: "Authentication required", description: "Please sign in to like articles.", variant: "destructive" })
       return
     }
-    toast({ title: "Liked!", description: "Thanks for your feedback!" })
+
+    if (pendingLikes[articleId]) return
+
+    const nextLikesCount = currentLikesCount + 1
+
+    setPendingLikes((prev) => ({ ...prev, [articleId]: true }))
+    setOptimisticLikes((prev) => ({ ...prev, [articleId]: nextLikesCount }))
+
+    try {
+      await likeReview(articleId)
+      toast({ title: "Liked", description: "Thanks for your feedback." })
+    } catch (error: any) {
+      setOptimisticLikes((prev) => {
+        const copy = { ...prev }
+        delete copy[articleId]
+        return copy
+      })
+
+      toast({
+        title: "Could not like article",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setPendingLikes((prev) => ({ ...prev, [articleId]: false }))
+    }
   }
 
   return (
@@ -162,6 +189,8 @@ export default function ArticlesPage() {
                     type="button"
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    title="Clear search"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -234,6 +263,7 @@ export default function ArticlesPage() {
                 const authorName = resolveAuthorName(article)
                 const initials = authorName.charAt(0).toUpperCase()
                 const displayContent = stripBlogMarker(article.review_text || "")
+                const displayLikesCount = optimisticLikes[article.id] ?? (article.likes_count || 0)
 
                 return (
                   <Card
@@ -312,11 +342,12 @@ export default function ArticlesPage() {
                             {isAuthenticated && (
                               <>
                                 <button
-                                  onClick={() => handleLike(article.id)}
+                                  onClick={() => handleLike(article.id, displayLikesCount)}
+                                  disabled={!!pendingLikes[article.id]}
                                   className="flex items-center gap-1 hover:text-red-500 transition-colors"
                                 >
                                   <Heart className="h-4 w-4" />
-                                  <span>{article.likes_count || 0}</span>
+                                  <span>{displayLikesCount}</span>
                                 </button>
                                 <span className="flex items-center gap-1">
                                   <MessageSquare className="h-4 w-4" />

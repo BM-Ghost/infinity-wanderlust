@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,6 +21,8 @@ import {
   Calendar,
   Heart,
   MessageSquare,
+  Reply,
+  AtSign,
   ArrowLeft,
   ChevronRight,
   Camera,
@@ -30,10 +33,11 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
-import { fetchReviewById, deleteReview, isBlogReview, stripBlogMarker } from "@/lib/reviews"
+import { fetchReviewById, deleteReview, isBlogReview, likeReview, stripBlogMarker } from "@/lib/reviews"
 import { useQueryClient } from "@tanstack/react-query"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
 import { useToast } from "@/components/ui/use-toast"
+import { CommentWithAuthor, createComment, deleteComment, fetchComments, likeComment, searchUsers, updateComment } from "@/lib/comments"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
@@ -58,8 +62,188 @@ export default function ReviewDetailPage() {
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLiking, setIsLiking] = useState(false)
+  const [comments, setComments] = useState<CommentWithAuthor[]>([])
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentText, setCommentText] = useState("")
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [pendingCommentLikes, setPendingCommentLikes] = useState<Record<string, boolean>>({})
+  const [optimisticCommentLikes, setOptimisticCommentLikes] = useState<Record<string, number>>({})
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null)
+  const [replyTextByCommentId, setReplyTextByCommentId] = useState<Record<string, string>>({})
+  const [submittingReplyByCommentId, setSubmittingReplyByCommentId] = useState<Record<string, boolean>>({})
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editCommentText, setEditCommentText] = useState("")
+  const [savingEditByCommentId, setSavingEditByCommentId] = useState<Record<string, boolean>>({})
+  const [deletingCommentById, setDeletingCommentById] = useState<Record<string, boolean>>({})
+  const [expandedRepliesByCommentId, setExpandedRepliesByCommentId] = useState<Record<string, boolean>>({})
+  const [mentionResultsByTarget, setMentionResultsByTarget] = useState<
+    Record<string, Array<{ id: string; name: string; username: string; avatar?: string }>>
+  >({})
+  const [showMentionResultsByTarget, setShowMentionResultsByTarget] = useState<Record<string, boolean>>({})
+  const [activeMentionIndexByTarget, setActiveMentionIndexByTarget] = useState<Record<string, number>>({})
+  const [cursorPositionByTarget, setCursorPositionByTarget] = useState<Record<string, number>>({})
+  const [taggedUsersByTarget, setTaggedUsersByTarget] = useState<Record<string, Array<{ id: string; name: string }>>>({})
   const { toast } = useToast()
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
+
+  const getSafeMentionTarget = (targetKey: string) => targetKey.replace(/[^a-zA-Z0-9_-]/g, "_")
+
+  useEffect(() => {
+    Object.entries(activeMentionIndexByTarget).forEach(([targetKey, activeIndex]) => {
+      if (!showMentionResultsByTarget[targetKey] || activeIndex < 0) return
+      const safeTarget = getSafeMentionTarget(targetKey)
+      const selector = `[data-mention-target="${safeTarget}"][data-mention-index="${activeIndex}"]`
+      const option = document.querySelector<HTMLElement>(selector)
+      option?.scrollIntoView({ block: "nearest" })
+    })
+  }, [activeMentionIndexByTarget, showMentionResultsByTarget])
+
+  const getTextByTarget = (targetKey: string): string => {
+    if (targetKey === "root") return commentText
+    if (targetKey.startsWith("reply-")) return replyTextByCommentId[targetKey.replace("reply-", "")] || ""
+    if (targetKey.startsWith("edit-") && editingCommentId === targetKey.replace("edit-", "")) return editCommentText
+    return ""
+  }
+
+  const setTextByTarget = (targetKey: string, value: string) => {
+    if (targetKey === "root") {
+      setCommentText(value)
+      return
+    }
+
+    if (targetKey.startsWith("reply-")) {
+      const parentId = targetKey.replace("reply-", "")
+      setReplyTextByCommentId((prev) => ({ ...prev, [parentId]: value }))
+      return
+    }
+
+    if (targetKey.startsWith("edit-") && editingCommentId === targetKey.replace("edit-", "")) {
+      setEditCommentText(value)
+    }
+  }
+
+  const handleMentionLookup = async (targetKey: string, value: string, cursorPosition: number) => {
+    setCursorPositionByTarget((prev) => ({ ...prev, [targetKey]: cursorPosition }))
+
+    const beforeCursor = value.substring(0, cursorPosition)
+    const atIndex = beforeCursor.lastIndexOf("@")
+
+    if (atIndex === -1 || (atIndex > 0 && !/\s/.test(beforeCursor[atIndex - 1]))) {
+      setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: false }))
+      setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: -1 }))
+      return
+    }
+
+    const query = beforeCursor.substring(atIndex + 1)
+    if (!query) {
+      setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: false }))
+      setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: -1 }))
+      return
+    }
+
+    try {
+      const users = await searchUsers(query)
+      setMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: users }))
+      setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: users.length > 0 }))
+      setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: users.length > 0 ? 0 : -1 }))
+    } catch {
+      setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: false }))
+      setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: -1 }))
+    }
+  }
+
+  const handleMentionKeyDown = (
+    targetKey: string,
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (!showMentionResultsByTarget[targetKey]) return
+
+    const results = mentionResultsByTarget[targetKey] || []
+    if (results.length === 0) return
+
+    const currentIndex = activeMentionIndexByTarget[targetKey] ?? 0
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveMentionIndexByTarget((prev) => ({
+        ...prev,
+        [targetKey]: (currentIndex + 1) % results.length,
+      }))
+      return
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveMentionIndexByTarget((prev) => ({
+        ...prev,
+        [targetKey]: (currentIndex - 1 + results.length) % results.length,
+      }))
+      return
+    }
+
+    if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault()
+      const selected = results[Math.max(0, currentIndex)]
+      if (selected) {
+        handleSelectMention(targetKey, selected)
+      }
+      return
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault()
+      setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: false }))
+      setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: -1 }))
+    }
+  }
+
+  const handleSelectMention = (targetKey: string, selectedUser: { id: string; name: string; username: string }) => {
+    const text = getTextByTarget(targetKey)
+    const cursorPosition = cursorPositionByTarget[targetKey] ?? text.length
+    const beforeCursor = text.substring(0, cursorPosition)
+    const atIndex = beforeCursor.lastIndexOf("@")
+
+    if (atIndex === -1) return
+
+    const beforeAt = text.substring(0, atIndex)
+    const afterCursor = text.substring(cursorPosition)
+    const nextText = `${beforeAt}@${selectedUser.username} ${afterCursor}`
+
+    setTextByTarget(targetKey, nextText)
+    setTaggedUsersByTarget((prev) => ({
+      ...prev,
+      [targetKey]: [...(prev[targetKey] || []).filter((user) => user.id !== selectedUser.id), { id: selectedUser.id, name: selectedUser.name }],
+    }))
+    setShowMentionResultsByTarget((prev) => ({ ...prev, [targetKey]: false }))
+    setActiveMentionIndexByTarget((prev) => ({ ...prev, [targetKey]: -1 }))
+    setCursorPositionByTarget((prev) => ({ ...prev, [targetKey]: atIndex + selectedUser.username.length + 2 }))
+  }
+
+  const renderTaggedUsers = (targetKey: string) => {
+    const users = taggedUsersByTarget[targetKey] || []
+    if (users.length === 0) return null
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {users.map((taggedUser) => (
+          <button
+            key={taggedUser.id}
+            type="button"
+            className="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs text-primary"
+            onClick={() =>
+              setTaggedUsersByTarget((prev) => ({
+                ...prev,
+                [targetKey]: (prev[targetKey] || []).filter((user) => user.id !== taggedUser.id),
+              }))
+            }
+          >
+            <AtSign className="mr-1 h-3 w-3" />
+            {taggedUser.name}
+          </button>
+        ))}
+      </div>
+    )
+  }
   
   const { data: reviewsData, isLoading, isError } = useReviews({
     page: 1,
@@ -68,6 +252,286 @@ export default function ReviewDetailPage() {
     filter: "",
   })
   const reviews = (reviewsData?.items || []).filter((item) => isBlogReview(item))
+
+  const loadComments = async (reviewId: string) => {
+    setIsLoadingComments(true)
+    try {
+      const result = await fetchComments(reviewId)
+      setComments(result.items)
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load comments",
+        description: error?.message || "Please refresh and try again.",
+      })
+    } finally {
+      setIsLoadingComments(false)
+    }
+  }
+
+  const handleCommentSubmit = async () => {
+    if (!review?.id || !user || isSubmittingComment) return
+
+    const trimmedComment = commentText.trim()
+    if (!trimmedComment) return
+
+    setIsSubmittingComment(true)
+    try {
+      const taggedUserIds = (taggedUsersByTarget.root || []).map((user) => user.id)
+      const created = await createComment(review.id, trimmedComment, undefined, taggedUserIds)
+      if (created) {
+        setComments((prev) => [created, ...prev])
+        setReview((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                comments_count: (prev.comments_count || 0) + 1,
+              }
+            : prev,
+        )
+      }
+      setCommentText("")
+      setTaggedUsersByTarget((prev) => ({ ...prev, root: [] }))
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to post comment",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setIsSubmittingComment(false)
+    }
+  }
+
+  const handleCommentLike = async (commentId: string, currentLikesCount: number) => {
+    if (!user || pendingCommentLikes[commentId]) return
+
+    const nextLikes = currentLikesCount + 1
+    setPendingCommentLikes((prev) => ({ ...prev, [commentId]: true }))
+    setOptimisticCommentLikes((prev) => ({ ...prev, [commentId]: nextLikes }))
+
+    try {
+      await likeComment(commentId)
+    } catch (error: any) {
+      setOptimisticCommentLikes((prev) => {
+        const copy = { ...prev }
+        delete copy[commentId]
+        return copy
+      })
+      toast({
+        variant: "destructive",
+        title: "Failed to like comment",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setPendingCommentLikes((prev) => ({ ...prev, [commentId]: false }))
+    }
+  }
+
+  const updateCommentTree = (
+    list: CommentWithAuthor[],
+    commentId: string,
+    updater: (comment: CommentWithAuthor) => CommentWithAuthor,
+  ): CommentWithAuthor[] => {
+    return list.map((comment) => {
+      if (comment.id === commentId) {
+        return updater(comment)
+      }
+
+      const replies = comment.replies || []
+      if (replies.length === 0) {
+        return comment
+      }
+
+      return {
+        ...comment,
+        replies: updateCommentTree(replies, commentId, updater),
+      }
+    })
+  }
+
+  const insertReplyInTree = (
+    list: CommentWithAuthor[],
+    parentCommentId: string,
+    reply: CommentWithAuthor,
+  ): CommentWithAuthor[] => {
+    return list.map((comment) => {
+      if (comment.id === parentCommentId) {
+        const existingReplies = comment.replies || []
+        return {
+          ...comment,
+          replies: [...existingReplies, reply],
+          replyCount: existingReplies.length + 1,
+        }
+      }
+
+      const replies = comment.replies || []
+      if (replies.length === 0) {
+        return comment
+      }
+
+      return {
+        ...comment,
+        replies: insertReplyInTree(replies, parentCommentId, reply),
+      }
+    })
+  }
+
+  const countCommentBranch = (comment: CommentWithAuthor): number => {
+    const replies = comment.replies || []
+    return 1 + replies.reduce((sum, reply) => sum + countCommentBranch(reply), 0)
+  }
+
+  const removeCommentFromTree = (
+    list: CommentWithAuthor[],
+    commentId: string,
+  ): { nextComments: CommentWithAuthor[]; removedCount: number } => {
+    let removedCount = 0
+
+    const nextComments = list
+      .filter((comment) => {
+        if (comment.id === commentId) {
+          removedCount += countCommentBranch(comment)
+          return false
+        }
+        return true
+      })
+      .map((comment) => {
+        const replies = comment.replies || []
+        if (replies.length === 0) {
+          return comment
+        }
+
+        const result = removeCommentFromTree(replies, commentId)
+        removedCount += result.removedCount
+
+        return {
+          ...comment,
+          replies: result.nextComments,
+          replyCount: result.nextComments.length,
+        }
+      })
+
+    return { nextComments, removedCount }
+  }
+
+  const handleStartEditComment = (comment: CommentWithAuthor) => {
+    setEditingCommentId(comment.id)
+    setEditCommentText(comment.content || "")
+    setTaggedUsersByTarget((prev) => ({
+      ...prev,
+      [`edit-${comment.id}`]: (comment.tagged_users || []).map((id, index) => ({
+        id,
+        name: comment.taggedUserNames[index] || "Tagged user",
+      })),
+    }))
+  }
+
+  const handleSaveEditComment = async (commentId: string) => {
+    const trimmedContent = editCommentText.trim()
+    if (!trimmedContent) return
+
+    setSavingEditByCommentId((prev) => ({ ...prev, [commentId]: true }))
+
+    try {
+      const taggedUserIds = (taggedUsersByTarget[`edit-${commentId}`] || []).map((user) => user.id)
+      const updated = await updateComment(commentId, trimmedContent, taggedUserIds)
+      if (updated) {
+        setComments((prev) =>
+          updateCommentTree(prev, commentId, (comment) => ({
+            ...comment,
+            content: updated.content,
+            updated: updated.updated,
+          })),
+        )
+      }
+      setEditingCommentId(null)
+      setEditCommentText("")
+      setTaggedUsersByTarget((prev) => ({ ...prev, [`edit-${commentId}`]: [] }))
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to edit comment",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setSavingEditByCommentId((prev) => ({ ...prev, [commentId]: false }))
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!review?.id) return
+
+    setDeletingCommentById((prev) => ({ ...prev, [commentId]: true }))
+
+    try {
+      await deleteComment(commentId)
+
+      setComments((prev) => {
+        const result = removeCommentFromTree(prev, commentId)
+
+        if (result.removedCount > 0) {
+          setReview((current: any) =>
+            current
+              ? {
+                  ...current,
+                  comments_count: Math.max(0, (current.comments_count || 0) - result.removedCount),
+                }
+              : current,
+          )
+        }
+
+        return result.nextComments
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete comment",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setDeletingCommentById((prev) => ({ ...prev, [commentId]: false }))
+    }
+  }
+
+  const handleReplySubmit = async (parentCommentId: string) => {
+    if (!review?.id || !user || submittingReplyByCommentId[parentCommentId]) return
+
+    const trimmedReply = (replyTextByCommentId[parentCommentId] || "").trim()
+    if (!trimmedReply) return
+
+    setSubmittingReplyByCommentId((prev) => ({ ...prev, [parentCommentId]: true }))
+
+    try {
+      const replyTargetKey = `reply-${parentCommentId}`
+      const taggedUserIds = (taggedUsersByTarget[replyTargetKey] || []).map((user) => user.id)
+      const createdReply = await createComment(review.id, trimmedReply, parentCommentId, taggedUserIds)
+      if (createdReply) {
+        setComments((prev) => insertReplyInTree(prev, parentCommentId, createdReply))
+        setReview((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                comments_count: (prev.comments_count || 0) + 1,
+              }
+            : prev,
+        )
+      }
+
+      setReplyTextByCommentId((prev) => ({ ...prev, [parentCommentId]: "" }))
+  setTaggedUsersByTarget((prev) => ({ ...prev, [replyTargetKey]: [] }))
+      setReplyingToCommentId(null)
+      setExpandedRepliesByCommentId((prev) => ({ ...prev, [parentCommentId]: true }))
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to post reply",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setSubmittingReplyByCommentId((prev) => ({ ...prev, [parentCommentId]: false }))
+    }
+  }
 
   // Load the requested article by id
   useEffect(() => {
@@ -87,6 +551,7 @@ export default function ReviewDetailPage() {
             return
           }
           setReview(fetchedReview)
+          void loadComments(fetchedReview.id)
           return
         }
 
@@ -113,26 +578,44 @@ export default function ReviewDetailPage() {
   }, [reviews, id])
 
   // Handle like action
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!user || isAuthLoading || isLiking) {
       return
     }
 
-    setIsLiking(true)
-    setIsLiked(!isLiked)
-    if (!isLiked) {
-      setReview({
-        ...review,
-        likes_count: review.likes_count + 1,
-      })
-    } else {
-      setReview({
-        ...review,
-        likes_count: Math.max(0, review.likes_count - 1),
-      })
-    }
+    if (!review?.id) return
 
-    setTimeout(() => setIsLiking(false), 200)
+    setIsLiking(true)
+
+    setReview((prev: any) =>
+      prev
+        ? {
+            ...prev,
+            likes_count: (prev.likes_count || 0) + 1,
+          }
+        : prev,
+    )
+
+    try {
+      await likeReview(review.id)
+      setIsLiked(true)
+    } catch (error: any) {
+      setReview((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              likes_count: Math.max(0, (prev.likes_count || 1) - 1),
+            }
+          : prev,
+      )
+      toast({
+        variant: "destructive",
+        title: "Failed to like article",
+        description: error?.message || "Please try again.",
+      })
+    } finally {
+      setIsLiking(false)
+    }
   }
 
   // Handle bookmark action
@@ -215,6 +698,222 @@ export default function ReviewDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  const renderCommentCard = (comment: CommentWithAuthor, isReply = false) => {
+    const likesCount = optimisticCommentLikes[comment.id] ?? (comment.likes_count || 0)
+    const canManageComment = user?.id === comment.user
+    const replies = comment.replies || []
+    const hasReplies = replies.length > 0
+    const isRepliesExpanded = expandedRepliesByCommentId[comment.id] || false
+    const isEditing = editingCommentId === comment.id
+
+    return (
+      <div key={comment.id} className={`rounded-lg border p-4 ${isReply ? "ml-6 bg-muted/20" : ""}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-medium text-sm">{comment.authorName}</p>
+            <p className="text-xs text-muted-foreground">{comment.formattedDate}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!user || !!pendingCommentLikes[comment.id]}
+            onClick={() => handleCommentLike(comment.id, likesCount)}
+            className="h-8 px-2"
+          >
+            <Heart className="h-3.5 w-3.5 mr-1" />
+            {likesCount}
+          </Button>
+        </div>
+
+        {isEditing ? (
+          <div className="relative mt-3 space-y-2">
+            {renderTaggedUsers(`edit-${comment.id}`)}
+            <Textarea
+              value={editCommentText}
+              onChange={(event) => {
+                const value = event.target.value
+                setEditCommentText(value)
+                void handleMentionLookup(`edit-${comment.id}`, value, event.target.selectionStart)
+              }}
+              onKeyDown={(event) => handleMentionKeyDown(`edit-${comment.id}`, event)}
+              className="min-h-[84px]"
+            />
+            {showMentionResultsByTarget[`edit-${comment.id}`] && (
+              <div className="absolute z-10 w-full rounded-md border bg-popover p-1 shadow-md">
+                {(mentionResultsByTarget[`edit-${comment.id}`] || []).map((resultUser, index) => (
+                  <button
+                    data-mention-target={getSafeMentionTarget(`edit-${comment.id}`)}
+                    data-mention-index={index}
+                    key={resultUser.id}
+                    type="button"
+                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                      (activeMentionIndexByTarget[`edit-${comment.id}`] ?? 0) === index ? "bg-muted" : ""
+                    }`}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      handleSelectMention(`edit-${comment.id}`, resultUser)
+                    }}
+                  >
+                    <AtSign className="h-3.5 w-3.5" />
+                    <span>{resultUser.name}</span>
+                    <span className="text-xs text-muted-foreground">@{resultUser.username}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingCommentId(null)
+                  setEditCommentText("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleSaveEditComment(comment.id)}
+                disabled={!editCommentText.trim() || !!savingEditByCommentId[comment.id]}
+              >
+                {savingEditByCommentId[comment.id] ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap">
+            {comment.content.split(/(@\w+)/).map((part, index) =>
+              part.startsWith("@") ? (
+                <span key={`${comment.id}-mention-${index}`} className="font-medium text-primary">
+                  {part}
+                </span>
+              ) : (
+                <span key={`${comment.id}-text-${index}`}>{part}</span>
+              ),
+            )}
+          </p>
+        )}
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {user && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2"
+              onClick={() =>
+                setReplyingToCommentId((prev) => (prev === comment.id ? null : comment.id))
+              }
+            >
+              <Reply className="h-3.5 w-3.5 mr-1" />
+              Reply
+            </Button>
+          )}
+
+          {canManageComment && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2"
+              onClick={() => handleStartEditComment(comment)}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" />
+              Edit
+            </Button>
+          )}
+
+          {canManageComment && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-destructive hover:text-destructive"
+              onClick={() => void handleDeleteComment(comment.id)}
+              disabled={!!deletingCommentById[comment.id]}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              {deletingCommentById[comment.id] ? "Deleting..." : "Delete"}
+            </Button>
+          )}
+
+          {hasReplies && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2"
+              onClick={() =>
+                setExpandedRepliesByCommentId((prev) => ({ ...prev, [comment.id]: !isRepliesExpanded }))
+              }
+            >
+              {isRepliesExpanded ? "Hide replies" : `Show replies (${replies.length})`}
+            </Button>
+          )}
+        </div>
+
+        {replyingToCommentId === comment.id && (
+          <div className="relative mt-3 space-y-2">
+            {renderTaggedUsers(`reply-${comment.id}`)}
+            <Textarea
+              value={replyTextByCommentId[comment.id] || ""}
+              onChange={(event) => {
+                const value = event.target.value
+                const targetKey = `reply-${comment.id}`
+                setReplyTextByCommentId((prev) => ({ ...prev, [comment.id]: value }))
+                void handleMentionLookup(targetKey, value, event.target.selectionStart)
+              }}
+              onKeyDown={(event) => handleMentionKeyDown(`reply-${comment.id}`, event)}
+              placeholder={`Reply to ${comment.authorName}...`}
+              className="min-h-[84px]"
+            />
+            {showMentionResultsByTarget[`reply-${comment.id}`] && (
+              <div className="absolute z-10 w-full rounded-md border bg-popover p-1 shadow-md">
+                {(mentionResultsByTarget[`reply-${comment.id}`] || []).map((resultUser, index) => (
+                  <button
+                    data-mention-target={getSafeMentionTarget(`reply-${comment.id}`)}
+                    data-mention-index={index}
+                    key={resultUser.id}
+                    type="button"
+                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                      (activeMentionIndexByTarget[`reply-${comment.id}`] ?? 0) === index ? "bg-muted" : ""
+                    }`}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      handleSelectMention(`reply-${comment.id}`, resultUser)
+                    }}
+                  >
+                    <AtSign className="h-3.5 w-3.5" />
+                    <span>{resultUser.name}</span>
+                    <span className="text-xs text-muted-foreground">@{resultUser.username}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setReplyingToCommentId(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void handleReplySubmit(comment.id)}
+                disabled={
+                  !((replyTextByCommentId[comment.id] || "").trim()) ||
+                  !!submittingReplyByCommentId[comment.id]
+                }
+              >
+                {submittingReplyByCommentId[comment.id] ? "Posting..." : "Post Reply"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {hasReplies && isRepliesExpanded && (
+          <div className="mt-4 space-y-3">
+            {replies.map((reply) => renderCommentCard(reply, true))}
+          </div>
+        )}
       </div>
     )
   }
@@ -394,7 +1093,7 @@ export default function ReviewDetailPage() {
                       variant={isLiked ? "default" : "outline"}
                       size="sm"
                       onClick={handleLike}
-                      disabled={isLiking}
+                      disabled={isLiking || isLiked}
                       className={isLiked ? "bg-red-500 hover:bg-red-600" : ""}
                     >
                       <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-white" : ""}`} />
@@ -402,14 +1101,17 @@ export default function ReviewDetailPage() {
                     </Button>
                   )}
 
-                  {user && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/articles?destination=${encodeURIComponent(review.destination)}`}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Comments ({review.comments_count})
-                      </Link>
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const commentsEl = document.getElementById("article-comments")
+                      commentsEl?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Comments ({review.comments_count || 0})
+                  </Button>
 
                   <Button variant="outline" size="sm" onClick={handleBookmark}>
                     <Bookmark className={`h-4 w-4 mr-2 ${isBookmarked ? "fill-current" : ""}`} />
@@ -419,8 +1121,72 @@ export default function ReviewDetailPage() {
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     title={review.title || review.destination}
-                    description={stripBlogMarker(review.content).substring(0, 150)}
+                    description={stripBlogMarker(review.review_text || "").substring(0, 150)}
                   />
+                </div>
+
+                <div id="article-comments" className="mt-8 border-t pt-6 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Comments</h3>
+                    <span className="text-sm text-muted-foreground">{review.comments_count || comments.length}</span>
+                  </div>
+
+                  {user ? (
+                    <div className="relative space-y-3">
+                      {renderTaggedUsers("root")}
+                      <Textarea
+                        value={commentText}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setCommentText(value)
+                          void handleMentionLookup("root", value, event.target.selectionStart)
+                        }}
+                        onKeyDown={(event) => handleMentionKeyDown("root", event)}
+                        placeholder="Share your thoughts..."
+                        className="min-h-[96px]"
+                      />
+                      {showMentionResultsByTarget.root && (
+                        <div className="absolute z-10 w-full rounded-md border bg-popover p-1 shadow-md">
+                          {(mentionResultsByTarget.root || []).map((resultUser, index) => (
+                            <button
+                              data-mention-target={getSafeMentionTarget("root")}
+                              data-mention-index={index}
+                              key={resultUser.id}
+                              type="button"
+                              className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                                (activeMentionIndexByTarget.root ?? 0) === index ? "bg-muted" : ""
+                              }`}
+                              onMouseDown={(event) => {
+                                event.preventDefault()
+                                handleSelectMention("root", resultUser)
+                              }}
+                            >
+                              <AtSign className="h-3.5 w-3.5" />
+                              <span>{resultUser.name}</span>
+                              <span className="text-xs text-muted-foreground">@{resultUser.username}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex justify-end">
+                        <Button onClick={handleCommentSubmit} disabled={isSubmittingComment || !commentText.trim()}>
+                          {isSubmittingComment ? "Posting..." : "Post Comment"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Sign in to join the conversation.</p>
+                  )}
+
+                  {isLoadingComments ? (
+                    <p className="text-sm text-muted-foreground">Loading comments...</p>
+                  ) : comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No comments yet. Be the first to comment.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {comments.map((comment) => renderCommentCard(comment))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

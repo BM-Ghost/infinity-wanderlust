@@ -28,6 +28,7 @@ import { useEvents } from "@/hooks/useEvents"
 import { useArticles } from "@/hooks/useArticles"
 import { InstagramFeed } from "@/components/instagram-feed"
 import { AboutPreview } from "@/components/about-preview"
+import { stripBlogMarker } from "@/lib/reviews"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -113,6 +114,20 @@ export default function HomePage() {
   }
 
   const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 3) : []
+  const latestArticlePreview = latestArticle
+    ? (() => {
+        const cleanText = stripBlogMarker(latestArticle.review_text || "")
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+
+        if (!cleanText) {
+          return "Read the latest story from Infinity Wanderlust Travels."
+        }
+
+        return cleanText.length > 250 ? `${cleanText.substring(0, 250)}...` : cleanText
+      })()
+    : ""
 
   return (
     <div className="homepage-bg relative overflow-hidden">
@@ -557,9 +572,7 @@ export default function HomePage() {
                   </div>
                   <h3 className="text-2xl md:text-3xl font-light text-white">{latestArticle.destination}</h3>
                   <p className="text-white/70 font-light leading-relaxed">
-                    {latestArticle.review_text && latestArticle.review_text.length > 250
-                      ? latestArticle.review_text.substring(0, 250) + '...'
-                      : latestArticle.review_text}
+                    {latestArticlePreview}
                   </p>
                   <div className="flex flex-wrap gap-3 text-sm text-white/50 font-light">
                     <span>

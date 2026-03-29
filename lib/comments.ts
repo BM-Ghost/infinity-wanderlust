@@ -1,4 +1,5 @@
 import { getPocketBase } from "@/lib/pocketbase"
+import { notifyCommentEvents, notifyCommentLike } from "@/lib/notifications"
 
 export type Comment = {
   id: string
@@ -49,61 +50,57 @@ export async function fetchComments(
   const pb = getPocketBase()
 
   try {
-    // First fetch all parent comments (comments without a parent)
-    const parentComments = await pb.collection("comments").getList(page, perPage, {
+    // Fetch all comments for the review so we can build a full nested tree.
+    const allComments = await pb.collection("comments").getFullList({
       sort: "created",
-      filter: `review = "${reviewId}" && parent_comment = null`,
-      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
+      filter: `review = "${reviewId}"`,
+      expand: "user,tagged_users,parent_comment,user,parent_comment.user",
+      $autoCancel: false,
     })
 
-    // Debug: Log the first parent comment to see its structure
-    if (parentComments.items.length > 0) {
-      console.log("First parent comment:", JSON.stringify(parentComments.items[0], null, 2))
-      console.log("User data:", parentComments.items[0].expand?.user)
-    }
-
-    // Then fetch all replies
-    const replies = await pb.collection("comments").getList(1, 200, {
-      sort: "created",
-      filter: `review = "${reviewId}" && parent_comment != null`,
-      expand: "user,tagged_users,parent_comment.user", // Always expand user relation
-    })
-
-    // Since expand isn't working for comments, we need to fetch user data separately
     const userIds = new Set<string>()
 
-    // Collect all user IDs from parent comments
-    parentComments.items.forEach((comment) => {
+    allComments.forEach((comment) => {
       if (comment.user) userIds.add(comment.user)
     })
 
-    // Collect all user IDs from replies
-    replies.items.forEach((reply) => {
-      if (reply.user) userIds.add(reply.user)
-    })
-
-    // Fetch user data for all collected IDs
     const userMap = await fetchUserData(Array.from(userIds))
 
-    // Format parent comments with the fetched user data
-    const formattedParentComments = parentComments.items.map((comment) => {
-      // Find all replies for this comment
-      const commentReplies = replies.items
-        .filter((reply) => reply.parent_comment === comment.id)
-        .map((reply) => formatComment(reply, userMap))
+    const byId = new Map<string, CommentWithAuthor>()
+    const roots: CommentWithAuthor[] = []
 
-      // Format the parent comment and add replies
-      const formattedComment = formatComment(comment, userMap)
-      formattedComment.replies = commentReplies
-      formattedComment.replyCount = commentReplies.length
-
-      return formattedComment
+    allComments.forEach((record) => {
+      const formatted = formatComment(record, userMap)
+      byId.set(formatted.id, formatted)
     })
 
+    allComments.forEach((record) => {
+      const formatted = byId.get(record.id)
+      if (!formatted) return
+
+      const parentId = record.parent_comment
+      if (parentId && byId.has(parentId)) {
+        const parent = byId.get(parentId)!
+        const parentReplies = parent.replies || []
+        parent.replies = [...parentReplies, formatted]
+        parent.replyCount = parent.replies.length
+        formatted.replyingTo = parent.authorName
+      } else {
+        roots.push(formatted)
+      }
+    })
+
+    const safePage = Math.max(1, page)
+    const safePerPage = Math.max(1, perPage)
+    const totalItems = roots.length
+    const totalPages = Math.max(1, Math.ceil(totalItems / safePerPage))
+    const start = (safePage - 1) * safePerPage
+    const items = roots.slice(start, start + safePerPage)
+
     return {
-      items: formattedParentComments,
-      totalItems: parentComments.totalItems,
-      totalPages: parentComments.totalPages,
+      items,
+      totalItems,
+      totalPages,
     }
   } catch (error) {
     console.error("Error fetching comments:", error)
@@ -134,7 +131,6 @@ async function fetchUserData(userIds: string[]): Promise<Map<string, any>> {
       })
     }
 
-    console.log(`Fetched ${userMap.size} users for ${userIds.length} IDs`)
     return userMap
   } catch (error) {
     console.error("Error fetching user data:", error)
@@ -173,6 +169,20 @@ export async function createComment(
   }
 
   try {
+    const review = await pb.collection("reviews").getOne(reviewId, {
+      fields: "id,reviewer",
+      $autoCancel: false,
+    })
+
+    let parentCommentOwnerId: string | undefined
+    if (parentCommentId) {
+      const parentComment = await pb.collection("comments").getOne(parentCommentId, {
+        fields: "id,user",
+        $autoCancel: false,
+      })
+      parentCommentOwnerId = parentComment.user
+    }
+
     const data: any = {
       content,
       user: pb.authStore.model?.id,
@@ -208,6 +218,14 @@ export async function createComment(
     // Update the review's comment count
     await updateReviewCommentCount(reviewId, true)
 
+    await notifyCommentEvents({
+      reviewId,
+      commentId: record.id,
+      reviewOwnerId: review.reviewer,
+      parentCommentOwnerId,
+      taggedUserIds,
+    })
+
     return formatComment(record, userMap)
   } catch (error: any) {
     console.error("Error creating comment:", error)
@@ -241,10 +259,8 @@ export async function updateComment(
 
     const data: any = { content }
 
-    // Update tagged users if provided
-    if (taggedUserIds.length > 0) {
-      data.tagged_users = taggedUserIds
-    }
+    // Always set tagged users to keep update behavior deterministic.
+    data.tagged_users = taggedUserIds
 
     const record = await pb.collection("comments").update(commentId, data, {
       expand: "user,tagged_users,parent_comment.user", // Always expand user relation
@@ -287,31 +303,37 @@ export async function deleteComment(commentId: string): Promise<boolean> {
 
     const reviewId = existingComment.review
 
-    // Check if this is a parent comment with replies
-    const replies = await pb.collection("comments").getList(1, 1, {
-      filter: `parent_comment = "${commentId}"`,
+    const reviewComments = await pb.collection("comments").getFullList({
+      filter: `review = "${reviewId}"`,
+      fields: "id,parent_comment",
+      $autoCancel: false,
     })
 
-    // If this comment has replies, delete them first
-    if (replies.totalItems > 0) {
-      // Get all replies
-      const allReplies = await pb.collection("comments").getList(1, 100, {
-        filter: `parent_comment = "${commentId}"`,
-      })
+    const childrenByParent = new Map<string, string[]>()
 
-      // Delete each reply
-      for (const reply of allReplies.items) {
-        await pb.collection("comments").delete(reply.id)
-        // Update comment count for each deleted reply
-        await updateReviewCommentCount(reviewId, false)
-      }
+    reviewComments.forEach((comment) => {
+      const parentId = comment.parent_comment
+      if (!parentId) return
+      const children = childrenByParent.get(parentId) || []
+      children.push(comment.id)
+      childrenByParent.set(parentId, children)
+    })
+
+    const idsToDelete: string[] = []
+    const queue: string[] = [commentId]
+
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      idsToDelete.push(current)
+
+      const children = childrenByParent.get(current) || []
+      children.forEach((childId) => queue.push(childId))
     }
 
-    // Now delete the comment itself
-    await pb.collection("comments").delete(commentId)
-
-    // Update the review's comment count
-    await updateReviewCommentCount(reviewId, false)
+    for (const idToDelete of idsToDelete.reverse()) {
+      await pb.collection("comments").delete(idToDelete)
+      await updateReviewCommentCount(reviewId, false)
+    }
 
     return true
   } catch (error: any) {
@@ -338,6 +360,7 @@ export async function likeComment(commentId: string): Promise<boolean> {
     const likesCount = (comment.likes_count || 0) + 1
 
     await pb.collection("comments").update(commentId, { likes_count: likesCount })
+    await notifyCommentLike(comment.review, comment.id, comment.user)
     return true
   } catch (error: any) {
     console.error(`Error liking comment with ID ${commentId}:`, error)
@@ -349,7 +372,7 @@ export async function likeComment(commentId: string): Promise<boolean> {
 export async function searchUsers(
   query: string,
 ): Promise<Array<{ id: string; name: string; username: string; avatar?: string }>> {
-  if (!query || query.length < 2) return []
+  if (!query || query.length < 1) return []
 
   const pb = getPocketBase()
 
@@ -401,22 +424,12 @@ function formatComment(record: any, userMap?: Map<string, any>): CommentWithAuth
   let authorName = "Unknown User"
   let authorAvatar = null
 
-  // Debug: Log the comment structure to see what we're working with
-  console.log("Formatting comment:", record.id)
-  console.log("Comment expand:", record.expand)
-  console.log("User ID:", record.user)
-
   // First try to get user info from the expanded data
   if (record.expand?.user) {
-    console.log("Found expanded user:", record.expand.user)
-
-    // Use the name or username from the expanded relation
     if (record.expand.user.name) {
       authorName = record.expand.user.name
-      console.log("Using user name from expand:", authorName)
     } else if (record.expand.user.username) {
       authorName = record.expand.user.username
-      console.log("Using username from expand:", authorName)
     }
 
     // Get avatar if available
@@ -427,21 +440,16 @@ function formatComment(record: any, userMap?: Map<string, any>): CommentWithAuth
   // If expand didn't work, try to get user info from the userMap
   else if (userMap && record.user && userMap.has(record.user)) {
     const user = userMap.get(record.user)
-    console.log("Found user in userMap:", user)
 
     if (user.name) {
       authorName = user.name
-      console.log("Using user name from userMap:", authorName)
     } else if (user.username) {
       authorName = user.username
-      console.log("Using username from userMap:", authorName)
     }
 
     if (user.avatar) {
       authorAvatar = `${baseUrl}${user.collectionId}/${user.id}/${user.avatar}`
     }
-  } else {
-    console.log("No user data found for comment:", record.id)
   }
 
   // Get tagged users
@@ -473,6 +481,5 @@ function formatComment(record: any, userMap?: Map<string, any>): CommentWithAuth
     replyCount: 0,
   }
 
-  console.log("Formatted comment author:", formattedComment.authorName)
   return formattedComment
 }
