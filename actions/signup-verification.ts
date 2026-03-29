@@ -1,6 +1,6 @@
 "use server"
 
-import { getPocketBase, getPocketBaseAdmin } from "@/lib/pocketbase"
+import { getPocketBaseAdmin } from "@/lib/pocketbase"
 import { sendSignupVerificationEmail } from "@/lib/email"
 import { createAuditLog } from "@/lib/audit"
 
@@ -13,16 +13,19 @@ type SignupVerificationResult = {
   message: string
 }
 
-async function ensureSignupVerificationsCollection(adminPb: any) {
+const RESETS_COLLECTION = "password_resets"
+const SIGNUP_TOKEN_PREFIX = "verify_"
+
+async function ensurePasswordResetsCollection(adminPb: any) {
   try {
-    await adminPb.collections.getOne("signup_verifications")
+    await adminPb.collections.getOne(RESETS_COLLECTION)
   } catch (error: any) {
     if (error?.status !== 404) {
       throw error
     }
 
     await adminPb.collections.create({
-      name: "signup_verifications",
+      name: RESETS_COLLECTION,
       type: "base",
       schema: [
         {
@@ -31,17 +34,12 @@ async function ensureSignupVerificationsCollection(adminPb: any) {
           required: true,
         },
         {
-          name: "email",
-          type: "email",
-          required: true,
-        },
-        {
           name: "verification_code",
           type: "text",
           required: true,
         },
         {
-          name: "verification_token",
+          name: "reset_token",
           type: "text",
           required: true,
         },
@@ -60,12 +58,9 @@ async function ensureSignupVerificationsCollection(adminPb: any) {
   }
 }
 
-async function getUserByEmail(email: string): Promise<any | null> {
-  const pb = getPocketBase()
-  if (!pb) return null
-
+async function getUserByEmail(adminPb: any, email: string): Promise<any | null> {
   try {
-    return await pb.collection("users").getFirstListItem(`email=\"${pbEsc(email)}\"`)
+    return await adminPb.collection("users").getFirstListItem(`email=\"${pbEsc(email)}\"`)
   } catch {
     return null
   }
@@ -78,47 +73,46 @@ export async function requestSignupVerification(email: string): Promise<SignupVe
     return { success: false, message: "Email is required" }
   }
 
-  const user = await getUserByEmail(normalizedEmail)
-
-  // Avoid email enumeration: keep response generic when user is missing.
-  if (!user) {
-    return {
-      success: true,
-      message: "If an account with this email exists, a verification email has been sent.",
-    }
-  }
-
-  if (user.verified) {
-    return {
-      success: true,
-      message: "This email is already verified.",
-    }
-  }
-
   try {
     const adminPb = await getPocketBaseAdmin()
-    await ensureSignupVerificationsCollection(adminPb)
+    await ensurePasswordResetsCollection(adminPb)
+
+    const user = await getUserByEmail(adminPb, normalizedEmail)
+
+    // Avoid email enumeration: keep response generic when user is missing.
+    if (!user) {
+      return {
+        success: true,
+        message: "If an account with this email exists, a verification email has been sent.",
+      }
+    }
+
+    if (user.verified) {
+      return {
+        success: true,
+        message: "This email is already verified.",
+      }
+    }
 
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
-    const verificationToken = crypto.randomUUID()
+    const verificationToken = `${SIGNUP_TOKEN_PREFIX}${crypto.randomUUID()}`
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24)
 
-    const existing = await adminPb.collection("signup_verifications").getFullList({
-      filter: `user_id=\"${pbEsc(user.id)}\" && used=false`,
+    const existing = await adminPb.collection(RESETS_COLLECTION).getFullList({
+      filter: `user_id=\"${pbEsc(user.id)}\" && used=false && reset_token~\"${SIGNUP_TOKEN_PREFIX}\"`,
       fields: "id",
       $autoCancel: false,
     })
 
     for (const record of existing) {
-      await adminPb.collection("signup_verifications").update(record.id, { used: true })
+      await adminPb.collection(RESETS_COLLECTION).update(record.id, { used: true })
     }
 
-    await adminPb.collection("signup_verifications").create({
+    await adminPb.collection(RESETS_COLLECTION).create({
       user_id: user.id,
-      email: normalizedEmail,
       verification_code: verificationCode,
-      verification_token: verificationToken,
+      reset_token: verificationToken,
       expires_at: expiresAt.toISOString(),
       used: false,
     })
@@ -157,26 +151,30 @@ export async function confirmSignupVerification(tokenOrCode: string, email?: str
 
   try {
     const adminPb = await getPocketBaseAdmin()
-    await ensureSignupVerificationsCollection(adminPb)
+    await ensurePasswordResetsCollection(adminPb)
 
     const isCode = /^\d{6}$/.test(tokenOrCode)
     const safeTokenOrCode = pbEsc(tokenOrCode)
 
-    let filter = isCode
-      ? `verification_code=\"${safeTokenOrCode}\" && used=false`
-      : `verification_token=\"${safeTokenOrCode}\" && used=false`
+    let filter = isCode ? "" : `reset_token=\"${safeTokenOrCode}\" && used=false`
 
     if (isCode) {
       const normalizedEmail = (email || "").trim().toLowerCase()
       if (!normalizedEmail) {
         return { success: false, message: "Email is required when confirming with code" }
       }
-      filter = `${filter} && email=\"${pbEsc(normalizedEmail)}\"`
+
+      const user = await getUserByEmail(adminPb, normalizedEmail)
+      if (!user) {
+        return { success: false, message: "Invalid or expired verification request." }
+      }
+
+      filter = `user_id=\"${pbEsc(user.id)}\" && verification_code=\"${safeTokenOrCode}\" && used=false && reset_token~\"${SIGNUP_TOKEN_PREFIX}\"`
     }
 
     let verificationRecord
     try {
-      verificationRecord = await adminPb.collection("signup_verifications").getFirstListItem(filter)
+      verificationRecord = await adminPb.collection(RESETS_COLLECTION).getFirstListItem(filter)
     } catch {
       return { success: false, message: "Invalid or expired verification request." }
     }
@@ -185,23 +183,27 @@ export async function confirmSignupVerification(tokenOrCode: string, email?: str
       return { success: false, message: "Verification request has expired." }
     }
 
+    if (!String(verificationRecord.reset_token || "").startsWith(SIGNUP_TOKEN_PREFIX)) {
+      return { success: false, message: "Invalid or expired verification request." }
+    }
+
     const user = await adminPb.collection("users").getOne(verificationRecord.user_id)
 
     if (!user.verified) {
       await adminPb.collection("users").update(user.id, { verified: true })
     }
 
-    await adminPb.collection("signup_verifications").update(verificationRecord.id, { used: true })
+    await adminPb.collection(RESETS_COLLECTION).update(verificationRecord.id, { used: true })
 
-    const siblingRecords = await adminPb.collection("signup_verifications").getFullList({
-      filter: `user_id=\"${pbEsc(user.id)}\" && used=false`,
+    const siblingRecords = await adminPb.collection(RESETS_COLLECTION).getFullList({
+      filter: `user_id=\"${pbEsc(user.id)}\" && used=false && reset_token~\"${SIGNUP_TOKEN_PREFIX}\"`,
       fields: "id",
       $autoCancel: false,
     })
 
     for (const record of siblingRecords) {
       if (record.id !== verificationRecord.id) {
-        await adminPb.collection("signup_verifications").update(record.id, { used: true })
+        await adminPb.collection(RESETS_COLLECTION).update(record.id, { used: true })
       }
     }
 

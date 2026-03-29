@@ -47,6 +47,10 @@ interface ConfirmPasswordResetResult {
   message: string
 }
 
+function isResetToken(value: string): boolean {
+  return /^[0-9a-f-]{36}$/i.test(value)
+}
+
 // Check if user exists by email
 export async function checkUserExists(email: string): Promise<boolean> {
   try {
@@ -169,6 +173,10 @@ export async function verifyResetCode(email: string, code: string): Promise<{ su
       return { success: false, message: "Verification code has expired" }
     }
 
+    if (!isResetToken(String(resetRequest.reset_token || ""))) {
+      return { success: false, message: "Invalid verification code" }
+    }
+
     return { success: true, message: "Code verified successfully", userId: user.id }
   } catch {
     return { success: false, message: "Failed to verify code" }
@@ -180,6 +188,7 @@ export async function confirmPasswordReset(
   tokenOrCode: string,
   newPassword: string,
   confirmPassword: string,
+  email?: string,
 ): Promise<ConfirmPasswordResetResult> {
   try {
     if (newPassword !== confirmPassword) {
@@ -203,16 +212,33 @@ export async function confirmPasswordReset(
       if (!/^\d{6}$/.test(tokenOrCode)) {
         return { success: false, message: "Invalid verification code" }
       }
+
+      const normalizedEmail = (email || "").trim().toLowerCase()
+      if (!normalizedEmail) {
+        return { success: false, message: "Email is required for code-based reset" }
+      }
+
+      let user
+      try {
+        user = await pb.collection("users").getFirstListItem(`email="${pbEsc(normalizedEmail)}"`)
+      } catch {
+        return { success: false, message: "Invalid or expired verification code" }
+      }
+
       try {
         resetRequest = await pb.collection("password_resets").getFirstListItem(
-          `verification_code="${pbEsc(tokenOrCode)}" && used=false`
+          `user_id="${pbEsc(user.id)}" && verification_code="${pbEsc(tokenOrCode)}" && used=false`
         )
       } catch {
         return { success: false, message: "Invalid or expired verification code" }
       }
+
+      if (!isResetToken(String(resetRequest.reset_token || ""))) {
+        return { success: false, message: "Invalid or expired verification code" }
+      }
     } else {
       // Token-based reset (from email link) — UUID format only
-      if (!/^[0-9a-f-]{36}$/i.test(tokenOrCode)) {
+      if (!isResetToken(tokenOrCode)) {
         return { success: false, message: "Invalid reset link" }
       }
       try {
@@ -270,56 +296,5 @@ export async function confirmPasswordReset(
   } catch {
     console.error("[confirmPasswordReset] Unexpected error")
     return { success: false, message: "Password reset failed. Please try again." }
-  }
-}
-
-// Ensure password_resets collection exists
-async function ensurePasswordResetsCollection(pb: any) {
-  try {
-    // Try to get the collection to see if it exists
-    await pb.collections.getOne("password_resets")
-    console.log("[ensurePasswordResetsCollection] Collection exists")
-  } catch (error: any) {
-    if (error.status === 404) {
-      console.log("[ensurePasswordResetsCollection] Creating password_resets collection")
-
-      // Create the collection
-      await pb.collections.create({
-        name: "password_resets",
-        type: "base",
-        schema: [
-          {
-            name: "user_id",
-            type: "text",
-            required: true,
-          },
-          {
-            name: "verification_code",
-            type: "text",
-            required: true,
-          },
-          {
-            name: "reset_token",
-            type: "text",
-            required: true,
-          },
-          {
-            name: "expires_at",
-            type: "date",
-            required: true,
-          },
-          {
-            name: "used",
-            type: "bool",
-            required: true,
-          },
-        ],
-      })
-
-      console.log("[ensurePasswordResetsCollection] Collection created successfully")
-    } else {
-      console.error("[ensurePasswordResetsCollection] Error:", error)
-      throw error
-    }
   }
 }

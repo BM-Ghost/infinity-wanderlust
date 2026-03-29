@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -183,8 +181,6 @@ export default function VerifyPage() {
 
   return (
     <div className="alps-bg min-h-screen">
-      <Navbar />
-
       <div className="container py-16 flex flex-col items-center">
         <div className="w-full max-w-md">
           <Card>
@@ -317,8 +313,6 @@ export default function VerifyPage() {
           </Card>
         </div>
       </div>
-
-      <Footer />
     </div>
   )
 }
