@@ -14,6 +14,7 @@ import { AlertCircle, CheckCircle, Mail, Loader2 } from "lucide-react"
 export default function VerifyPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const fromUnverifiedLogin = searchParams.get("source") === "login-unverified"
   const { toast } = useToast()
   const { requestVerification } = useAuth()
 
@@ -224,6 +225,14 @@ export default function VerifyPage() {
 
               {!isLoading && verificationStatus === "pending" && (
                 <div className="space-y-6">
+                  {fromUnverifiedLogin && (
+                    <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Your account exists but is not verified yet. Please click the email link, or enter the 6-digit code below.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <div className="flex flex-col items-center py-4">
                     <Mail className="h-16 w-16 text-primary mb-4" />
                     <p className="text-center mb-6">

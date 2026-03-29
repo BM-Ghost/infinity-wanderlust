@@ -33,11 +33,12 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
-import { fetchReviewById, deleteReview, isBlogReview, likeReview, stripBlogMarker } from "@/lib/reviews"
+import { fetchReviewById, deleteReview, isBlogReview, stripBlogMarker } from "@/lib/reviews"
 import { useQueryClient } from "@tanstack/react-query"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
 import { useToast } from "@/components/ui/use-toast"
-import { CommentWithAuthor, createComment, deleteComment, fetchComments, likeComment, searchUsers, updateComment } from "@/lib/comments"
+import { CommentWithAuthor, createComment, deleteComment, fetchComments, searchUsers, updateComment } from "@/lib/comments"
+import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
@@ -59,6 +60,7 @@ export default function ReviewDetailPage() {
   const [review, setReview] = useState<any>(null)
   const [relatedReviews, setRelatedReviews] = useState<any[]>([])
   const [isLiked, setIsLiked] = useState(false)
+  const [likedCommentIds, setLikedCommentIds] = useState<Record<string, boolean>>({})
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLiking, setIsLiking] = useState(false)
@@ -304,20 +306,26 @@ export default function ReviewDetailPage() {
   }
 
   const handleCommentLike = async (commentId: string, currentLikesCount: number) => {
-    if (!user || pendingCommentLikes[commentId]) return
+    if (!user?.id || pendingCommentLikes[commentId]) return
 
-    const nextLikes = currentLikesCount + 1
+    const currentlyLiked = !!likedCommentIds[commentId]
+    const nextLiked = !currentlyLiked
+    const nextLikes = Math.max(0, currentLikesCount + (nextLiked ? 1 : -1))
     setPendingCommentLikes((prev) => ({ ...prev, [commentId]: true }))
     setOptimisticCommentLikes((prev) => ({ ...prev, [commentId]: nextLikes }))
+    setLikedCommentIds((prev) => ({ ...prev, [commentId]: nextLiked }))
 
     try {
-      await likeComment(commentId)
-    } catch (error: any) {
-      setOptimisticCommentLikes((prev) => {
-        const copy = { ...prev }
-        delete copy[commentId]
-        return copy
+      const result = await toggleItemLike(commentId, "comment", user.id)
+      setOptimisticCommentLikes((prev) => ({ ...prev, [commentId]: result.count }))
+      setLikedCommentIds((prev) => ({ ...prev, [commentId]: result.liked }))
+      toast({
+        title: result.liked ? "Comment liked" : "Comment unliked",
+        description: result.liked ? "You liked this comment." : "You removed your like.",
       })
+    } catch (error: any) {
+      setOptimisticCommentLikes((prev) => ({ ...prev, [commentId]: currentLikesCount }))
+      setLikedCommentIds((prev) => ({ ...prev, [commentId]: currentlyLiked }))
       toast({
         variant: "destructive",
         title: "Failed to like comment",
@@ -577,34 +585,67 @@ export default function ReviewDetailPage() {
     }
   }, [reviews, id])
 
+  useEffect(() => {
+    const loadLikes = async () => {
+      if (!user?.id) {
+        setIsLiked(false)
+        setLikedCommentIds({})
+        return
+      }
+
+      const [likedReviewIds, likedCommentIdsList] = await Promise.all([
+        getUserLikedItems(user.id, "review"),
+        getUserLikedItems(user.id, "comment"),
+      ])
+
+      if (review?.id) {
+        setIsLiked(likedReviewIds.includes(review.id))
+      }
+
+      const likedCommentMap: Record<string, boolean> = {}
+      likedCommentIdsList.forEach((likedId) => {
+        likedCommentMap[likedId] = true
+      })
+      setLikedCommentIds(likedCommentMap)
+    }
+
+    void loadLikes()
+  }, [user?.id, review?.id])
+
   // Handle like action
   const handleLike = async () => {
-    if (!user || isAuthLoading || isLiking) {
+    if (!user?.id || isAuthLoading || isLiking) {
       return
     }
 
     if (!review?.id) return
 
+    const currentlyLiked = isLiked
+    const nextLiked = !currentlyLiked
+
     setIsLiking(true)
+    setIsLiked(nextLiked)
 
     setReview((prev: any) =>
       prev
         ? {
             ...prev,
-            likes_count: (prev.likes_count || 0) + 1,
+            likes_count: Math.max(0, (prev.likes_count || 0) + (nextLiked ? 1 : -1)),
           }
         : prev,
     )
 
     try {
-      await likeReview(review.id)
-      setIsLiked(true)
+      const result = await toggleItemLike(review.id, "review", user.id)
+      setReview((prev: any) => (prev ? { ...prev, likes_count: result.count } : prev))
+      setIsLiked(result.liked)
     } catch (error: any) {
+      setIsLiked(currentlyLiked)
       setReview((prev: any) =>
         prev
           ? {
               ...prev,
-              likes_count: Math.max(0, (prev.likes_count || 1) - 1),
+              likes_count: Math.max(0, (prev.likes_count || 0) + (currentlyLiked ? 1 : -1)),
             }
           : prev,
       )
@@ -724,7 +765,7 @@ export default function ReviewDetailPage() {
             onClick={() => handleCommentLike(comment.id, likesCount)}
             className="h-8 px-2"
           >
-            <Heart className="h-3.5 w-3.5 mr-1" />
+            <Heart className={`h-3.5 w-3.5 mr-1 ${likedCommentIds[comment.id] ? "fill-red-500 text-red-500" : ""}`} />
             {likesCount}
           </Button>
         </div>
@@ -1093,7 +1134,7 @@ export default function ReviewDetailPage() {
                       variant={isLiked ? "default" : "outline"}
                       size="sm"
                       onClick={handleLike}
-                      disabled={isLiking || isLiked}
+                      disabled={isLiking}
                       className={isLiked ? "bg-red-500 hover:bg-red-600" : ""}
                     >
                       <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-white" : ""}`} />

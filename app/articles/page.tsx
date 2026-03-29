@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -17,7 +17,8 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { useArticles } from "@/hooks/useArticles"
-import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker, likeReview } from "@/lib/reviews"
+import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@/lib/reviews"
+import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
 import { ImageCollage } from "@/components/image-collage"
 
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
@@ -33,6 +34,7 @@ export default function ArticlesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({})
   const [optimisticLikes, setOptimisticLikes] = useState<Record<string, number>>({})
+  const [likedByUser, setLikedByUser] = useState<Record<string, boolean>>({})
 
   const { data, isLoading, isError } = useArticles({ page: currentPage, perPage: 12, enabled: true })
   const articles = (data?.items || []).filter((article) => isBlogReview(article))
@@ -45,6 +47,24 @@ export default function ArticlesPage() {
           stripBlogMarker(a.review_text || "").toLowerCase().includes(searchQuery.toLowerCase())
       )
     : articles
+
+  useEffect(() => {
+    const loadLikedArticles = async () => {
+      if (!user?.id) {
+        setLikedByUser({})
+        return
+      }
+
+      const likedIds = await getUserLikedItems(user.id, "review")
+      const likedMap: Record<string, boolean> = {}
+      likedIds.forEach((id) => {
+        likedMap[id] = true
+      })
+      setLikedByUser(likedMap)
+    }
+
+    void loadLikedArticles()
+  }, [user?.id])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -121,27 +141,29 @@ export default function ArticlesPage() {
   }
 
   const handleLike = async (articleId: string, currentLikesCount: number) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.id) {
       toast({ title: "Authentication required", description: "Please sign in to like articles.", variant: "destructive" })
       return
     }
 
     if (pendingLikes[articleId]) return
 
-    const nextLikesCount = currentLikesCount + 1
+    const currentlyLiked = !!likedByUser[articleId]
+    const nextLiked = !currentlyLiked
+    const nextLikesCount = Math.max(0, currentLikesCount + (nextLiked ? 1 : -1))
 
     setPendingLikes((prev) => ({ ...prev, [articleId]: true }))
     setOptimisticLikes((prev) => ({ ...prev, [articleId]: nextLikesCount }))
+    setLikedByUser((prev) => ({ ...prev, [articleId]: nextLiked }))
 
     try {
-      await likeReview(articleId)
-      toast({ title: "Liked", description: "Thanks for your feedback." })
+      const result = await toggleItemLike(articleId, "review", user.id)
+      setOptimisticLikes((prev) => ({ ...prev, [articleId]: result.count }))
+      setLikedByUser((prev) => ({ ...prev, [articleId]: result.liked }))
+      toast({ title: result.liked ? "Liked" : "Unliked", description: result.liked ? "Thanks for your feedback." : "Like removed." })
     } catch (error: any) {
-      setOptimisticLikes((prev) => {
-        const copy = { ...prev }
-        delete copy[articleId]
-        return copy
-      })
+      setOptimisticLikes((prev) => ({ ...prev, [articleId]: currentLikesCount }))
+      setLikedByUser((prev) => ({ ...prev, [articleId]: currentlyLiked }))
 
       toast({
         title: "Could not like article",
@@ -346,7 +368,7 @@ export default function ArticlesPage() {
                                   disabled={!!pendingLikes[article.id]}
                                   className="flex items-center gap-1 hover:text-red-500 transition-colors"
                                 >
-                                  <Heart className="h-4 w-4" />
+                                  <Heart className={`h-4 w-4 ${likedByUser[article.id] ? "fill-red-500 text-red-500" : ""}`} />
                                   <span>{displayLikesCount}</span>
                                 </button>
                                 <span className="flex items-center gap-1">
