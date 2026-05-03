@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { ShareButton } from "@/components/share-button"
 import {
   Calendar, User, Plus, Search, X, Star, MessageSquare, Heart,
-  ChevronRight, Pencil, Trash2, BookOpen, Clock, Plane
+  ChevronRight, Pencil, Trash2, BookOpen, Clock, Plane, FileClock
 } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
@@ -227,6 +227,13 @@ export default function ArticlesPage() {
                   onClick={() => router.push("/articles/create")}
                 >
                   <Plus className="mr-2 h-4 w-4" /> Write New Article
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => router.push("/articles/drafts")}
+                >
+                  <FileClock className="mr-2 h-4 w-4" /> Drafts
                 </Button>
                 <Button
                   size="lg"

@@ -1,19 +1,27 @@
 ﻿"use client"
 
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react"
+import { useMemo, useState, useRef, useCallback, useEffect, type ChangeEvent, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Loader2, ImagePlus, X, ArrowLeft } from "lucide-react"
-import { useEffect } from "react"
 
 import { useAuth } from "@/components/auth-provider"
-import { createReview, updateReview, fetchReviewById, markAsBlogContent, stripBlogMarker } from "@/lib/reviews"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { RichTextEditor } from "@/components/rich-text-editor"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { markAsDraftBlogContent, createReview, updateReview, fetchReviewById, markAsBlogContent, stripBlogMarker, isDraftContent } from "@/lib/reviews"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -29,20 +37,47 @@ export default function CreateArticlePage() {
   const [coverImage, setCoverImage] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isLoadingArticle, setIsLoadingArticle] = useState(!!editId)
+  const [draftRecordId, setDraftRecordId] = useState<string | null>(editId)
+  const [isEditingDraft, setIsEditingDraft] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState({ title: "", content: "" })
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false)
+  const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null)
+
+  const hasUnsavedChangesRef = useRef(false)
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
-  const isEditMode = !!editId
+  const isEditMode = !!(editId || draftRecordId)
+
+  const plainTextContent = useMemo(() => content.replace(/<[^>]*>/g, "").trim(), [content])
+  const hasUnsavedChanges = useMemo(() => {
+    const normalizedTitle = title.trim()
+    const normalizedContent = content.trim()
+    return (
+      normalizedTitle !== savedSnapshot.title ||
+      normalizedContent !== savedSnapshot.content ||
+      !!coverImage
+    )
+  }, [title, content, savedSnapshot, coverImage])
 
   // Load article data when editing
   useEffect(() => {
+    setDraftRecordId(editId)
     if (!editId) return
     const loadArticle = async () => {
       try {
         const article = await fetchReviewById(editId)
         if (article) {
-          setTitle(article.destination)
-          setContent(stripBlogMarker(article.review_text))
+          setIsEditingDraft(isDraftContent(article.review_text))
+          const loadedTitle = article.destination || ""
+          const loadedContent = stripBlogMarker(article.review_text)
+          setTitle(loadedTitle)
+          setContent(loadedContent)
+          setSavedSnapshot({
+            title: loadedTitle.trim(),
+            content: loadedContent.trim(),
+          })
         } else {
           toast({ variant: "destructive", title: "Article not found" })
           router.replace("/articles")
@@ -56,6 +91,57 @@ export default function CreateArticlePage() {
     }
     loadArticle()
   }, [editId, router, toast])
+
+  useEffect(() => {
+    if (editId) return
+    setIsEditingDraft(false)
+    setSavedSnapshot({ title: "", content: "" })
+  }, [editId])
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChangesRef.current) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [])
+
+  useEffect(() => {
+    const handleDocumentNavigation = (event: MouseEvent) => {
+      if (!hasUnsavedChangesRef.current || isSubmitting || isSavingDraft) return
+
+      const target = event.target as HTMLElement | null
+      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null
+      if (!anchor) return
+      if (anchor.target && anchor.target !== "_self") return
+
+      const href = anchor.getAttribute("href")
+      if (!href || href.startsWith("#") || href.startsWith("javascript:")) return
+
+      const currentUrl = new URL(window.location.href)
+      const nextUrl = new URL(href, currentUrl.href)
+      if (nextUrl.origin !== currentUrl.origin) return
+
+      const currentTarget = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+      const nextTarget = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+      if (currentTarget === nextTarget) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      setPendingLeaveAction(() => () => router.push(nextTarget))
+      setShowLeaveDialog(true)
+    }
+
+    document.addEventListener("click", handleDocumentNavigation, true)
+    return () => document.removeEventListener("click", handleDocumentNavigation, true)
+  }, [router, isSubmitting, isSavingDraft])
 
   const wordCount = useMemo(() => {
     const text = content.replace(/<[^>]*>/g, " ").trim()
@@ -82,51 +168,123 @@ export default function CreateArticlePage() {
     setCoverPreview(null)
   }
 
-  const handlePublish = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const createOrUpdateArticle = useCallback(async (mode: "publish" | "draft") => {
     const trimmedTitle = title.trim()
-    const plainText = content.replace(/<[^>]*>/g, "").trim()
 
-    if (!trimmedTitle || !plainText) {
-      toast({ variant: "destructive", title: "Missing information", description: "Add a title and article content before publishing." })
-      return
-    }
-    if (plainText.length < 80) {
-      toast({ variant: "destructive", title: "Content too short", description: "Please write at least 80 characters." })
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const blogContent = markAsBlogContent(content)
-      let result
-      if (isEditMode && editId) {
-        result = await updateReview(editId, {
-          destination: trimmedTitle,
-          rating: 5,
-          review_text: blogContent,
-          photos: coverImage ? [coverImage] : [],
-        })
-      } else {
-        result = await createReview({
-          destination: trimmedTitle,
-          rating: 5,
-          review_text: blogContent,
-          photos: coverImage ? [coverImage] : [],
-        })
+    if (mode === "publish") {
+      if (!trimmedTitle || !plainTextContent) {
+        toast({ variant: "destructive", title: "Missing information", description: "Add a title and article content before publishing." })
+        return null
       }
+
+      if (plainTextContent.length < 80) {
+        toast({ variant: "destructive", title: "Content too short", description: "Please write at least 80 characters." })
+        return null
+      }
+    } else if (!trimmedTitle && !plainTextContent) {
+      toast({ variant: "destructive", title: "Nothing to save", description: "Write a title or content before saving a draft." })
+      return null
+    }
+
+    if (mode === "publish") {
+      setIsSubmitting(true)
+    } else {
+      setIsSavingDraft(true)
+    }
+
+    try {
+      const articleContent = mode === "publish" ? markAsBlogContent(content) : markAsDraftBlogContent(content)
+      const activeArticleId = editId || draftRecordId
+
+      const result = activeArticleId
+        ? await updateReview(activeArticleId, {
+            destination: trimmedTitle || "Untitled Draft",
+            rating: 5,
+            review_text: articleContent,
+            photos: coverImage ? [coverImage] : [],
+          })
+        : await createReview({
+            destination: trimmedTitle || "Untitled Draft",
+            rating: 5,
+            review_text: articleContent,
+            photos: coverImage ? [coverImage] : [],
+          })
+
       if (!result) throw new Error("Operation failed")
+
+      setDraftRecordId(result.id)
+      setSavedSnapshot({ title: trimmedTitle, content: content.trim() })
+      setCoverImage(null)
+
+      if (mode === "draft") {
+        setIsEditingDraft(true)
+        toast({ title: "Draft saved", description: "Your article draft has been saved." })
+        if (!editId) {
+          router.replace(`/articles/create?edit=${result.id}`)
+        }
+        return result
+      }
+
+      setIsEditingDraft(false)
       toast({
-        title: isEditMode ? "Article updated" : "Article published",
-        description: isEditMode ? "Your changes have been saved." : "Your blog article is now live.",
+        title: activeArticleId ? "Article updated" : "Article published",
+        description: activeArticleId ? "Your changes have been saved." : "Your blog article is now live.",
       })
       router.replace(`/articles/${result.id}`)
       router.refresh()
+      return result
     } catch (error: any) {
-      toast({ variant: "destructive", title: isEditMode ? "Update failed" : "Publish failed", description: error?.message || "Could not save the article right now." })
+      toast({
+        variant: "destructive",
+        title: mode === "publish" ? (isEditMode ? "Update failed" : "Publish failed") : "Draft save failed",
+        description: error?.message || "Could not save the article right now.",
+      })
+      return null
     } finally {
-      setIsSubmitting(false)
+      if (mode === "publish") {
+        setIsSubmitting(false)
+      } else {
+        setIsSavingDraft(false)
+      }
     }
+  }, [title, plainTextContent, content, editId, draftRecordId, coverImage, toast, router, isEditMode])
+
+  const handlePublish = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    await createOrUpdateArticle("publish")
+  }
+
+  const handleSaveDraft = async () => {
+    const result = await createOrUpdateArticle("draft")
+    return !!result
+  }
+
+  const attemptLeave = (action: () => void) => {
+    if (!hasUnsavedChanges) {
+      action()
+      return
+    }
+
+    setPendingLeaveAction(() => action)
+    setShowLeaveDialog(true)
+  }
+
+  const runPendingLeaveAction = () => {
+    const action = pendingLeaveAction
+    setPendingLeaveAction(null)
+    if (action) action()
+  }
+
+  const handleDropAndLeave = () => {
+    setShowLeaveDialog(false)
+    runPendingLeaveAction()
+  }
+
+  const handleSaveDraftAndLeave = async () => {
+    const saved = await handleSaveDraft()
+    if (!saved) return
+    setShowLeaveDialog(false)
+    runPendingLeaveAction()
   }
 
   if (isLoading || isLoadingArticle) {
@@ -165,7 +323,7 @@ export default function CreateArticlePage() {
   return (
     <div className="container max-w-4xl py-8 md:py-12">
       <div className="mb-6">
-        <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4">
+        <Button variant="ghost" size="sm" onClick={() => attemptLeave(() => router.back())} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
@@ -173,7 +331,14 @@ export default function CreateArticlePage() {
 
       <Card className="shadow-lg">
         <CardHeader className="pb-4">
-          <CardTitle className="text-2xl">{isEditMode ? "Edit Article" : "Write New Blog Article"}</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-2xl">{isEditMode ? "Edit Article" : "Write New Blog Article"}</CardTitle>
+            {isEditingDraft && (
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                Draft
+              </span>
+            )}
+          </div>
           <CardDescription>
             {isEditMode ? "Update your article below." : `Publish directly to the blog feed. ~${wordCount} words \u00b7 ${readingMinutes} min read`}
           </CardDescription>
@@ -217,14 +382,37 @@ export default function CreateArticlePage() {
             </div>
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end pt-2">
-              <Button type="button" variant="outline" onClick={() => router.push("/articles")}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting} size="lg">
+              <Button type="button" variant="outline" onClick={() => attemptLeave(() => router.push("/articles"))}>Cancel</Button>
+              <Button type="button" variant="secondary" disabled={isSubmitting || isSavingDraft} onClick={handleSaveDraft}>
+                {isSavingDraft ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving Draft...</>) : "Save Draft"}
+              </Button>
+              <Button type="submit" disabled={isSubmitting || isSavingDraft} size="lg">
                 {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />{isEditMode ? "Saving..." : "Publishing..."}</>) : isEditMode ? "Save Changes" : "Publish Article"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave article editor?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Save as draft to keep this article for later, or drop it and leave.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSavingDraft}>Continue Editing</AlertDialogCancel>
+            <Button type="button" variant="destructive" onClick={handleDropAndLeave} disabled={isSavingDraft}>
+              Drop Article
+            </Button>
+            <Button type="button" onClick={handleSaveDraftAndLeave} disabled={isSavingDraft}>
+              {isSavingDraft ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving Draft...</>) : "Save Draft"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

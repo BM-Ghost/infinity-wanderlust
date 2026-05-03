@@ -3,30 +3,55 @@ import { useQuery } from "@tanstack/react-query"
 import { notifyReviewLike } from "@/lib/notifications"
 
 export const BLOG_CONTENT_MARKER = "<!--IWT_BLOG-->"
+export const BLOG_DRAFT_TAG = "IWT_DRAFT_v1"
+export const BLOG_DRAFT_MARKER = `<!--${BLOG_DRAFT_TAG}-->`
+
+function stripBlogMetaMarkers(content: string): string {
+  return content
+    .trimStart()
+    .replace(BLOG_CONTENT_MARKER, "")
+    .replace(BLOG_DRAFT_MARKER, "")
+    .trimStart()
+}
 
 export function isBlogContent(content: string | undefined | null): boolean {
   if (!content) return false
   return content.trimStart().startsWith(BLOG_CONTENT_MARKER)
 }
 
+export function isDraftContent(content: string | undefined | null): boolean {
+  if (!content) return false
+  return content.includes(BLOG_DRAFT_MARKER)
+}
+
 export function markAsBlogContent(content: string): string {
-  if (isBlogContent(content)) return content
-  return `${BLOG_CONTENT_MARKER}\n${content}`
+  const cleanContent = stripBlogMetaMarkers(content)
+  return `${BLOG_CONTENT_MARKER}\n${cleanContent}`
+}
+
+export function markAsDraftBlogContent(content: string): string {
+  const cleanContent = stripBlogMetaMarkers(content)
+  return `${BLOG_CONTENT_MARKER}\n${BLOG_DRAFT_MARKER}\n${cleanContent}`
 }
 
 export function stripBlogMarker(content: string | undefined | null): string {
   if (!content) return ""
-  if (!isBlogContent(content)) return content
-  return content.trimStart().replace(BLOG_CONTENT_MARKER, "").trimStart()
+  return stripBlogMetaMarkers(content)
 }
 
 export function isBlogReview(review: { review_text?: string; reviewer?: string; rating?: number }): boolean {
+  if (isDraftContent(review.review_text)) return false
   if (isBlogContent(review.review_text)) return true
 
   // Legacy fallback for older admin blogs created before marker rollout.
   // These are typically long-form posts with no exposed reviewer relation.
   const textLength = (review.review_text || "").replace(/<[^>]*>/g, " ").trim().length
   return !review.reviewer && (review.rating || 0) >= 5 && textLength >= 500
+}
+
+export function isDraftReview(review: { review_text?: string | undefined | null }): boolean {
+  if (!review?.review_text) return false
+  return isBlogContent(review.review_text) && isDraftContent(review.review_text)
 }
 
 export type LegacyBlogCandidate = {
