@@ -21,6 +21,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Pagination,
@@ -52,6 +62,7 @@ import {
   ChevronDown,
   Search,
   ChevronRight,
+  Loader2,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
@@ -121,7 +132,9 @@ export default function ReviewsPage() {
   const [destination, setDestination] = useState("")
   const [reviewImages, setReviewImages] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingReviewDraft, setIsSavingReviewDraft] = useState(false)
   const [previewImages, setPreviewImages] = useState<string[]>([])
+  const [reviewLeaveDialogOpen, setReviewLeaveDialogOpen] = useState(false)
 
   // Edit review state
   const [editReviewId, setEditReviewId] = useState<string | null>(null)
@@ -168,6 +181,88 @@ export default function ReviewsPage() {
 
   const queryClient = useQueryClient()
 
+  const getReviewDraftStorageKey = useCallback(() => {
+    return `travel-review-draft:${user?.id || "anonymous"}`
+  }, [user?.id])
+
+  const clearReviewDraft = useCallback(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.removeItem(getReviewDraftStorageKey())
+  }, [getReviewDraftStorageKey])
+
+  const resetReviewForm = useCallback(() => {
+    setRating(0)
+    setDestination("")
+    setReviewText("")
+    setReviewImages([])
+    previewImages.forEach((url) => URL.revokeObjectURL(url))
+    setPreviewImages([])
+  }, [previewImages])
+
+  const hasUnsavedReviewChanges =
+    rating > 0 ||
+    destination.trim().length > 0 ||
+    reviewText.replace(/<[^>]*>/g, "").trim().length > 0 ||
+    reviewImages.length > 0
+
+  const handleSaveReviewDraft = useCallback(async (closeAfterSave = false) => {
+    const plainText = reviewText.replace(/<[^>]*>/g, "").trim()
+    if (!destination.trim() && !plainText && !rating && reviewImages.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nothing to save",
+        description: "Add destination, rating, text, or images before saving draft.",
+      })
+      return false
+    }
+
+    setIsSavingReviewDraft(true)
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          getReviewDraftStorageKey(),
+          JSON.stringify({
+            destination,
+            rating,
+            reviewText,
+            savedAt: new Date().toISOString(),
+          }),
+        )
+      }
+
+      toast({
+        title: "Draft saved",
+        description: "Your review draft was saved on this device.",
+      })
+
+      if (closeAfterSave) {
+        setReviewLeaveDialogOpen(false)
+        setReviewDialogOpen(false)
+      }
+
+      return true
+    } finally {
+      setIsSavingReviewDraft(false)
+    }
+  }, [destination, getReviewDraftStorageKey, rating, reviewImages.length, reviewText, toast])
+
+  const handleReviewDialogOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setReviewDialogOpen(true)
+      return
+    }
+
+    if (isSubmitting || isSavingReviewDraft) {
+      return
+    }
+
+    if (hasUnsavedReviewChanges) {
+      setReviewLeaveDialogOpen(true)
+      return
+    }
+
+    setReviewDialogOpen(false)
+  }, [hasUnsavedReviewChanges, isSavingReviewDraft, isSubmitting])
 
   // Set isMounted to false when the component unmounts
   useEffect(() => {
@@ -189,6 +284,38 @@ export default function ReviewsPage() {
       setCurrentPage(Number.parseInt(page, 10))
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (!reviewDialogOpen || typeof window === "undefined") return
+
+    try {
+      const stored = window.localStorage.getItem(getReviewDraftStorageKey())
+      if (!stored) return
+
+      const parsed = JSON.parse(stored) as {
+        destination?: string
+        rating?: number
+        reviewText?: string
+        savedAt?: string
+      }
+
+      setDestination(parsed.destination || "")
+      setRating(parsed.rating || 0)
+      setReviewText(parsed.reviewText || "")
+
+      if (parsed.savedAt) {
+        const savedDate = new Date(parsed.savedAt)
+        if (!Number.isNaN(savedDate.getTime())) {
+          toast({
+            title: "Draft restored",
+            description: `Loaded saved draft from ${savedDate.toLocaleString("en-US")}.`,
+          })
+        }
+      }
+    } catch {
+      // Ignore malformed draft data
+    }
+  }, [getReviewDraftStorageKey, reviewDialogOpen, toast])
 
   useEffect(() => {
     const loadLikes = async () => {
@@ -427,17 +554,14 @@ export default function ReviewsPage() {
       )
 
       if (result) {
+        clearReviewDraft()
         toast({
           title: "Review submitted",
           description: "Your review has been published successfully.",
         })
 
         // Reset form and close dialog
-        setRating(0)
-        setDestination("")
-        setReviewText("")
-        setReviewImages([])
-        setPreviewImages([])
+        resetReviewForm()
         setReviewDialogOpen(false)
 
         // Reload reviews to show the new one
@@ -1275,7 +1399,7 @@ export default function ReviewsPage() {
             </p>
 
             <div className="mt-8">
-              <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+              <Dialog open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
                 {user ? (
                   <DialogTrigger asChild>
                     <Button size="lg" className="shadow-lg">{t("writeReview")}</Button>
@@ -1394,13 +1518,28 @@ export default function ReviewsPage() {
 
                 {/* Action buttons always at the end */}
                 <DialogFooter className="pt-4 bg-background border-t flex justify-center items-center gap-2">
-                  <Button type="button" variant="outline" onClick={() => setReviewDialogOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => handleReviewDialogOpenChange(false)}>
                     Cancel
                   </Button>
                   <Button
                     type="button"
+                    variant="secondary"
+                    onClick={() => void handleSaveReviewDraft(false)}
+                    disabled={isSubmitting || isSavingReviewDraft}
+                  >
+                    {isSavingReviewDraft ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving Draft...
+                      </>
+                    ) : (
+                      "Save Draft"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
                     onClick={() => handleSubmitReview()}
-                    disabled={isSubmitting || !rating || !destination || !reviewText.trim()}
+                    disabled={isSubmitting || isSavingReviewDraft || !rating || !destination || !reviewText.trim()}
                   >
                     {isSubmitting ? (
                       <>
@@ -1433,6 +1572,46 @@ export default function ReviewsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <AlertDialog open={reviewLeaveDialogOpen} onOpenChange={setReviewLeaveDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Leave review editor?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You have unsaved changes. Save as draft to continue later, or drop this review.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isSavingReviewDraft}>Continue Editing</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => {
+                      clearReviewDraft()
+                      resetReviewForm()
+                      setReviewLeaveDialogOpen(false)
+                      setReviewDialogOpen(false)
+                    }}
+                    disabled={isSavingReviewDraft}
+                  >
+                    Drop Review
+                  </AlertDialogAction>
+                  <Button
+                    type="button"
+                    onClick={() => void handleSaveReviewDraft(true)}
+                    disabled={isSavingReviewDraft}
+                  >
+                    {isSavingReviewDraft ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving Draft...
+                      </>
+                    ) : (
+                      "Save Draft"
+                    )}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             {/* Edit Review Dialog */}
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
