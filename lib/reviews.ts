@@ -471,6 +471,73 @@ function formatReview(record: any): ReviewWithAuthor {
   return formattedReview
 }
 
+// ─── Review Draft (cross-device, server-side) ───────────────────────────────
+
+export const REVIEW_DRAFT_MARKER = "<!--IWT_REVIEW_DRAFT-->"
+
+export function isReviewDraftContent(content: string | undefined | null): boolean {
+  if (!content) return false
+  return content.includes(REVIEW_DRAFT_MARKER) && !isBlogContent(content)
+}
+
+export function markAsReviewDraftContent(text: string): string {
+  const clean = (text || "").replace(REVIEW_DRAFT_MARKER, "").trimStart()
+  return `${REVIEW_DRAFT_MARKER}\n${clean}`
+}
+
+export function stripReviewDraftMarker(content: string | undefined | null): string {
+  if (!content) return ""
+  return content.replace(REVIEW_DRAFT_MARKER, "").trimStart()
+}
+
+export async function saveReviewDraft(
+  data: { destination: string; rating: number; review_text: string; photos?: File[] },
+  existingId?: string | null,
+): Promise<ReviewWithAuthor | null> {
+  const pb = getPocketBase()
+  if (!pb) throw new Error("Failed to connect to PocketBase")
+  if (!pb.authStore.isValid) throw new Error("You must be signed in to save a draft")
+
+  const payload: Record<string, any> = {
+    destination: data.destination || "Untitled draft",
+    rating: data.rating || 1,
+    review_text: markAsReviewDraftContent(data.review_text),
+    reviewer: pb.authStore.model?.id,
+  }
+  if (data.photos && data.photos.length > 0) {
+    payload.photos = data.photos
+  }
+
+  const options = { expand: "reviewer", $autoCancel: false }
+  const record = existingId
+    ? await pb.collection("reviews").update(existingId, payload, options)
+    : await pb.collection("reviews").create(payload, options)
+
+  return formatReview(record)
+}
+
+export async function fetchUserReviewDrafts(): Promise<ReviewWithAuthor[]> {
+  const pb = getPocketBase()
+  if (!pb || !pb.authStore.isValid) return []
+  const userId = pb.authStore.model?.id
+  if (!userId) return []
+
+  try {
+    const result = await pb.collection("reviews").getList(1, 50, {
+      filter: `reviewer = "${userId}"`,
+      sort: "-updated",
+      expand: "reviewer",
+      $autoCancel: false,
+    })
+    return (result.items as any[])
+      .filter((item) => isReviewDraftContent(item.review_text))
+      .map(formatReview)
+  } catch {
+    return []
+  }
+}
+
+// ─── fetchLatestReviews ───────────────────────────────────────────────────────
 // Add the fetchLatestReviews function after the existing functions
 
 // Fetch latest reviews

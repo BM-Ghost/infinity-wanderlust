@@ -59,10 +59,13 @@ import {
   AtSign,
   Heart,
   Check,
+  CheckCheck,
   ChevronDown,
   Search,
   ChevronRight,
   Loader2,
+  FileClock,
+  Pencil,
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslation } from "@/lib/translations"
@@ -73,6 +76,10 @@ import {
   deleteReview,
   type ReviewWithAuthor,
   isBlogReview,
+  isReviewDraftContent,
+  saveReviewDraft,
+  fetchUserReviewDrafts,
+  stripReviewDraftMarker,
 } from "@/lib/reviews"
 import {
   fetchComments,
@@ -111,7 +118,7 @@ export default function ReviewsPage() {
     enabled: true,
     filter: "",
   })
-  const reviews = (reviewsData.items || []).filter((item) => !isBlogReview(item))
+  const reviews = (reviewsData.items || []).filter((item) => !isBlogReview(item) && !isReviewDraftContent(item.review_text))
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -135,6 +142,12 @@ export default function ReviewsPage() {
   const [isSavingReviewDraft, setIsSavingReviewDraft] = useState(false)
   const [previewImages, setPreviewImages] = useState<string[]>([])
   const [reviewLeaveDialogOpen, setReviewLeaveDialogOpen] = useState(false)
+
+  // Review draft state (server-side, cross-device)
+  const [draftRecordId, setDraftRecordId] = useState<string | null>(null)
+  const [draftSavedFlash, setDraftSavedFlash] = useState(false)
+  const [userReviewDrafts, setUserReviewDrafts] = useState<ReviewWithAuthor[]>([])
+  const [draftsDialogOpen, setDraftsDialogOpen] = useState(false)
 
   // Edit review state
   const [editReviewId, setEditReviewId] = useState<string | null>(null)
@@ -181,14 +194,26 @@ export default function ReviewsPage() {
 
   const queryClient = useQueryClient()
 
-  const getReviewDraftStorageKey = useCallback(() => {
-    return `travel-review-draft:${user?.id || "anonymous"}`
-  }, [user?.id])
+  const clearReviewDraft = useCallback(async () => {
+    if (draftRecordId) {
+      try { await deleteReview(draftRecordId) } catch { /* silently ignore */ }
+      setUserReviewDrafts((prev) => prev.filter((d) => d.id !== draftRecordId))
+      setDraftRecordId(null)
+    }
+  }, [draftRecordId])
 
-  const clearReviewDraft = useCallback(() => {
-    if (typeof window === "undefined") return
-    window.localStorage.removeItem(getReviewDraftStorageKey())
-  }, [getReviewDraftStorageKey])
+  const loadUserReviewDrafts = useCallback(async () => {
+    if (!user?.id) {
+      setUserReviewDrafts([])
+      return
+    }
+    try {
+      const drafts = await fetchUserReviewDrafts()
+      setUserReviewDrafts(drafts)
+    } catch {
+      // silently ignore
+    }
+  }, [user?.id])
 
   const resetReviewForm = useCallback(() => {
     setRating(0)
@@ -197,6 +222,7 @@ export default function ReviewsPage() {
     setReviewImages([])
     previewImages.forEach((url) => URL.revokeObjectURL(url))
     setPreviewImages([])
+    setDraftRecordId(null)
   }, [previewImages])
 
   const hasUnsavedReviewChanges =
@@ -211,29 +237,35 @@ export default function ReviewsPage() {
       toast({
         variant: "destructive",
         title: "Nothing to save",
-        description: "Add destination, rating, text, or images before saving draft.",
+        description: "Add destination, rating, text, or images before saving a draft.",
       })
+      return false
+    }
+
+    if (!user) {
+      toast({ variant: "destructive", title: "Sign in required", description: "Please sign in to save a draft." })
       return false
     }
 
     setIsSavingReviewDraft(true)
     try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          getReviewDraftStorageKey(),
-          JSON.stringify({
-            destination,
-            rating,
-            reviewText,
-            savedAt: new Date().toISOString(),
-          }),
-        )
-      }
+      const result = await saveReviewDraft(
+        { destination, rating, review_text: reviewText, photos: reviewImages },
+        draftRecordId,
+      )
+      if (!result) throw new Error("Save failed")
 
-      toast({
-        title: "Draft saved",
-        description: "Your review draft was saved on this device.",
+      setDraftRecordId(result.id)
+      setUserReviewDrafts((prev) => {
+        const exists = prev.find((d) => d.id === result.id)
+        return exists ? prev.map((d) => (d.id === result.id ? result : d)) : [result, ...prev]
       })
+
+      // Creative flash animation
+      setDraftSavedFlash(true)
+      setTimeout(() => setDraftSavedFlash(false), 1800)
+
+      toast({ title: "Draft saved ✈️", description: "Continue editing anytime — from any device." })
 
       if (closeAfterSave) {
         setReviewLeaveDialogOpen(false)
@@ -241,10 +273,13 @@ export default function ReviewsPage() {
       }
 
       return true
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Could not save draft", description: err.message })
+      return false
     } finally {
       setIsSavingReviewDraft(false)
     }
-  }, [destination, getReviewDraftStorageKey, rating, reviewImages.length, reviewText, toast])
+  }, [destination, draftRecordId, rating, reviewImages, reviewText, toast, user])
 
   const handleReviewDialogOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -263,6 +298,11 @@ export default function ReviewsPage() {
 
     setReviewDialogOpen(false)
   }, [hasUnsavedReviewChanges, isSavingReviewDraft, isSubmitting])
+
+  // Load user's server-side review drafts on mount / user change
+  useEffect(() => {
+    void loadUserReviewDrafts()
+  }, [loadUserReviewDrafts])
 
   // Set isMounted to false when the component unmounts
   useEffect(() => {
@@ -285,37 +325,7 @@ export default function ReviewsPage() {
     }
   }, [searchParams])
 
-  useEffect(() => {
-    if (!reviewDialogOpen || typeof window === "undefined") return
-
-    try {
-      const stored = window.localStorage.getItem(getReviewDraftStorageKey())
-      if (!stored) return
-
-      const parsed = JSON.parse(stored) as {
-        destination?: string
-        rating?: number
-        reviewText?: string
-        savedAt?: string
-      }
-
-      setDestination(parsed.destination || "")
-      setRating(parsed.rating || 0)
-      setReviewText(parsed.reviewText || "")
-
-      if (parsed.savedAt) {
-        const savedDate = new Date(parsed.savedAt)
-        if (!Number.isNaN(savedDate.getTime())) {
-          toast({
-            title: "Draft restored",
-            description: `Loaded saved draft from ${savedDate.toLocaleString("en-US")}.`,
-          })
-        }
-      }
-    } catch {
-      // Ignore malformed draft data
-    }
-  }, [getReviewDraftStorageKey, reviewDialogOpen, toast])
+  // (localStorage draft restore removed — drafts are now server-side; use the Drafts button on the page)
 
   useEffect(() => {
     const loadLikes = async () => {
@@ -543,18 +553,27 @@ export default function ReviewsPage() {
     setIsSubmitting(true)
 
     try {
-      const result = await createReview(
-        {
+      let result
+      if (draftRecordId) {
+        // Convert the draft record into a published review (removes draft marker)
+        result = await updateReview(draftRecordId, {
           destination,
           rating,
           review_text: reviewText,
           photos: reviewImages,
-        },
-
-      )
+        })
+        setDraftRecordId(null)
+        setUserReviewDrafts((prev) => prev.filter((d) => d.id !== draftRecordId))
+      } else {
+        result = await createReview({
+          destination,
+          rating,
+          review_text: reviewText,
+          photos: reviewImages,
+        })
+      }
 
       if (result) {
-        clearReviewDraft()
         toast({
           title: "Review submitted",
           description: "Your review has been published successfully.",
@@ -566,9 +585,6 @@ export default function ReviewsPage() {
 
         // Reload reviews to show the new one
         loadReviews()
-
-
-
       } else {
         throw new Error("Failed to create review")
       }
@@ -1526,11 +1542,30 @@ export default function ReviewsPage() {
                     variant="secondary"
                     onClick={() => void handleSaveReviewDraft(false)}
                     disabled={isSubmitting || isSavingReviewDraft}
+                    className={`relative transition-all duration-300 overflow-visible${draftSavedFlash ? " bg-emerald-500 hover:bg-emerald-500 text-white scale-105 shadow-lg shadow-emerald-400/40" : ""}`}
                   >
+                    {/* Sparkle particles — float upward on save */}
+                    {draftSavedFlash && (
+                      <span className="pointer-events-none absolute -top-6 inset-x-0 flex justify-center gap-1 text-xs select-none" aria-hidden>
+                        {(["✦ delay-0", "★ delay-75", "· delay-100", "✧ delay-150", "✦ delay-200"] as const).map((entry) => {
+                          const [sym, cls] = entry.split(" ")
+                          return (
+                            <span key={cls} className={`animate-bounce text-yellow-400 font-bold ${cls}`}>
+                              {sym}
+                            </span>
+                          )
+                        })}
+                      </span>
+                    )}
                     {isSavingReviewDraft ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving Draft...
+                        Saving…
+                      </>
+                    ) : draftSavedFlash ? (
+                      <>
+                        <CheckCheck className="mr-2 h-4 w-4" />
+                        Saved!
                       </>
                     ) : (
                       "Save Draft"
@@ -1573,6 +1608,93 @@ export default function ReviewsPage() {
               </DialogContent>
             </Dialog>
 
+            {/* Drafts button — visible when the user has saved review drafts */}
+            {user && userReviewDrafts.length > 0 && (
+              <div className="flex justify-center mt-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shadow bg-background/20 backdrop-blur-sm border-white/40 text-white hover:bg-background/40"
+                  onClick={() => setDraftsDialogOpen(true)}
+                >
+                  <FileClock className="mr-2 h-3.5 w-3.5" />
+                  My Drafts ({userReviewDrafts.length})
+                </Button>
+              </div>
+            )}
+
+            {/* Drafts list dialog */}
+            <Dialog open={draftsDialogOpen} onOpenChange={setDraftsDialogOpen}>
+              <DialogContent className="sm:max-w-[520px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <FileClock className="h-5 w-5" />
+                    Saved Review Drafts
+                  </DialogTitle>
+                  <DialogDescription>Pick up where you left off — available on all your devices</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                  {userReviewDrafts.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No drafts found.</p>
+                  ) : (
+                    userReviewDrafts.map((draft) => (
+                      <div key={draft.id} className="rounded-lg border p-3 flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{draft.destination || "Untitled draft"}</p>
+                          <div className="flex items-center gap-0.5 mt-0.5">
+                            {Array.from({ length: draft.rating || 0 }).map((_, i) => (
+                              <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {stripReviewDraftMarker(draft.review_text).replace(/<[^>]*>/g, "").trim() || "No text yet"}
+                          </p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">
+                            {new Date(draft.updated).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDestination(draft.destination || "")
+                              setRating(draft.rating || 0)
+                              setReviewText(stripReviewDraftMarker(draft.review_text))
+                              setDraftRecordId(draft.id)
+                              setDraftsDialogOpen(false)
+                              setReviewDialogOpen(true)
+                            }}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={async () => {
+                              try {
+                                await deleteReview(draft.id)
+                                setUserReviewDrafts((prev) => prev.filter((d) => d.id !== draft.id))
+                                if (draftRecordId === draft.id) setDraftRecordId(null)
+                                toast({ title: "Draft deleted" })
+                              } catch (e: any) {
+                                toast({ variant: "destructive", title: "Could not delete", description: (e as Error).message })
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setDraftsDialogOpen(false)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <AlertDialog open={reviewLeaveDialogOpen} onOpenChange={setReviewLeaveDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1585,8 +1707,8 @@ export default function ReviewsPage() {
                   <AlertDialogCancel disabled={isSavingReviewDraft}>Continue Editing</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => {
-                      clearReviewDraft()
+                    onClick={async () => {
+                      await clearReviewDraft()
                       resetReviewForm()
                       setReviewLeaveDialogOpen(false)
                       setReviewDialogOpen(false)
