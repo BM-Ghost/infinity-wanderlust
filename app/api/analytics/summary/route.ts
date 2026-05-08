@@ -69,6 +69,12 @@ type AnalyticsRecord = {
   source?: string
   visitor_key?: string
   target?: string
+  referrer_user_id?: string
+  session_user_id?: string
+  expand?: {
+    referrer_user_id?: { id: string; username: string; name?: string }
+    session_user_id?: { id: string; username: string; name?: string }
+  }
 }
 
 type WindowBuckets = {
@@ -103,6 +109,9 @@ function summarize(records: AnalyticsRecord[]) {
   const topPathsMap = new Map<string, number>()
   const sourceMap = new Map<string, number>()
   const topTargetsMap = new Map<string, number>()
+  const topReferrersMap = new Map<string, { count: number; username?: string; name?: string }>()
+  const userEngagementMap = new Map<string, { visits: number; clicks: number; username?: string; name?: string }>()
+  const referralConversionsMap = new Map<string, number>() // referrer user ID -> conversion count
 
   for (const record of visitRecords) {
     const path = record.path || "/"
@@ -110,12 +119,72 @@ function summarize(records: AnalyticsRecord[]) {
 
     const source = record.source || "direct"
     sourceMap.set(source, (sourceMap.get(source) || 0) + 1)
+
+    // Track referrer users
+    if (record.referrer_user_id) {
+      const current = topReferrersMap.get(record.referrer_user_id) || { count: 0 }
+      current.count += 1
+      if (record.expand?.referrer_user_id) {
+        current.username = record.expand.referrer_user_id.username
+        current.name = record.expand.referrer_user_id.name
+      }
+      topReferrersMap.set(record.referrer_user_id, current)
+    }
+
+    // Track session user engagement
+    if (record.session_user_id) {
+      const current = userEngagementMap.get(record.session_user_id) || { visits: 0, clicks: 0 }
+      current.visits += 1
+      if (record.expand?.session_user_id) {
+        current.username = record.expand.session_user_id.username
+        current.name = record.expand.session_user_id.name
+      }
+      userEngagementMap.set(record.session_user_id, current)
+    }
   }
 
   for (const record of clickRecords) {
     const target = record.target || "unknown"
     topTargetsMap.set(target, (topTargetsMap.get(target) || 0) + 1)
+
+    // Track clicks for session user
+    if (record.session_user_id) {
+      const current = userEngagementMap.get(record.session_user_id) || { visits: 0, clicks: 0 }
+      current.clicks += 1
+      userEngagementMap.set(record.session_user_id, current)
+    }
+
+    // Track conversions from referrals
+    if (record.referrer_user_id) {
+      referralConversionsMap.set(
+        record.referrer_user_id,
+        (referralConversionsMap.get(record.referrer_user_id) || 0) + 1
+      )
+    }
   }
+
+  // Format top referrers with conversion data
+  const topReferrers = Array.from(topReferrersMap.entries())
+    .map(([userId, data]) => ({
+      key: data.name || data.username || userId,
+      count: data.count,
+      userId,
+      conversions: referralConversionsMap.get(userId) || 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6)
+
+  // Format top engaged users
+  const topEngagedUsers = Array.from(userEngagementMap.entries())
+    .map(([userId, data]) => ({
+      key: data.name || data.username || userId,
+      visits: data.visits,
+      clicks: data.clicks,
+      userId,
+      engagementRate: data.visits > 0 ? Number(((data.clicks / data.visits) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, 6)
 
   const visits = visitRecords.length
   const clicks = clickRecords.length
@@ -129,6 +198,8 @@ function summarize(records: AnalyticsRecord[]) {
     topPaths: toTopEntries(topPathsMap, 6),
     topSources: toTopEntries(sourceMap, 6),
     topTargets: toTopEntries(topTargetsMap, 6),
+    topReferrers,
+    topEngagedUsers,
   }
 }
 
@@ -188,7 +259,8 @@ async function aggregatePocketBaseSummaries(
     const pageResult = await adminPb.collection(ANALYTICS_COLLECTION).getList(page, PB_PAGE_SIZE, {
       filter: `created >= "${since90.toISOString()}"`,
       sort: "-created",
-      fields: "id,created,event_type,path,source,visitor_key,target",
+      fields: "id,created,event_type,path,source,visitor_key,target,referrer_user_id,session_user_id",
+      expand: "referrer_user_id.username,referrer_user_id.name,session_user_id.username,session_user_id.name",
       skipTotal: true,
       $autoCancel: false,
     })

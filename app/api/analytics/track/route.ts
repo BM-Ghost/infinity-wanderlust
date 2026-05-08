@@ -27,6 +27,8 @@ type TrackBody = {
   target?: string
   destination?: string
   userAgent?: string
+  sessionUserId?: string
+  referrerUserId?: string
 }
 
 function getClientIp(request: Request): string {
@@ -91,9 +93,9 @@ async function ensureAnalyticsCollection(adminPb: any) {
           { name: "visitor_key", type: "text", required: false },
           { name: "target", type: "text", required: false },
           { name: "destination", type: "text", required: false },
-          { name: "user_id", type: "text", required: false },
-          { name: "user_email", type: "text", required: false },
           { name: "user_agent", type: "text", required: false },
+          { name: "referrer_user_id", type: "relation", required: false, options: { collectionId: "_pb_users_auth_", maxSelect: 1 } },
+          { name: "session_user_id", type: "relation", required: false, options: { collectionId: "_pb_users_auth_", maxSelect: 1 } },
         ],
       })
       collectionReady = true
@@ -186,9 +188,9 @@ export async function POST(request: Request) {
       visitor_key: visitorKey,
       target: String(body.target || "").slice(0, 200),
       destination: String(body.destination || "").slice(0, 120),
-      user_id: user?.id || "",
-      user_email: user?.email || "",
       user_agent: String(body.userAgent || "").slice(0, 500),
+      referrer_user_id: String(body.referrerUserId || "").slice(0, 30),
+      session_user_id: String(body.sessionUserId || "").slice(0, 30),
     })
 
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } })

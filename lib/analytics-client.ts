@@ -17,6 +17,8 @@ type TrackPayload = {
   source?: string
   target?: string
   destination?: string
+  sessionUserId?: string
+  referrerUserId?: string
 }
 
 type SessionCounters = {
@@ -55,6 +57,17 @@ function readCounters(): SessionCounters {
 
 function writeCounters(next: SessionCounters): void {
   window.sessionStorage.setItem(ANALYTICS_COUNTERS_STORAGE, JSON.stringify(next))
+}
+
+// Get referrer user ID from URL parameter
+function getReferrerUserIdFromUrl(): string | undefined {
+  if (typeof window === "undefined") return
+  try {
+    const params = new URLSearchParams(window.location.search)
+    return params.get("ref") || undefined
+  } catch {
+    return
+  }
 }
 
 function allowEvent(payload: TrackPayload): boolean {
@@ -139,6 +152,8 @@ export function trackAnalyticsEvent(payload: TrackPayload): void {
     visitorKey: getVisitorKey(),
     referrer: document.referrer || "",
     userAgent: navigator.userAgent || "",
+    sessionUserId: normalizedPayload.sessionUserId,
+    referrerUserId: normalizedPayload.referrerUserId,
   })
 
   if (navigator.sendBeacon) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -34,10 +35,21 @@ export function ShareButton({
   const [isOpen, setIsOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
+
+  // Add referrer user ID to shared link
+  const getShareUrl = () => {
+    if (!user?.id) return url
+    const urlObj = new URL(url, typeof window !== "undefined" ? window.location.origin : "https://infinity-wanderlust.com")
+    urlObj.searchParams.set("ref", user.id)
+    return urlObj.toString()
+  }
+
+  const shareUrl = getShareUrl()
 
   const handleCopyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
       setIsOpen(false)
@@ -52,20 +64,20 @@ export function ShareButton({
   }
 
   const shareTwitter = () => {
-    const text = encodeURIComponent(`${title}\n\n${url}`)
+    const text = encodeURIComponent(`${title}\n\n${shareUrl}`)
     window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "width=550,height=420")
     setIsOpen(false)
   }
 
   const shareLinkedIn = () => {
     const u = new URL("https://www.linkedin.com/sharing/share-offsite/")
-    u.searchParams.append("url", url)
+    u.searchParams.append("url", shareUrl)
     window.open(u.toString(), "_blank", "width=550,height=420")
     setIsOpen(false)
   }
 
   const shareInstagram = async () => {
-    await navigator.clipboard.writeText(url).catch(() => {})
+    await navigator.clipboard.writeText(shareUrl).catch(() => {})
     setIsOpen(false)
     toast({
       title: "Ready for Instagram!",
@@ -75,7 +87,7 @@ export function ShareButton({
   }
 
   const shareTikTok = async () => {
-    await navigator.clipboard.writeText(url).catch(() => {})
+    await navigator.clipboard.writeText(shareUrl).catch(() => {})
     setIsOpen(false)
     toast({
       title: "Ready for TikTok!",

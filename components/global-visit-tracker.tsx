@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 import { trackAnalyticsEvent } from "@/lib/analytics-client"
 
 const VISIT_DEDUPE_TTL_MS = 15 * 60 * 1000
@@ -9,6 +10,7 @@ const VISIT_DEDUPE_TTL_MS = 15 * 60 * 1000
 export function GlobalVisitTracker() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const lastTrackedRef = useRef<string>("")
 
   useEffect(() => {
@@ -26,11 +28,16 @@ export function GlobalVisitTracker() {
 
     window.sessionStorage.setItem(key, String(now))
 
+    // Get referrer user ID from URL (e.g., ?ref=userId)
+    const referrerUserId = searchParams?.get("ref") || undefined
+
     trackAnalyticsEvent({
       eventType: "page_visit",
       path,
+      sessionUserId: user?.id,
+      referrerUserId,
     })
-  }, [pathname, searchParams])
+  }, [pathname, searchParams, user?.id])
 
   return null
-}
+}}

@@ -1,5 +1,6 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Home, CalendarDays, BookOpen, Star, Image as ImageIcon, PhoneCall, Compass } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,12 @@ function getReviewsHref(destination?: string) {
 }
 
 export function EngagementQuickLinks({ destination }: EngagementNavProps) {
+  const searchParams = useSearchParams()
+  
+  // Hide on shared links (when visitor comes from ref parameter)
+  const isFromSharedLink = searchParams?.has("ref")
+  if (isFromSharedLink) return null
+
   const track = (target: string) => {
     if (typeof window === "undefined") return
     trackEngagementClick({
@@ -71,6 +78,12 @@ export function EngagementQuickLinks({ destination }: EngagementNavProps) {
 }
 
 export function EngagementMobileDock({ destination }: EngagementNavProps) {
+  const searchParams = useSearchParams()
+  
+  // Hide on shared links
+  const isFromSharedLink = searchParams?.has("ref")
+  if (isFromSharedLink) return null
+
   const track = (target: string) => {
     if (typeof window === "undefined") return
     trackEngagementClick({
