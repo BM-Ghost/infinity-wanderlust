@@ -40,4 +40,4 @@ export function GlobalVisitTracker() {
   }, [pathname, searchParams, user?.id])
 
   return null
-}}
+}
