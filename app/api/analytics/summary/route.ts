@@ -219,11 +219,33 @@ function mergeSummary(
       topPaths: cloudflare.topPaths,
       topSources: cloudflare.topSources,
       topTargets: pocketbase.topTargets,
+      topReferrers: pocketbase.topReferrers || [],
+      topEngagedUsers: pocketbase.topEngagedUsers || [],
     }
   }
 
-  if (cloudflare) return cloudflare
-  if (pocketbase) return pocketbase
+  if (cloudflare) {
+    return {
+      ...cloudflare,
+      topReferrers: [],
+      topEngagedUsers: [],
+    }
+  }
+
+  if (pocketbase) {
+    return {
+      visits: pocketbase.visits,
+      uniqueVisitors: pocketbase.uniqueVisitors,
+      engagementClicks: pocketbase.engagementClicks,
+      engagementRate: pocketbase.engagementRate,
+      shareLandingVisits: pocketbase.shareLandingVisits,
+      topPaths: pocketbase.topPaths,
+      topSources: pocketbase.topSources,
+      topTargets: pocketbase.topTargets,
+      topReferrers: pocketbase.topReferrers || [],
+      topEngagedUsers: pocketbase.topEngagedUsers || [],
+    }
+  }
 
   return {
     visits: 0,
@@ -234,6 +256,8 @@ function mergeSummary(
     topPaths: [],
     topSources: [],
     topTargets: [],
+    topReferrers: [],
+    topEngagedUsers: [],
   }
 }
 
