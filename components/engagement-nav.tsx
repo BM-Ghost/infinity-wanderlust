@@ -25,7 +25,7 @@ export function EngagementQuickLinks({ destination }: EngagementNavProps) {
   const searchParams = useSearchParams()
   
   // Hide on shared links (when visitor comes from ref parameter)
-  const isFromSharedLink = searchParams?.has("ref")
+  const isFromSharedLink = searchParams && searchParams.get("ref") !== null
   if (isFromSharedLink) return null
 
   const track = (target: string) => {
@@ -81,7 +81,7 @@ export function EngagementMobileDock({ destination }: EngagementNavProps) {
   const searchParams = useSearchParams()
   
   // Hide on shared links
-  const isFromSharedLink = searchParams?.has("ref")
+  const isFromSharedLink = searchParams && searchParams.get("ref") !== null
   if (isFromSharedLink) return null
 
   const track = (target: string) => {
