@@ -93,6 +93,51 @@ type PocketBaseAggregateResult = {
   capped: boolean
 }
 
+type SummaryWindow = ReturnType<typeof summarize>
+
+async function hydrateUserLabels(adminPb: any, summary: SummaryWindow) {
+  const ids = new Set<string>()
+
+  for (const row of summary.topReferrers || []) {
+    if (row.userId) ids.add(row.userId)
+  }
+
+  for (const row of summary.topEngagedUsers || []) {
+    if (row.userId) ids.add(row.userId)
+  }
+
+  if (ids.size === 0) return summary
+
+  const labelById = new Map<string, string>()
+
+  await Promise.all(
+    Array.from(ids).map(async (id) => {
+      try {
+        const user = await adminPb.collection("users").getOne(id, {
+          fields: "id,username,name",
+          $autoCancel: false,
+        })
+        const label = String(user?.name || user?.username || id)
+        labelById.set(id, label)
+      } catch {
+        labelById.set(id, id)
+      }
+    })
+  )
+
+  return {
+    ...summary,
+    topReferrers: (summary.topReferrers || []).map((row) => ({
+      ...row,
+      key: labelById.get(row.userId) || row.key,
+    })),
+    topEngagedUsers: (summary.topEngagedUsers || []).map((row) => ({
+      ...row,
+      key: labelById.get(row.userId) || row.key,
+    })),
+  }
+}
+
 function toTopEntries(map: Map<string, number>, limit = 5) {
   return Array.from(map.entries())
     .sort((a, b) => b[1] - a[1])
@@ -284,7 +329,7 @@ async function aggregatePocketBaseSummaries(
       filter: `created >= "${since90.toISOString()}"`,
       sort: "-created",
       fields: "id,created,event_type,path,source,visitor_key,target,referrer_user_id,session_user_id",
-      expand: "referrer_user_id.username,referrer_user_id.name,session_user_id.username,session_user_id.name",
+      expand: "referrer_user_id,session_user_id",
       skipTotal: true,
       $autoCancel: false,
     })
@@ -370,10 +415,12 @@ export async function GET(request: Request) {
 
     let pbProcessed = 0
     let pbCapped = false
+    let labelAdminPb: any = null
 
     if (usePocketBase) {
       try {
         const adminPb = await getPocketBaseAdmin()
+        labelAdminPb = adminPb
         await ensureAnalyticsCollection(adminPb)
 
         const aggregated = await aggregatePocketBaseSummaries(adminPb, since1, since7, since30, since90)
@@ -393,12 +440,21 @@ export async function GET(request: Request) {
     const summary30d = mergeSummary(cf30d, pb30d)
     const summary90d = mergeSummary(cf90d, pb90d)
 
+    const [enriched1d, enriched7d, enriched30d, enriched90d] = labelAdminPb
+      ? await Promise.all([
+          hydrateUserLabels(labelAdminPb, summary1d),
+          hydrateUserLabels(labelAdminPb, summary7d),
+          hydrateUserLabels(labelAdminPb, summary30d),
+          hydrateUserLabels(labelAdminPb, summary90d),
+        ])
+      : [summary1d, summary7d, summary30d, summary90d]
+
     const hasAnyData =
-      summary1d.visits > 0 ||
-      summary7d.visits > 0 ||
-      summary30d.visits > 0 ||
-      summary90d.visits > 0 ||
-      summary90d.engagementClicks > 0
+      enriched1d.visits > 0 ||
+      enriched7d.visits > 0 ||
+      enriched30d.visits > 0 ||
+      enriched90d.visits > 0 ||
+      enriched90d.engagementClicks > 0
 
     if (!hasAnyData) {
       return NextResponse.json({ error: "No analytics data available yet" }, { status: 404, headers: { "Cache-Control": "no-store" } })
@@ -434,10 +490,10 @@ export async function GET(request: Request) {
           cap: PB_MAX_SCAN_RECORDS,
         },
       },
-      summary1d,
-      summary7d,
-      summary30d,
-      summary90d,
+      summary1d: enriched1d,
+      summary7d: enriched7d,
+      summary30d: enriched30d,
+      summary90d: enriched90d,
       generatedAt: new Date().toISOString(),
     }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {

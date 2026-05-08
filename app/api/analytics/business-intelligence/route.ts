@@ -4,7 +4,6 @@ import {
   calculateLifetimeValue,
   calculateViralityScore,
   detectTrend,
-  generateRecommendations,
   getMonetizationPotential,
   getUserTier,
   type ContentPerformance,
@@ -293,16 +292,19 @@ export async function GET() {
     const records = await listRecentRecords()
     const users = buildUserProfiles(records)
     const content = buildContentPerformance(records)
-    const businessIntelligence = generateRecommendations(users, content)
 
-    const topInfluencers = businessIntelligence.topSponsorsshipOpportunities.map((item) => ({
-      username: item.username,
-      name: item.name,
-      influenceScore: toNumber(item.influenceScore),
-      referralsCreated: item.referralStats.referralsCreated,
-      sponsorshipReadiness: item.sponsorshipReadiness,
-      recommendedCompensation: item.recommendedCompensation,
-    }))
+    const topInfluencers = users
+      .filter((item) => item.referralStats.referralsCreated > 0)
+      .sort((a, b) => b.referralStats.referralsCreated - a.referralStats.referralsCreated)
+      .slice(0, 5)
+      .map((item) => ({
+        username: item.username,
+        name: item.name,
+        influenceScore: toNumber(item.lifetimeValueScore),
+        referralsCreated: item.referralStats.referralsCreated,
+        sponsorshipReadiness: item.referralStats.referralsCreated >= 10 ? "ready" : "developing",
+        recommendedCompensation: item.referralStats.referralsCreated >= 10 ? "high" : "partnership",
+      }))
 
     const topContent = content
       .sort((a, b) => b.viralityScore - a.viralityScore)
@@ -314,19 +316,102 @@ export async function GET() {
         monetizationPotential: item.monetizationPotential,
       }))
 
-    const opportunities = businessIntelligence.growthOpportunities.map((item) => ({
-      type: item.type,
-      title: item.type,
-      description: item.opportunity,
-      confidence: toNumber(item.confidence),
-    }))
+    const underperformingPages = content
+      .filter((item) => item.totalVisits >= 3 && item.engagementRate < 10)
+      .sort((a, b) => b.totalVisits - a.totalVisits)
+      .slice(0, 10)
+      .map((item) => ({
+        path: item.path,
+        visits: item.totalVisits,
+        engagementRate: toNumber(item.engagementRate),
+      }))
+
+    const nonReferrerUsers = users.filter((item) => item.referralStats.referralsCreated === 0).length
+    const referrerUsers = users.filter((item) => item.referralStats.referralsCreated > 0).length
+    const casualUsers = users.filter((item) => item.tier === "casual").length
+    const totalUsers = users.length
+
+    const opportunities: Array<{
+      type: string
+      title: string
+      description: string
+      confidence: number
+      evidence?: string
+      relatedPaths?: string[]
+    }> = []
+
+    if (underperformingPages.length > 0) {
+      opportunities.push({
+        type: "Content Quality",
+        title: "Refresh underperforming pages",
+        description: `${underperformingPages.length} pages have below 10% engagement despite meaningful traffic.`,
+        confidence: 88,
+        evidence: `Examples: ${underperformingPages
+          .slice(0, 3)
+          .map((item) => `${item.path} (${item.engagementRate}%, ${item.visits} visits)`)
+          .join("; ")}`,
+        relatedPaths: underperformingPages.slice(0, 5).map((item) => item.path),
+      })
+    }
+
+    if (totalUsers > 0) {
+      const noReferralRate = toNumber((nonReferrerUsers / totalUsers) * 100)
+      opportunities.push({
+        type: "Referral Growth",
+        title: "Increase referral participation",
+        description: `${nonReferrerUsers} of ${totalUsers} active users (${noReferralRate}%) have not referred anyone yet.`,
+        confidence: totalUsers >= 10 ? 82 : 70,
+        evidence: `${referrerUsers} users are currently driving referrals.`,
+      })
+    }
+
+    if (totalUsers > 0) {
+      const casualRatio = toNumber((casualUsers / totalUsers) * 100)
+      opportunities.push({
+        type: "Retention",
+        title: "Improve return behavior",
+        description: `${casualUsers} of ${totalUsers} active users (${casualRatio}%) are currently in the casual segment.`,
+        confidence: totalUsers >= 10 ? 80 : 68,
+        evidence: "Casual-heavy audiences typically need stronger follow-up and repeat-visit hooks.",
+      })
+    }
+
+    const tiers: Array<"vip" | "premium" | "regular" | "casual"> = ["vip", "premium", "regular", "casual"]
+    const userSegments = tiers
+      .map((tier) => {
+        const tierUsers = users.filter((item) => item.tier === tier)
+        const count = tierUsers.length
+        return {
+          tier,
+          count,
+          avgEngagementRate: toNumber(
+            count > 0
+              ? tierUsers.reduce((sum, item) => sum + item.engagementRate, 0) / count
+              : 0
+          ),
+          avgLifetimeValue: toNumber(
+            count > 0
+              ? tierUsers.reduce((sum, item) => sum + item.lifetimeValueScore, 0) / count
+              : 0
+          ),
+          recommendedAction:
+            tier === "vip"
+              ? "Offer loyalty benefits to maintain retention."
+              : tier === "premium"
+                ? "Use targeted campaigns to move users toward VIP behavior."
+                : tier === "regular"
+                  ? "Use re-engagement prompts to increase frequency."
+                  : "Use onboarding nudges and value reminders.",
+        }
+      })
+      .filter((segment) => segment.count > 0)
 
     return NextResponse.json({
       topInfluencers,
       topContent,
-      userSegments: businessIntelligence.fanRewardSegmentation,
+      underperformingPages,
+      userSegments,
       opportunities,
-      businessIntelligence,
       generatedAt: new Date().toISOString(),
     })
   } catch (error: any) {

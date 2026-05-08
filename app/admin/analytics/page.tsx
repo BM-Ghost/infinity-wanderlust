@@ -32,13 +32,11 @@ import {
   Printer,
   Link2,
   Sparkles,
-  Trophy,
   Target,
   TrendingUp,
   Heart,
   Megaphone,
   Lightbulb,
-  Crown,
 } from "lucide-react"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -97,6 +95,13 @@ interface BusinessMetricsResponse {
     title: string
     description: string
     confidence: number
+    evidence?: string
+    relatedPaths?: string[]
+  }>
+  underperformingPages?: Array<{
+    path: string
+    visits: number
+    engagementRate: number
   }>
   generatedAt?: string
 }
@@ -120,6 +125,15 @@ function toneForConfidence(score: number): "default" | "secondary" | "outline" {
   return "outline"
 }
 
+function readableMemberName(label: string, userId: string, rank: number): string {
+  if (!label) return `Member ${rank + 1}`
+  const looksLikeRecordId = /^[a-z0-9]{15}$/i.test(label)
+  if (looksLikeRecordId || label === userId) {
+    return `Member ${rank + 1}`
+  }
+  return label
+}
+
 export default function AdminAnalyticsPage() {
   const router = useRouter()
   const { user, isLoading: isAuthLoading } = useAuth()
@@ -129,6 +143,7 @@ export default function AdminAnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isBoardroomMode, setIsBoardroomMode] = useState(false)
+  const [isExternalShareMode, setIsExternalShareMode] = useState(false)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   useEffect(() => {
@@ -142,6 +157,11 @@ export default function AdminAnalyticsPage() {
 
     if (modeParam === "boardroom") {
       setIsBoardroomMode(true)
+    }
+
+    if (modeParam === "external") {
+      setIsExternalShareMode(true)
+      setIsBoardroomMode(false)
     }
   }, [])
 
@@ -224,19 +244,23 @@ export default function AdminAnalyticsPage() {
       }
     }
 
-    const audienceStory = `${summary.uniqueVisitors.toLocaleString()} people visited in ${formatPeriod(timeframe).toLowerCase()}, creating ${summary.visits.toLocaleString()} total visits.`
+    const visitDepth = summary.uniqueVisitors > 0 ? summary.visits / summary.uniqueVisitors : 0
+    const actionRate = summary.visits > 0 ? (summary.engagementClicks / summary.visits) * 100 : 0
+    const shareRate = summary.visits > 0 ? (summary.shareLandingVisits / summary.visits) * 100 : 0
+
+    const audienceStory = `${summary.uniqueVisitors.toLocaleString()} unique visitor${summary.uniqueVisitors === 1 ? "" : "s"} generated ${summary.visits.toLocaleString()} total visits (${visitDepth.toFixed(1)} visits per person).`
 
     const engagementStory =
-      summary.engagementRate >= 45
-        ? "Excellent interaction level: people are not just visiting, they are taking action."
-        : summary.engagementRate >= 20
-          ? "Healthy momentum: your audience is active, and there is room to scale engagement."
-          : "Interest is present, but actions are still light. Stronger calls-to-action can help."
+      actionRate >= 40
+        ? `High interaction performance: ${summary.engagementClicks.toLocaleString()} actions from ${summary.visits.toLocaleString()} visits (${actionRate.toFixed(1)}% action rate).`
+        : actionRate >= 15
+          ? `Moderate interaction performance: ${summary.engagementClicks.toLocaleString()} actions from ${summary.visits.toLocaleString()} visits (${actionRate.toFixed(1)}% action rate).`
+          : `Early interaction stage: ${summary.engagementClicks.toLocaleString()} actions from ${summary.visits.toLocaleString()} visits (${actionRate.toFixed(1)}% action rate).`
 
     const sharingStory =
       summary.shareLandingVisits > 0
-        ? `${summary.shareLandingVisits.toLocaleString()} visits came from shared links, showing meaningful community-driven discovery.`
-        : "Shared-link discovery is still low. This is a high-opportunity area for growth."
+        ? `${summary.shareLandingVisits.toLocaleString()} visits came from shared links (${shareRate.toFixed(1)}% of total traffic).`
+        : "Shared-link contribution is currently 0%, based on tracked traffic in this period."
 
     return { audienceStory, engagementStory, sharingStory }
   }, [summary, timeframe])
@@ -254,6 +278,11 @@ export default function AdminAnalyticsPage() {
       shareContribution: summary.visits > 0 ? (summary.shareLandingVisits / summary.visits) * 100 : 0,
     }
   }, [summary])
+
+  const nonEmptySegments = useMemo(() => {
+    if (!business?.userSegments) return []
+    return business.userSegments.filter((segment) => segment.count > 0)
+  }, [business])
 
   const reportPayload = useMemo(() => {
     if (!analytics || !business || !summary) return null
@@ -289,11 +318,20 @@ export default function AdminAnalyticsPage() {
   function buildReportUrl() {
     const url = new URL(window.location.href)
     url.searchParams.set("timeframe", timeframe)
-    if (isBoardroomMode) {
+    if (isExternalShareMode) {
+      url.searchParams.set("mode", "external")
+    } else if (isBoardroomMode) {
       url.searchParams.set("mode", "boardroom")
     } else {
       url.searchParams.delete("mode")
     }
+    return url.toString()
+  }
+
+  function buildExternalReportUrl() {
+    const url = new URL(window.location.href)
+    url.searchParams.set("timeframe", timeframe)
+    url.searchParams.set("mode", "external")
     return url.toString()
   }
 
@@ -321,12 +359,45 @@ export default function AdminAnalyticsPage() {
     }
   }
 
+  async function handleShareExternalReport() {
+    if (!reportPayload || !summary) return
+
+    const shareUrl = buildExternalReportUrl()
+    const shareText = `Infinity Wanderlust engagement snapshot (${formatPeriod(timeframe)}): ${summary.visits.toLocaleString()} visits, ${summary.uniqueVisitors.toLocaleString()} unique visitors, ${executiveMetrics.actionRate.toFixed(1)}% action rate.`
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Infinity Wanderlust Engagement Snapshot",
+          text: shareText,
+          url: shareUrl,
+        })
+        setActionFeedback("External report shared successfully.")
+        return
+      }
+
+      await navigator.clipboard.writeText(shareUrl)
+      setActionFeedback("External report link copied to clipboard.")
+    } catch {
+      setActionFeedback("External sharing was cancelled or unavailable.")
+    }
+  }
+
   async function handleCopyLink() {
     try {
       await navigator.clipboard.writeText(buildReportUrl())
       setActionFeedback("Report link copied.")
     } catch {
       setActionFeedback("Could not copy the report link.")
+    }
+  }
+
+  async function handleCopyExternalLink() {
+    try {
+      await navigator.clipboard.writeText(buildExternalReportUrl())
+      setActionFeedback("External report link copied.")
+    } catch {
+      setActionFeedback("Could not copy the external report link.")
     }
   }
 
@@ -405,7 +476,9 @@ export default function AdminAnalyticsPage() {
   }
 
   function handlePrintReport() {
-    setIsBoardroomMode(true)
+    if (!isExternalShareMode) {
+      setIsBoardroomMode(true)
+    }
     setActionFeedback("Print dialog opened. Choose Save as PDF to download.")
     window.print()
   }
@@ -455,16 +528,41 @@ export default function AdminAnalyticsPage() {
                 Updated {new Date(analytics?.generatedAt || business?.generatedAt || Date.now()).toLocaleString()}
               </p>
               <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-                <Button size="sm" variant={isBoardroomMode ? "default" : "outline"} onClick={() => setIsBoardroomMode((v) => !v)}>
+                <Button
+                  size="sm"
+                  variant={isBoardroomMode ? "default" : "outline"}
+                  onClick={() => {
+                    setIsExternalShareMode(false)
+                    setIsBoardroomMode((v) => !v)
+                  }}
+                >
                   Boardroom Mode
+                </Button>
+                <Button
+                  size="sm"
+                  variant={isExternalShareMode ? "default" : "outline"}
+                  onClick={() => {
+                    setIsExternalShareMode((v) => !v)
+                    setIsBoardroomMode(false)
+                  }}
+                >
+                  External Share View
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleShareReport}>
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </Button>
+                <Button size="sm" variant="outline" onClick={handleShareExternalReport}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share External Report
+                </Button>
                 <Button size="sm" variant="outline" onClick={handleCopyLink}>
                   <Link2 className="mr-2 h-4 w-4" />
                   Copy Link
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCopyExternalLink}>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Copy External Link
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleDownloadHtml}>
                   <Download className="mr-2 h-4 w-4" />
@@ -526,6 +624,29 @@ export default function AdminAnalyticsPage() {
                   <div className="rounded-lg border bg-background p-3">
                     <p className="font-medium">Referral Impact</p>
                     <p className="text-muted-foreground mt-1">{summary.shareLandingVisits.toLocaleString()} visits came from shared links.</p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {isExternalShareMode && (
+              <section className="rounded-xl border bg-gradient-to-r from-indigo-50 via-white to-cyan-50 dark:from-indigo-950/20 dark:via-background dark:to-cyan-950/20 p-5">
+                <h2 className="text-xl font-semibold mb-2">External Growth Snapshot</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Neutral, partner-friendly view focused on traction and engagement signals.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Audience Traction</p>
+                    <p className="text-muted-foreground mt-1">{summary.uniqueVisitors.toLocaleString()} unique visitors and {summary.visits.toLocaleString()} visits in {formatPeriod(timeframe).toLowerCase()}.</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Interaction Depth</p>
+                    <p className="text-muted-foreground mt-1">{summary.engagementClicks.toLocaleString()} measurable actions with {executiveMetrics.actionRate.toFixed(1)}% conversion from visit to action.</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Share-led Reach</p>
+                    <p className="text-muted-foreground mt-1">{summary.shareLandingVisits.toLocaleString()} visits came via shared links ({executiveMetrics.shareContribution.toFixed(1)}% of traffic).</p>
                   </div>
                 </div>
               </section>
@@ -611,19 +732,19 @@ export default function AdminAnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Executive Summary</CardTitle>
-                  <CardDescription>Simple and self-explanatory insights</CardDescription>
+                  <CardDescription>Metric-based narrative generated from tracked performance</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-950/40">
-                    <p className="font-semibold text-sky-900 dark:text-sky-300">Audience</p>
+                    <p className="font-semibold text-sky-900 dark:text-sky-300">Audience Metrics</p>
                     <p className="text-sky-800 dark:text-sky-300 mt-1">{storyHighlights.audienceStory}</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/40">
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-300">Engagement</p>
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-300">Engagement Metrics</p>
                     <p className="text-emerald-800 dark:text-emerald-300 mt-1">{storyHighlights.engagementStory}</p>
                   </div>
                   <div className="rounded-lg bg-violet-50 p-3 dark:bg-violet-950/40">
-                    <p className="font-semibold text-violet-900 dark:text-violet-300">Sharing</p>
+                    <p className="font-semibold text-violet-900 dark:text-violet-300">Sharing Metrics</p>
                     <p className="text-violet-800 dark:text-violet-300 mt-1">{storyHighlights.sharingStory}</p>
                   </div>
                 </CardContent>
@@ -741,6 +862,7 @@ export default function AdminAnalyticsPage() {
               </Card>
             </section>
 
+            {!isExternalShareMode && (
             <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -760,7 +882,7 @@ export default function AdminAnalyticsPage() {
                               {index + 1}
                             </div>
                             <div>
-                              <p className="font-medium">{referrer.key}</p>
+                              <p className="font-medium">{readableMemberName(referrer.key, referrer.userId, index)}</p>
                               <p className="text-xs text-muted-foreground">{referrer.count} referral visits</p>
                             </div>
                           </div>
@@ -792,7 +914,7 @@ export default function AdminAnalyticsPage() {
                               {index + 1}
                             </div>
                             <div>
-                              <p className="font-medium">{member.key}</p>
+                              <p className="font-medium">{readableMemberName(member.key, member.userId, index)}</p>
                               <p className="text-xs text-muted-foreground">{member.visits} visits</p>
                             </div>
                           </div>
@@ -806,50 +928,16 @@ export default function AdminAnalyticsPage() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="h-5 w-5" />
-                    Partnership-Ready Supporters
-                  </CardTitle>
-                  <CardDescription>Top ambassadors for sponsorship and brand collaborations</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {business.topInfluencers.length > 0 ? (
-                    <div className="space-y-3">
-                      {business.topInfluencers.slice(0, 5).map((person, index) => (
-                        <div key={person.username + index} className="rounded-lg border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-medium">{person.name || person.username}</p>
-                              <p className="text-xs text-muted-foreground">@{person.username}</p>
-                            </div>
-                            <Badge variant={person.sponsorshipReadiness === "ready" ? "default" : "secondary"}>
-                              {person.sponsorshipReadiness}
-                            </Badge>
-                          </div>
-                          <div className="mt-3 flex items-center justify-between text-sm">
-                            <span>{person.referralsCreated} referrals</span>
-                            <span>{person.influenceScore}/100 influence</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-8">No partnership opportunities yet.</p>
-                  )}
-                </CardContent>
-              </Card>
-
+            <section>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Lightbulb className="h-5 w-5" />
                     Recommended Next Moves
                   </CardTitle>
-                  <CardDescription>Prioritized actions in simple language</CardDescription>
+                  <CardDescription>Objective recommendations with direct supporting data</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {business.opportunities.length > 0 ? (
@@ -865,7 +953,29 @@ export default function AdminAnalyticsPage() {
                               {opportunity.confidence}% confidence
                             </Badge>
                           </div>
+
                           <p className="mt-2 text-sm text-muted-foreground">{opportunity.description}</p>
+
+                          {opportunity.evidence && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Evidence: {opportunity.evidence}
+                            </p>
+                          )}
+
+                          {opportunity.relatedPaths && opportunity.relatedPaths.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {opportunity.relatedPaths.map((path) => (
+                                <Button
+                                  key={path}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => router.push(path)}
+                                >
+                                  Open {path}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -880,12 +990,12 @@ export default function AdminAnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Fan Segments Overview</CardTitle>
-                  <CardDescription>Clear breakdown for loyalty and reward planning</CardDescription>
+                  <CardDescription>Only segments with real member activity are shown</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {business.userSegments.length > 0 ? (
+                  {nonEmptySegments.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {business.userSegments.map((segment) => (
+                      {nonEmptySegments.map((segment) => (
                         <div key={segment.tier} className="rounded-lg border p-4 bg-muted/30">
                           <div className="mb-2 flex items-center justify-between">
                             <p className="font-semibold capitalize">{segment.tier}</p>
@@ -900,11 +1010,40 @@ export default function AdminAnalyticsPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">No fan segmentation data yet.</p>
+                    <p className="text-center text-muted-foreground py-8">Not enough repeat behavior yet to form reliable fan segments.</p>
                   )}
                 </CardContent>
               </Card>
             </section>
+
+            {isExternalShareMode && (
+              <section>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Growth Signals For Partners</CardTitle>
+                    <CardDescription>Anonymized indicators focused on traction and market interest</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="rounded-lg border p-3 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">Top referral conversions</p>
+                        <p className="text-2xl font-semibold mt-1">
+                          {summary.topReferrers.reduce((sum, row) => sum + row.conversions, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">Active content pages</p>
+                        <p className="text-2xl font-semibold mt-1">{summary.topPaths.length.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">Tracked interaction targets</p>
+                        <p className="text-2xl font-semibold mt-1">{summary.topTargets.length.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
           </>
         ) : null}
       </div>

@@ -41,7 +41,6 @@ import { useUploads } from "@/hooks/useUploads"
 import { useEvents } from "@/hooks/useEvents"
 import { useBookings } from "@/hooks/useBookings"
 import { QueryClient } from "@tanstack/react-query"
-import { AdminPerformancePanel } from "@/components/admin-performance-panel"
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -618,25 +617,22 @@ export default function ProfilePage() {
 
           {isAdmin && (
             <TabsContent value="admin">
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => router.push("/articles/migrate")}
-                  >
-                    Migrate Legacy Blogs
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => router.push("/admin/analytics")}
-                  >
-                    <BarChart3 className="mr-2 h-4 w-4" />
-                    View Analytics & Business Dashboard
-                  </Button>
-                </div>
-                <AdminPerformancePanel />
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => router.push("/articles/migrate")}
+                >
+                  Migrate Legacy Blogs
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => router.push("/admin/analytics")}
+                >
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  View Analytics & Business Dashboard
+                </Button>
               </div>
             </TabsContent>
           )}
