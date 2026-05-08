@@ -1,13 +1,15 @@
 "use client"
 
-import { ReactNode } from "react"
+import { ReactNode, Suspense } from "react"
 import { ScrollToTop } from "@/components/scroll-to-top"
 import { GlobalVisitTracker } from "@/components/global-visit-tracker"
 
 export function LayoutClient({ children }: { children: ReactNode }) {
   return (
     <>
-      <GlobalVisitTracker />
+      <Suspense fallback={null}>
+        <GlobalVisitTracker />
+      </Suspense>
       <ScrollToTop />
       {children}
     </>
