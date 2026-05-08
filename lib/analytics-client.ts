@@ -3,6 +3,7 @@
 const VISITOR_KEY_STORAGE = "iwt_visitor_key"
 const ANALYTICS_COUNTERS_STORAGE = "iwt_analytics_counters"
 const CLICK_COOLDOWN_PREFIX = "iwt_click_cd_"
+const REFERRER_SESSION_KEY = "iwt_referrer_user_id"
 
 const MAX_EVENTS_PER_SESSION = 80
 const MAX_PAGE_VISITS_PER_SESSION = 40
@@ -68,6 +69,18 @@ function getReferrerUserIdFromUrl(): string | undefined {
   } catch {
     return
   }
+}
+
+function getPersistedReferrerUserId(): string | undefined {
+  if (typeof window === "undefined") return
+
+  const fromUrl = getReferrerUserIdFromUrl()
+  if (fromUrl) {
+    window.sessionStorage.setItem(REFERRER_SESSION_KEY, fromUrl)
+    return fromUrl
+  }
+
+  return window.sessionStorage.getItem(REFERRER_SESSION_KEY) || undefined
 }
 
 function allowEvent(payload: TrackPayload): boolean {
@@ -153,7 +166,7 @@ export function trackAnalyticsEvent(payload: TrackPayload): void {
     referrer: document.referrer || "",
     userAgent: navigator.userAgent || "",
     sessionUserId: normalizedPayload.sessionUserId,
-    referrerUserId: normalizedPayload.referrerUserId,
+    referrerUserId: normalizedPayload.referrerUserId || getPersistedReferrerUserId(),
   })
 
   if (navigator.sendBeacon) {

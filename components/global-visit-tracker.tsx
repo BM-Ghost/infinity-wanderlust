@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth-provider"
 import { trackAnalyticsEvent } from "@/lib/analytics-client"
 
 const VISIT_DEDUPE_TTL_MS = 15 * 60 * 1000
+const REFERRER_SESSION_KEY = "iwt_referrer_user_id"
 
 export function GlobalVisitTracker() {
   const pathname = usePathname()
@@ -16,7 +17,19 @@ export function GlobalVisitTracker() {
   useEffect(() => {
     if (!pathname) return
 
-    const query = searchParams?.toString() || ""
+    const queryParams = new URLSearchParams(searchParams?.toString() || "")
+    const referrerFromUrl = queryParams.get("ref") || undefined
+
+    if (referrerFromUrl) {
+      window.sessionStorage.setItem(REFERRER_SESSION_KEY, referrerFromUrl)
+      queryParams.delete("ref")
+
+      const cleanedQuery = queryParams.toString()
+      const cleanedPath = `${pathname}${cleanedQuery ? `?${cleanedQuery}` : ""}${window.location.hash || ""}`
+      window.history.replaceState(window.history.state, "", cleanedPath)
+    }
+
+    const query = queryParams.toString()
     const path = query ? `${pathname}?${query}` : pathname
     if (lastTrackedRef.current === path) return
     lastTrackedRef.current = path
@@ -28,8 +41,7 @@ export function GlobalVisitTracker() {
 
     window.sessionStorage.setItem(key, String(now))
 
-    // Get referrer user ID from URL (e.g., ?ref=userId)
-    const referrerUserId = searchParams?.get("ref") || undefined
+    const referrerUserId = referrerFromUrl || window.sessionStorage.getItem(REFERRER_SESSION_KEY) || undefined
 
     trackAnalyticsEvent({
       eventType: "page_visit",
