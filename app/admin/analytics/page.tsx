@@ -1,17 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -19,24 +18,34 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  Area,
-  AreaChart,
+  LineChart,
+  Line,
 } from "recharts"
 import {
-  Users,
-  TrendingUp,
-  Share2,
-  MouseClick,
-  Eye,
-  UserCheck,
-  Zap,
-  Target,
   ArrowLeft,
+  Eye,
+  Users,
+  Pointer,
+  Share2,
+  Download,
+  Printer,
+  Link2,
+  Sparkles,
+  Trophy,
+  Target,
+  TrendingUp,
+  Heart,
+  Megaphone,
+  Lightbulb,
+  Crown,
 } from "lucide-react"
+import { getPocketBase } from "@/lib/pocketbase"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
+const COLORS = ["#0ea5e9", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6", "#22c55e"]
+
+type Timeframe = "1d" | "7d" | "30d" | "90d"
 
 interface AnalyticsSummary {
   visits: number
@@ -60,15 +69,87 @@ interface AnalyticsResponse {
   generatedAt: string
 }
 
-const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"]
+interface BusinessMetricsResponse {
+  topInfluencers: Array<{
+    username: string
+    name?: string
+    influenceScore: number
+    referralsCreated: number
+    sponsorshipReadiness: string
+    recommendedCompensation: string
+  }>
+  topContent: Array<{
+    path: string
+    viralityScore: number
+    engagementRate: number
+    monetizationPotential: string
+  }>
+  userSegments: Array<{
+    tier: string
+    count: number
+    avgEngagementRate: number
+    avgLifetimeValue: number
+    characteristics?: string[]
+    recommendedAction?: string
+  }>
+  opportunities: Array<{
+    type: string
+    title: string
+    description: string
+    confidence: number
+  }>
+  generatedAt?: string
+}
+
+function formatPeriod(period: Timeframe): string {
+  if (period === "1d") return "Today"
+  if (period === "7d") return "Last 7 Days"
+  if (period === "30d") return "Last 30 Days"
+  return "Last 90 Days"
+}
+
+function toneForPotential(potential: string): "default" | "secondary" | "outline" {
+  if (potential === "high") return "default"
+  if (potential === "medium") return "secondary"
+  return "outline"
+}
+
+function toneForConfidence(score: number): "default" | "secondary" | "outline" {
+  if (score >= 85) return "default"
+  if (score >= 65) return "secondary"
+  return "outline"
+}
 
 export default function AdminAnalyticsPage() {
   const router = useRouter()
   const { user, isLoading: isAuthLoading } = useAuth()
-  const [timeframe, setTimeframe] = useState<"1d" | "7d" | "30d" | "90d">("7d")
+  const [timeframe, setTimeframe] = useState<Timeframe>("7d")
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
+  const [business, setBusiness] = useState<BusinessMetricsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isBoardroomMode, setIsBoardroomMode] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const timeframeParam = url.searchParams.get("timeframe")
+    const modeParam = url.searchParams.get("mode")
+
+    if (timeframeParam === "1d" || timeframeParam === "7d" || timeframeParam === "30d" || timeframeParam === "90d") {
+      setTimeframe(timeframeParam)
+    }
+
+    if (modeParam === "boardroom") {
+      setIsBoardroomMode(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!actionFeedback) return
+    const timeout = window.setTimeout(() => setActionFeedback(null), 3500)
+    return () => window.clearTimeout(timeout)
+  }, [actionFeedback])
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
 
@@ -79,23 +160,255 @@ export default function AdminAnalyticsPage() {
   }, [isAuthLoading, isAdmin, router])
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const fetchAllData = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("/api/analytics/summary")
-        if (!response.ok) throw new Error("Failed to fetch analytics")
-        const data = (await response.json()) as AnalyticsResponse
-        setAnalytics(data)
         setError(null)
+
+        const pb = getPocketBase()
+        const token = pb?.authStore?.token
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+
+        const [summaryResponse, businessResponse] = await Promise.all([
+          fetch("/api/analytics/summary", { headers }),
+          fetch("/api/analytics/business-intelligence", { headers }),
+        ])
+
+        if (!summaryResponse.ok) {
+          const summaryError = await summaryResponse.json().catch(() => ({}))
+          throw new Error(summaryError?.error || "Unable to load performance summary")
+        }
+
+        if (!businessResponse.ok) {
+          const businessError = await businessResponse.json().catch(() => ({}))
+          throw new Error(businessError?.error || "Unable to load growth recommendations")
+        }
+
+        const summaryData = (await summaryResponse.json()) as AnalyticsResponse
+        const businessData = (await businessResponse.json()) as BusinessMetricsResponse
+
+        setAnalytics(summaryData)
+        setBusiness(businessData)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load analytics")
+        setError(err instanceof Error ? err.message : "Could not load dashboard")
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchAnalytics()
-  }, [])
+    if (isAdmin) {
+      fetchAllData()
+    }
+  }, [isAdmin])
+
+  const summaryKey = `summary${timeframe}` as keyof AnalyticsResponse
+  const summary = analytics?.[summaryKey] as AnalyticsSummary | undefined
+
+  const patternData = useMemo(() => {
+    if (!analytics) return []
+
+    return [
+      { period: "Today", visits: analytics.summary1d.visits, actions: analytics.summary1d.engagementClicks },
+      { period: "7 Days", visits: analytics.summary7d.visits, actions: analytics.summary7d.engagementClicks },
+      { period: "30 Days", visits: analytics.summary30d.visits, actions: analytics.summary30d.engagementClicks },
+      { period: "90 Days", visits: analytics.summary90d.visits, actions: analytics.summary90d.engagementClicks },
+    ]
+  }, [analytics])
+
+  const storyHighlights = useMemo(() => {
+    if (!summary) {
+      return {
+        audienceStory: "Audience summary will appear once data is available.",
+        engagementStory: "Engagement summary will appear once data is available.",
+        sharingStory: "Sharing summary will appear once data is available.",
+      }
+    }
+
+    const audienceStory = `${summary.uniqueVisitors.toLocaleString()} people visited in ${formatPeriod(timeframe).toLowerCase()}, creating ${summary.visits.toLocaleString()} total visits.`
+
+    const engagementStory =
+      summary.engagementRate >= 45
+        ? "Excellent interaction level: people are not just visiting, they are taking action."
+        : summary.engagementRate >= 20
+          ? "Healthy momentum: your audience is active, and there is room to scale engagement."
+          : "Interest is present, but actions are still light. Stronger calls-to-action can help."
+
+    const sharingStory =
+      summary.shareLandingVisits > 0
+        ? `${summary.shareLandingVisits.toLocaleString()} visits came from shared links, showing meaningful community-driven discovery.`
+        : "Shared-link discovery is still low. This is a high-opportunity area for growth."
+
+    return { audienceStory, engagementStory, sharingStory }
+  }, [summary, timeframe])
+
+  const executiveMetrics = useMemo(() => {
+    if (!summary) {
+      return {
+        actionRate: 0,
+        shareContribution: 0,
+      }
+    }
+
+    return {
+      actionRate: summary.visits > 0 ? (summary.engagementClicks / summary.visits) * 100 : 0,
+      shareContribution: summary.visits > 0 ? (summary.shareLandingVisits / summary.visits) * 100 : 0,
+    }
+  }, [summary])
+
+  const reportPayload = useMemo(() => {
+    if (!analytics || !business || !summary) return null
+
+    return {
+      reportName: "Infinity Wanderlust Growth Studio",
+      period: formatPeriod(timeframe),
+      generatedAt: analytics.generatedAt || business.generatedAt || new Date().toISOString(),
+      snapshot: {
+        visits: summary.visits,
+        uniqueVisitors: summary.uniqueVisitors,
+        engagementClicks: summary.engagementClicks,
+        engagementRate: executiveMetrics.actionRate,
+        shareLandingVisits: summary.shareLandingVisits,
+        shareContributionRate: executiveMetrics.shareContribution,
+      },
+      analytics,
+      business,
+      storyHighlights,
+    }
+  }, [analytics, business, summary, timeframe, executiveMetrics, storyHighlights])
+
+  function downloadBlob(filename: string, content: string, contentType: string) {
+    const blob = new Blob([content], { type: contentType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = filename
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function buildReportUrl() {
+    const url = new URL(window.location.href)
+    url.searchParams.set("timeframe", timeframe)
+    if (isBoardroomMode) {
+      url.searchParams.set("mode", "boardroom")
+    } else {
+      url.searchParams.delete("mode")
+    }
+    return url.toString()
+  }
+
+  async function handleShareReport() {
+    if (!reportPayload) return
+
+    const shareUrl = buildReportUrl()
+    const shareText = `Infinity Wanderlust report for ${formatPeriod(timeframe)}: ${summary?.visits.toLocaleString() || 0} visits, ${summary?.uniqueVisitors.toLocaleString() || 0} people reached.`
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Infinity Wanderlust Growth Report",
+          text: shareText,
+          url: shareUrl,
+        })
+        setActionFeedback("Report shared successfully.")
+        return
+      }
+
+      await navigator.clipboard.writeText(shareUrl)
+      setActionFeedback("Share link copied to clipboard.")
+    } catch {
+      setActionFeedback("Sharing was cancelled or unavailable.")
+    }
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(buildReportUrl())
+      setActionFeedback("Report link copied.")
+    } catch {
+      setActionFeedback("Could not copy the report link.")
+    }
+  }
+
+  function handleDownloadJson() {
+    if (!reportPayload) return
+    const dateLabel = new Date().toISOString().slice(0, 10)
+    downloadBlob(
+      `infinity-wanderlust-report-${timeframe}-${dateLabel}.json`,
+      JSON.stringify(reportPayload, null, 2),
+      "application/json"
+    )
+    setActionFeedback("JSON report downloaded.")
+  }
+
+  function handleDownloadHtml() {
+    if (!reportPayload) return
+
+    const dateLabel = new Date().toISOString().slice(0, 10)
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Infinity Wanderlust Growth Report</title>
+    <style>
+      body { font-family: Segoe UI, Arial, sans-serif; margin: 32px; color: #0f172a; }
+      h1 { margin-bottom: 6px; }
+      .meta { color: #475569; margin-bottom: 20px; }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+      .card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; }
+      .k { color: #64748b; font-size: 12px; }
+      .v { font-size: 22px; font-weight: 700; margin-top: 6px; }
+      .section { margin-top: 22px; }
+      ul { margin-top: 8px; }
+      li { margin: 6px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Infinity Wanderlust Growth Report</h1>
+    <div class="meta">Period: ${reportPayload.period} | Generated: ${new Date(reportPayload.generatedAt).toLocaleString()}</div>
+
+    <div class="grid">
+      <div class="card"><div class="k">Total Visits</div><div class="v">${reportPayload.snapshot.visits.toLocaleString()}</div></div>
+      <div class="card"><div class="k">People Reached</div><div class="v">${reportPayload.snapshot.uniqueVisitors.toLocaleString()}</div></div>
+      <div class="card"><div class="k">Actions Taken</div><div class="v">${reportPayload.snapshot.engagementClicks.toLocaleString()}</div></div>
+      <div class="card"><div class="k">Shared-Link Visits</div><div class="v">${reportPayload.snapshot.shareLandingVisits.toLocaleString()}</div></div>
+    </div>
+
+    <div class="section">
+      <h2>Top Highlights</h2>
+      <ul>
+        <li>${reportPayload.storyHighlights.audienceStory}</li>
+        <li>${reportPayload.storyHighlights.engagementStory}</li>
+        <li>${reportPayload.storyHighlights.sharingStory}</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Top Referrers</h2>
+      <ul>
+        ${summary?.topReferrers.slice(0, 5).map((r) => `<li>${r.key}: ${r.count} visits, ${r.conversions} actions</li>`).join("") || "<li>No data</li>"}
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Recommended Next Moves</h2>
+      <ul>
+        ${business?.opportunities.slice(0, 5).map((o) => `<li>${o.title}: ${o.description}</li>`).join("") || "<li>No data</li>"}
+      </ul>
+    </div>
+  </body>
+</html>`
+
+    downloadBlob(`infinity-wanderlust-report-${timeframe}-${dateLabel}.html`, html, "text/html")
+    setActionFeedback("Presentation report downloaded.")
+  }
+
+  function handlePrintReport() {
+    setIsBoardroomMode(true)
+    setActionFeedback("Print dialog opened. Choose Save as PDF to download.")
+    window.print()
+  }
 
   if (isAuthLoading || !isAdmin) {
     return (
@@ -105,54 +418,82 @@ export default function AdminAnalyticsPage() {
     )
   }
 
-  const summaryKey = `summary${timeframe}` as keyof AnalyticsResponse
-  const summary = analytics?.[summaryKey] as AnalyticsSummary | undefined
-
-  const StatCard = ({ icon: Icon, label, value, subtext }: { icon: React.ReactNode; label: string; value: string | number; subtext?: string }) => (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="text-3xl font-bold mt-2">{value.toLocaleString()}</p>
-            {subtext && <p className="text-xs text-muted-foreground mt-1">{subtext}</p>}
-          </div>
-          <div className="text-primary/60">{Icon}</div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-background/80">
-      <div className="container py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/profile")}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.12),transparent_42%),radial-gradient(circle_at_100%_0%,rgba(20,184,166,0.12),transparent_40%),linear-gradient(to_bottom,rgba(15,23,42,0.03),transparent_30%)] print:bg-white">
+      <div className="container py-8 space-y-8">
+        <section className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 md:p-8 shadow-sm">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4 max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium tracking-wide text-muted-foreground print:hidden">
+                <Sparkles className="h-3.5 w-3.5" />
+                Executive View
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="print:hidden" onClick={() => router.push("/profile")}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Infinity Wanderlust Growth Studio</h1>
+              </div>
+
+              <p className="text-muted-foreground text-base md:text-lg">
+                A single presentation page for performance, visit patterns, referrals, business opportunities, and next best actions.
+              </p>
+
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <Badge variant="secondary">Audience</Badge>
+                <Badge variant="secondary">Engagement</Badge>
+                <Badge variant="secondary">Referrals</Badge>
+                <Badge variant="secondary">Business Intelligence</Badge>
+              </div>
             </div>
-            <p className="text-muted-foreground mt-2">Performance insights and user behavior metrics</p>
+
+            <div className="rounded-xl border bg-background p-4 min-w-[260px]">
+              <p className="text-xs text-muted-foreground">Reporting Window</p>
+              <p className="text-lg font-semibold mt-1">{formatPeriod(timeframe)}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Updated {new Date(analytics?.generatedAt || business?.generatedAt || Date.now()).toLocaleString()}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+                <Button size="sm" variant={isBoardroomMode ? "default" : "outline"} onClick={() => setIsBoardroomMode((v) => !v)}>
+                  Boardroom Mode
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleShareReport}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCopyLink}>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Copy Link
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDownloadHtml}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Report
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDownloadJson}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Data
+                </Button>
+                <Button size="sm" variant="outline" onClick={handlePrintReport}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print / PDF
+                </Button>
+              </div>
+              {actionFeedback && <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-300">{actionFeedback}</p>}
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            Last updated: {new Date(analytics?.generatedAt || Date.now()).toLocaleTimeString()}
-          </div>
-        </div>
+        </section>
 
         {error && (
-          <Card className="mb-6 border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
+          <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
             <CardContent className="pt-6">
               <p className="text-red-700 dark:text-red-300">{error}</p>
             </CardContent>
           </Card>
         )}
 
-        {/* Timeframe Selector */}
-        <div className="mb-6">
-          <Tabs value={timeframe} onValueChange={(v) => setTimeframe(v as any)}>
+        <section className="rounded-xl border bg-card/80 p-4 print:hidden">
+          <Tabs value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
             <TabsList>
               <TabsTrigger value="1d">Today</TabsTrigger>
               <TabsTrigger value="7d">7 Days</TabsTrigger>
@@ -160,74 +501,162 @@ export default function AdminAnalyticsPage() {
               <TabsTrigger value="90d">90 Days</TabsTrigger>
             </TabsList>
           </Tabs>
-        </div>
+        </section>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-32" />
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[...Array(12)].map((_, idx) => (
+              <Skeleton key={idx} className="h-32" />
             ))}
           </div>
-        ) : summary ? (
+        ) : summary && business ? (
           <>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <StatCard
-                icon={<Eye className="h-6 w-6" />}
-                label="Total Visits"
-                value={summary.visits}
-                subtext={`${summary.uniqueVisitors} unique visitors`}
-              />
-              <StatCard
-                icon={<MouseClick className="h-6 w-6" />}
-                label="Engagement Clicks"
-                value={summary.engagementClicks}
-                subtext={`${summary.engagementRate}% engagement rate`}
-              />
-              <StatCard
-                icon={<Share2 className="h-6 w-6" />}
-                label="Share Landing Visits"
-                value={summary.shareLandingVisits}
-                subtext={`From shared links`}
-              />
-              <StatCard
-                icon={<Zap className="h-6 w-6" />}
-                label="Conversion Rate"
-                value={`${summary.visits > 0 ? ((summary.engagementClicks / summary.visits) * 100).toFixed(1) : 0}%`}
-                subtext={`Clicks per visit`}
-              />
-            </div>
+            {isBoardroomMode && (
+              <section className="rounded-xl border bg-gradient-to-r from-sky-50 via-white to-teal-50 dark:from-sky-950/20 dark:via-background dark:to-teal-950/20 p-5">
+                <h2 className="text-xl font-semibold mb-3">Boardroom Key Takeaways</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Performance</p>
+                    <p className="text-muted-foreground mt-1">{summary.visits.toLocaleString()} visits from {summary.uniqueVisitors.toLocaleString()} people.</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Engagement</p>
+                    <p className="text-muted-foreground mt-1">{summary.engagementClicks.toLocaleString()} actions with a {executiveMetrics.actionRate.toFixed(1)}% action rate.</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="font-medium">Referral Impact</p>
+                    <p className="text-muted-foreground mt-1">{summary.shareLandingVisits.toLocaleString()} visits came from shared links.</p>
+                  </div>
+                </div>
+              </section>
+            )}
 
-            {/* Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Top Pages */}
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-background">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Visits</p>
+                      <p className="mt-2 text-3xl font-bold">{summary.visits.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Traffic volume</p>
+                    </div>
+                    <Eye className="h-6 w-6 text-sky-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-teal-50 to-white dark:from-teal-950/30 dark:to-background">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">People Reached</p>
+                      <p className="mt-2 text-3xl font-bold">{summary.uniqueVisitors.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Unique audience</p>
+                    </div>
+                    <Users className="h-6 w-6 text-teal-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Actions Taken</p>
+                      <p className="mt-2 text-3xl font-bold">{summary.engagementClicks.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{executiveMetrics.actionRate.toFixed(1)}% action rate</p>
+                    </div>
+                    <Pointer className="h-6 w-6 text-amber-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-background">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Shared-Link Visits</p>
+                      <p className="mt-2 text-3xl font-bold">{summary.shareLandingVisits.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{executiveMetrics.shareContribution.toFixed(1)}% of visits</p>
+                    </div>
+                    <Share2 className="h-6 w-6 text-violet-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="h-5 w-5" />
+                    Visit Pattern Story
+                  </CardTitle>
+                  <CardDescription>Short-term and long-term momentum in one view.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={290}>
+                    <LineChart data={patternData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="visits" name="Visits" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="actions" name="Actions" stroke="#14b8a6" strokeWidth={3} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Top Pages</CardTitle>
-                  <CardDescription>Most visited pages</CardDescription>
+                  <CardTitle className="text-lg">Executive Summary</CardTitle>
+                  <CardDescription>Simple and self-explanatory insights</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-950/40">
+                    <p className="font-semibold text-sky-900 dark:text-sky-300">Audience</p>
+                    <p className="text-sky-800 dark:text-sky-300 mt-1">{storyHighlights.audienceStory}</p>
+                  </div>
+                  <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/40">
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-300">Engagement</p>
+                    <p className="text-emerald-800 dark:text-emerald-300 mt-1">{storyHighlights.engagementStory}</p>
+                  </div>
+                  <div className="rounded-lg bg-violet-50 p-3 dark:bg-violet-950/40">
+                    <p className="font-semibold text-violet-900 dark:text-violet-300">Sharing</p>
+                    <p className="text-violet-800 dark:text-violet-300 mt-1">{storyHighlights.sharingStory}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Most Visited Pages</CardTitle>
+                  <CardDescription>Where people spend the most time</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {summary.topPaths.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={summary.topPaths}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="key" angle={-45} textAnchor="end" height={100} fontSize={12} />
+                        <XAxis dataKey="key" angle={-35} textAnchor="end" height={82} fontSize={12} />
                         <YAxis />
                         <Tooltip />
-                        <Bar dataKey="count" fill="#3b82f6" />
+                        <Bar dataKey="count" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">No data available</p>
+                    <p className="text-center text-muted-foreground py-8">No page data for this window yet.</p>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Traffic Sources */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Traffic Sources</CardTitle>
-                  <CardDescription>Where visitors come from</CardDescription>
+                  <CardTitle>How Visitors Arrived</CardTitle>
+                  <CardDescription>Source mix for discovery and reach</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {summary.topSources.length > 0 ? (
@@ -237,160 +666,245 @@ export default function AdminAnalyticsPage() {
                           data={summary.topSources}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          label={({ key, count }) => `${key} (${count})`}
-                          outerRadius={80}
-                          fill="#8884d8"
+                          outerRadius={95}
                           dataKey="count"
+                          label={({ key, percent }) => `${key} ${(percent * 100).toFixed(0)}%`}
                         >
                           {summary.topSources.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            <Cell key={`source-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">No data available</p>
+                    <p className="text-center text-muted-foreground py-8">No source distribution yet.</p>
                   )}
                 </CardContent>
               </Card>
+            </section>
 
-              {/* Top Referrers */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCheck className="h-5 w-5" />
-                    Top Referrers
-                  </CardTitle>
-                  <CardDescription>Users who shared links and drove engagement</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {summary.topReferrers && summary.topReferrers.length > 0 ? (
-                    <div className="space-y-3">
-                      {summary.topReferrers.map((referrer, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/20 text-primary font-semibold text-sm">
-                              {idx + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{referrer.key}</p>
-                              <p className="text-xs text-muted-foreground">{referrer.count} shares</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-sm">{referrer.conversions}</p>
-                            <p className="text-xs text-muted-foreground">clicks</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-8">No referral data yet</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Top Engaged Users */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Most Engaged Users
-                  </CardTitle>
-                  <CardDescription>Users with highest interaction rate</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {summary.topEngagedUsers && summary.topEngagedUsers.length > 0 ? (
-                    <div className="space-y-3">
-                      {summary.topEngagedUsers.map((user, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-500/20 text-green-600 dark:text-green-400 font-semibold text-sm">
-                              {idx + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{user.key}</p>
-                              <p className="text-xs text-muted-foreground">{user.visits} visits</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-sm">{user.engagementRate}%</p>
-                            <p className="text-xs text-muted-foreground">{user.clicks} clicks</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-8">No engagement data yet</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Engagement Targets */}
-              <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5" />
-                    Top Engagement Targets
+                    Action Hotspots
                   </CardTitle>
-                  <CardDescription>Most clicked content and sections</CardDescription>
+                  <CardDescription>What people click most after arriving</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {summary.topTargets && summary.topTargets.length > 0 ? (
+                  {summary.topTargets.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={summary.topTargets} layout="vertical">
+                      <BarChart data={summary.topTargets} layout="vertical" margin={{ left: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis type="number" />
-                        <YAxis dataKey="key" type="category" width={120} fontSize={12} />
+                        <YAxis dataKey="key" type="category" width={140} fontSize={12} />
                         <Tooltip />
-                        <Bar dataKey="count" fill="#10b981" />
+                        <Bar dataKey="count" fill="#f59e0b" radius={[0, 6, 6, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">No engagement target data yet</p>
+                    <p className="text-center text-muted-foreground py-8">No hotspot data yet.</p>
                   )}
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Insights Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Insights</CardTitle>
-                <CardDescription>Data-driven observations about user behavior</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">👥 Audience Size</p>
-                    <p className="text-xs text-blue-800 dark:text-blue-400">
-                      You have {summary.uniqueVisitors} unique visitor
-                      {summary.uniqueVisitors !== 1 ? "s" : ""} with {summary.visits} total visits in this period.
-                    </p>
-                  </div>
-                  <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                    <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">✨ Engagement Health</p>
-                    <p className="text-xs text-green-800 dark:text-green-400">
-                      {summary.engagementRate > 50
-                        ? "Excellent engagement! Users are highly interactive with your content."
-                        : summary.engagementRate > 20
-                          ? "Good engagement. Consider promoting more interactive content."
-                          : "Engagement is low. Focus on creating compelling calls-to-action."}
-                    </p>
-                  </div>
-                  <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                    <p className="text-sm font-semibold text-purple-900 dark:text-purple-300 mb-2">📢 Social Reach</p>
-                    <p className="text-xs text-purple-800 dark:text-purple-400">
-                      {summary.shareLandingVisits > 0
-                        ? `${summary.shareLandingVisits} visits came from shared links. Encourage more sharing!`
-                        : "No shared link visits yet. Encourage users to share interesting content."}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    Content With Business Potential
+                  </CardTitle>
+                  <CardDescription>Top pages ranked by momentum and value potential</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {business.topContent.length > 0 ? (
+                    <div className="space-y-3">
+                      {business.topContent.slice(0, 5).map((item, index) => (
+                        <div key={item.path + index} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-medium text-sm truncate">{item.path}</p>
+                            <Badge variant={toneForPotential(item.monetizationPotential)}>{item.monetizationPotential}</Badge>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 text-xs text-muted-foreground">
+                            <span>Virality: {item.viralityScore.toFixed(0)}/100</span>
+                            <span>Engagement: {item.engagementRate.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No content insights yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Megaphone className="h-5 w-5" />
+                    Referral Champions
+                  </CardTitle>
+                  <CardDescription>Users who bring visitors and drive action</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {summary.topReferrers.length > 0 ? (
+                    <div className="space-y-3">
+                      {summary.topReferrers.slice(0, 6).map((referrer, index) => (
+                        <div key={referrer.userId + index} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{referrer.key}</p>
+                              <p className="text-xs text-muted-foreground">{referrer.count} referral visits</p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary">{referrer.conversions} actions</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No referral champions yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Heart className="h-5 w-5" />
+                    Most Active Community Members
+                  </CardTitle>
+                  <CardDescription>Users with strongest activity and interaction behavior</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {summary.topEngagedUsers.length > 0 ? (
+                    <div className="space-y-3">
+                      {summary.topEngagedUsers.slice(0, 6).map((member, index) => (
+                        <div key={member.userId + index} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center text-sm font-semibold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{member.key}</p>
+                              <p className="text-xs text-muted-foreground">{member.visits} visits</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline">{member.engagementRate}% activity rate</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No activity leaders yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5" />
+                    Partnership-Ready Supporters
+                  </CardTitle>
+                  <CardDescription>Top ambassadors for sponsorship and brand collaborations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {business.topInfluencers.length > 0 ? (
+                    <div className="space-y-3">
+                      {business.topInfluencers.slice(0, 5).map((person, index) => (
+                        <div key={person.username + index} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{person.name || person.username}</p>
+                              <p className="text-xs text-muted-foreground">@{person.username}</p>
+                            </div>
+                            <Badge variant={person.sponsorshipReadiness === "ready" ? "default" : "secondary"}>
+                              {person.sponsorshipReadiness}
+                            </Badge>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between text-sm">
+                            <span>{person.referralsCreated} referrals</span>
+                            <span>{person.influenceScore}/100 influence</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No partnership opportunities yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5" />
+                    Recommended Next Moves
+                  </CardTitle>
+                  <CardDescription>Prioritized actions in simple language</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {business.opportunities.length > 0 ? (
+                    <div className="space-y-3">
+                      {business.opportunities.slice(0, 5).map((opportunity, index) => (
+                        <div key={opportunity.title + index} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{opportunity.title}</p>
+                              <p className="text-xs text-muted-foreground">{opportunity.type}</p>
+                            </div>
+                            <Badge variant={toneForConfidence(opportunity.confidence)}>
+                              {opportunity.confidence}% confidence
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">{opportunity.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No recommendations yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fan Segments Overview</CardTitle>
+                  <CardDescription>Clear breakdown for loyalty and reward planning</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {business.userSegments.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {business.userSegments.map((segment) => (
+                        <div key={segment.tier} className="rounded-lg border p-4 bg-muted/30">
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="font-semibold capitalize">{segment.tier}</p>
+                            <Badge variant={segment.tier === "vip" ? "default" : "secondary"}>{segment.count}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Avg engagement: {segment.avgEngagementRate.toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">Avg value score: {segment.avgLifetimeValue.toFixed(0)}/100</p>
+                          {segment.recommendedAction && (
+                            <p className="text-xs mt-2 text-foreground/80">{segment.recommendedAction}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No fan segmentation data yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
           </>
         ) : null}
       </div>

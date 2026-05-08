@@ -134,7 +134,6 @@ export default function ProfilePage() {
         return
       }
 
-      // Update the user being followed
       const currentFollowers = userToFollow.followers || []
       const updatedFollowers = [...new Set([...currentFollowers, currentUserId])]
       
@@ -634,7 +633,7 @@ export default function ProfilePage() {
                     onClick={() => router.push("/admin/analytics")}
                   >
                     <BarChart3 className="mr-2 h-4 w-4" />
-                    View Analytics Dashboard
+                    View Analytics & Business Dashboard
                   </Button>
                 </div>
                 <AdminPerformancePanel />
