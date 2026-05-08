@@ -21,7 +21,6 @@ import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@
 import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
 import { ImageCollage } from "@/components/image-collage"
-import { AdminPerformancePanel } from "@/components/admin-performance-panel"
 
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
 
@@ -230,17 +229,9 @@ export default function ArticlesPage() {
                 >
                   <FileClock className="mr-2 h-4 w-4" /> Drafts
                 </Button>
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  onClick={() => router.push("/articles/migrate")}
-                >
-                  Migrate Legacy Blogs
-                </Button>
               </div>
             )}
 
-            {isAdmin && <AdminPerformancePanel />}
           </div>
         </div>
       </section>

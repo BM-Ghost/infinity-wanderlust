@@ -29,6 +29,7 @@ import {
   Linkedin,
   Youtube,
   Github,
+  BarChart3,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { getPocketBase } from "@/lib/pocketbase"
@@ -40,9 +41,11 @@ import { useUploads } from "@/hooks/useUploads"
 import { useEvents } from "@/hooks/useEvents"
 import { useBookings } from "@/hooks/useBookings"
 import { QueryClient } from "@tanstack/react-query"
+import { AdminPerformancePanel } from "@/components/admin-performance-panel"
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  const isAdmin = user?.email?.toLowerCase() === "infinitywanderlusttravels@gmail.com"
   const router = useRouter()
   const { toast } = useToast()
 
@@ -437,6 +440,12 @@ export default function ProfilePage() {
                 <CalendarCheck className="h-4 w-4" />
                 <span className="hidden sm:inline">Events</span>
               </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="admin" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Admin</span>
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <div className="flex items-center gap-2">
@@ -607,6 +616,23 @@ export default function ProfilePage() {
             </div>
             )}
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="admin">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => router.push("/articles/migrate")}
+                  >
+                    Migrate Legacy Blogs
+                  </Button>
+                </div>
+                <AdminPerformancePanel />
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Upload Modal Preview */}
