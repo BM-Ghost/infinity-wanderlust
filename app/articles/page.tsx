@@ -18,8 +18,10 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { useArticles } from "@/hooks/useArticles"
 import { isBlogReview, ReviewWithAuthor, deleteReview, stripBlogMarker } from "@/lib/reviews"
+import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
 import { ImageCollage } from "@/components/image-collage"
+import { AdminPerformancePanel } from "@/components/admin-performance-panel"
 
 const ADMIN_DISPLAY_NAME = "Infinity Wanderlust Travels"
 
@@ -44,7 +46,7 @@ export default function ArticlesPage() {
     ? articles.filter(
         (a) =>
           a.destination?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          stripBlogMarker(a.review_text || "").toLowerCase().includes(searchQuery.toLowerCase())
+          extractPlainText(stripBlogMarker(a.review_text || "")).toLowerCase().includes(searchQuery.toLowerCase())
       )
     : articles
 
@@ -83,16 +85,9 @@ export default function ArticlesPage() {
     return rawName
   }
 
-  const truncateText = (text: string, maxLength = 120) => {
-    if (!text) return ""
-    const stripped = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
-    if (stripped.length <= maxLength) return stripped
-    return stripped.substring(0, maxLength) + "..."
-  }
-
   const estimateReadTime = (text: string) => {
     if (!text) return "1 min"
-    const words = text.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length
+    const words = extractPlainText(text).split(/\s+/).filter(Boolean).length
     const mins = Math.max(1, Math.round(words / 200))
     return `${mins} min read`
   }
@@ -244,6 +239,8 @@ export default function ArticlesPage() {
                 </Button>
               </div>
             )}
+
+            {isAdmin && <AdminPerformancePanel />}
           </div>
         </div>
       </section>
@@ -292,6 +289,7 @@ export default function ArticlesPage() {
                 const authorName = resolveAuthorName(article)
                 const initials = authorName.charAt(0).toUpperCase()
                 const displayContent = stripBlogMarker(article.review_text || "")
+                const plainContent = extractPlainText(displayContent)
                 const displayLikesCount = optimisticLikes[article.id] ?? (article.likes_count || 0)
 
                 return (
@@ -307,7 +305,7 @@ export default function ArticlesPage() {
                       {/* Reading time badge */}
                       <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 font-medium">
                         <Clock className="h-3 w-3" />
-                        {estimateReadTime(displayContent)}
+                        {estimateReadTime(plainContent)}
                       </span>
 
                       {/* Rating badge */}
@@ -351,10 +349,10 @@ export default function ArticlesPage() {
                         </h2>
 
                         <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mb-3">
-                          {truncateText(displayContent || "No content available")}
+                          {truncatePlainText(plainContent || "No content available")}
                         </p>
 
-                        {displayContent && displayContent.length > 120 && (
+                        {plainContent && plainContent.length > 120 && (
                           <Link
                             href={`/articles/${article.id}`}
                             className="text-primary text-sm font-semibold inline-flex items-center hover:underline"
@@ -393,7 +391,7 @@ export default function ArticlesPage() {
                             <ShareButton
                               url={typeof window !== "undefined" ? `${window.location.origin}/articles/${article.id}` : ""}
                               title={article.destination || "Travel Article"}
-                              description={truncateText(displayContent || "", 80)}
+                              description={truncatePlainText(plainContent || "", 80)}
                               className="h-8 w-8"
                             />
                           </div>

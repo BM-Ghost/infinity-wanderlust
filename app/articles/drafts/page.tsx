@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchReviews, isDraftReview, stripBlogMarker, markAsBlogContent, updateReview, deleteReview, type ReviewWithAuthor } from "@/lib/reviews"
+import { extractPlainText } from "@/lib/rich-text"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -43,7 +44,7 @@ export default function DraftArticlesPage() {
     if (!term) return drafts
     return drafts.filter((draft) => {
       const title = (draft.destination || "").toLowerCase()
-      const body = stripBlogMarker(draft.review_text || "").toLowerCase()
+      const body = extractPlainText(stripBlogMarker(draft.review_text || "")).toLowerCase()
       return title.includes(term) || body.includes(term)
     })
   }, [drafts, searchQuery])
@@ -59,7 +60,7 @@ export default function DraftArticlesPage() {
     })
   }
 
-  const estimateWords = (value: string) => value.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length
+  const estimateWords = (value: string) => extractPlainText(value).split(/\s+/).filter(Boolean).length
 
   const handlePublish = async (draft: ReviewWithAuthor) => {
     setPublishingId(draft.id)
@@ -194,7 +195,7 @@ export default function DraftArticlesPage() {
           ) : (
             <div className="space-y-3">
               {filteredDrafts.map((draft) => {
-                const body = stripBlogMarker(draft.review_text || "")
+                const body = extractPlainText(stripBlogMarker(draft.review_text || ""))
                 const wordCount = estimateWords(body)
                 return (
                   <div key={draft.id} className="rounded-lg border p-4">

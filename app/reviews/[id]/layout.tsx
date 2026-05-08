@@ -1,19 +1,11 @@
 import type { ReactNode } from "react"
 import type { Metadata } from "next"
+import { extractPlainText } from "@/lib/rich-text"
 
 export const runtime = "edge"
 
 const PB_URL = "https://remain-faceghost.pockethost.io"
 const SITE_URL = "https://infinity-wanderlust.com"
-
-/** Strip HTML tags, return plain text */
-function plainText(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
 
 export async function generateMetadata({
   params,
@@ -35,7 +27,7 @@ export async function generateMetadata({
     const reviewer = review.reviewer_name || review.reviewer || ""
     const title = reviewer ? `${destination} — reviewed by ${reviewer}` : destination
 
-    const descriptionRaw = plainText(review.review_text || review.description || "")
+    const descriptionRaw = extractPlainText(review.review_text || review.description || "")
     const description = descriptionRaw.slice(0, 200) + (descriptionRaw.length > 200 ? "…" : "")
     const pageUrl = `${SITE_URL}/reviews/${review.id}`
 

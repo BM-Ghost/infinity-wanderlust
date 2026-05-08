@@ -97,6 +97,7 @@ import { ImageCollage } from "@/components/image-collage"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
+import { extractPlainText } from "@/lib/rich-text"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -228,11 +229,11 @@ export default function ReviewsPage() {
   const hasUnsavedReviewChanges =
     rating > 0 ||
     destination.trim().length > 0 ||
-    reviewText.replace(/<[^>]*>/g, "").trim().length > 0 ||
+    extractPlainText(reviewText).length > 0 ||
     reviewImages.length > 0
 
   const handleSaveReviewDraft = useCallback(async (closeAfterSave = false) => {
-    const plainText = reviewText.replace(/<[^>]*>/g, "").trim()
+    const plainText = extractPlainText(reviewText)
     if (!destination.trim() && !plainText && !rating && reviewImages.length === 0) {
       toast({
         variant: "destructive",
@@ -541,7 +542,7 @@ export default function ReviewsPage() {
   // Handle review submission
   const handleSubmitReview = async () => {
     queryClient.invalidateQueries({ queryKey: ["all-reviews"] })
-    if (!rating || !destination || !reviewText.replace(/<[^>]*>/g, '').trim()) {
+    if (!rating || !destination || !extractPlainText(reviewText)) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -613,7 +614,7 @@ export default function ReviewsPage() {
 
   // Handle edit review submission
   const handleSubmitEditReview = async () => {
-    if (!editReviewId || !editRating || !editDestination || !editReviewText.replace(/<[^>]*>/g, '').trim()) {
+    if (!editReviewId || !editRating || !editDestination || !extractPlainText(editReviewText)) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -1647,7 +1648,7 @@ export default function ReviewsPage() {
                             ))}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                            {stripReviewDraftMarker(draft.review_text).replace(/<[^>]*>/g, "").trim() || "No text yet"}
+                            {extractPlainText(stripReviewDraftMarker(draft.review_text)) || "No text yet"}
                           </p>
                           <p className="text-xs text-muted-foreground/60 mt-1">
                             {new Date(draft.updated).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -1839,7 +1840,7 @@ export default function ReviewsPage() {
                   <Button
                     type="button"
                     onClick={handleSubmitEditReview}
-                    disabled={isEditSubmitting || !editRating || !editDestination || !editReviewText.replace(/<[^>]*>/g, '').trim()}
+                    disabled={isEditSubmitting || !editRating || !editDestination || !extractPlainText(editReviewText)}
                   >
                     {isEditSubmitting ? (
                       <>

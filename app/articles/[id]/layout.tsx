@@ -1,21 +1,12 @@
 import type { ReactNode } from "react"
 import type { Metadata } from "next"
+import { extractPlainText } from "@/lib/rich-text"
 
 export const runtime = "edge"
 
 const PB_URL = "https://remain-faceghost.pockethost.io"
 const SITE_URL = "https://infinity-wanderlust.com"
 const BLOG_MARKER = "<!--IWT_BLOG-->"
-
-/** Strip HTML tags and the blog marker, returning plain text */
-function plainText(html: string): string {
-  return html
-    .replace(BLOG_MARKER, "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
 
 export async function generateMetadata({
   params,
@@ -35,7 +26,7 @@ export async function generateMetadata({
     const article = await res.json()
 
     const title = (article.destination || "Travel Article").trim()
-    const descriptionRaw = plainText(article.review_text || article.description || "")
+    const descriptionRaw = extractPlainText((article.review_text || article.description || "").replace(BLOG_MARKER, ""))
     const description = descriptionRaw.slice(0, 200) + (descriptionRaw.length > 200 ? "…" : "")
     const pageUrl = `${SITE_URL}/articles/${article.id}`
 

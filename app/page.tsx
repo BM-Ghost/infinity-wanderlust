@@ -29,6 +29,7 @@ import { useArticles } from "@/hooks/useArticles"
 import { InstagramFeed } from "@/components/instagram-feed"
 import { AboutPreview } from "@/components/about-preview"
 import { stripBlogMarker } from "@/lib/reviews"
+import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -116,16 +117,13 @@ export default function HomePage() {
   const latestReviews = Array.isArray(reviews) ? reviews.slice(0, 3) : []
   const latestArticlePreview = latestArticle
     ? (() => {
-        const cleanText = stripBlogMarker(latestArticle.review_text || "")
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
+        const cleanText = extractPlainText(stripBlogMarker(latestArticle.review_text || ""))
 
         if (!cleanText) {
           return "Read the latest story from Infinity Wanderlust Travels."
         }
 
-        return cleanText.length > 250 ? `${cleanText.substring(0, 250)}...` : cleanText
+        return truncatePlainText(cleanText, 250)
       })()
     : ""
 

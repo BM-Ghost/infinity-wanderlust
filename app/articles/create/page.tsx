@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { markAsDraftBlogContent, createReview, updateReview, fetchReviewById, markAsBlogContent, stripBlogMarker, isDraftContent } from "@/lib/reviews"
+import { extractPlainText } from "@/lib/rich-text"
 
 const ADMIN_EMAIL = "infinitywanderlusttravels@gmail.com"
 
@@ -50,7 +51,7 @@ export default function CreateArticlePage() {
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
   const isEditMode = !!(editId || draftRecordId)
 
-  const plainTextContent = useMemo(() => content.replace(/<[^>]*>/g, "").trim(), [content])
+  const plainTextContent = useMemo(() => extractPlainText(content), [content])
   const hasUnsavedChanges = useMemo(() => {
     const normalizedTitle = title.trim()
     const normalizedContent = content.trim()
@@ -144,7 +145,7 @@ export default function CreateArticlePage() {
   }, [router, isSubmitting, isSavingDraft])
 
   const wordCount = useMemo(() => {
-    const text = content.replace(/<[^>]*>/g, " ").trim()
+    const text = extractPlainText(content)
     return text.split(/\s+/).filter(Boolean).length
   }, [content])
 

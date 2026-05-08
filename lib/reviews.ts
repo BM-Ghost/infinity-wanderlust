@@ -1,6 +1,7 @@
 import { getPocketBase } from "@/lib/pocketbase"
 import { useQuery } from "@tanstack/react-query"
 import { notifyReviewLike } from "@/lib/notifications"
+import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 
 export const BLOG_CONTENT_MARKER = "<!--IWT_BLOG-->"
 export const BLOG_DRAFT_TAG = "IWT_DRAFT_v1"
@@ -45,7 +46,7 @@ export function isBlogReview(review: { review_text?: string; reviewer?: string; 
 
   // Legacy fallback for older admin blogs created before marker rollout.
   // These are typically long-form posts with no exposed reviewer relation.
-  const textLength = (review.review_text || "").replace(/<[^>]*>/g, " ").trim().length
+  const textLength = extractPlainText(review.review_text || "").length
   return !review.reviewer && (review.rating || 0) >= 5 && textLength >= 500
 }
 
@@ -75,7 +76,7 @@ function assertAdminSession(pb: NonNullable<ReturnType<typeof getPocketBase>>) {
 }
 
 function toWordCount(text: string): number {
-  return text.replace(/<[^>]*>/g, " ").trim().split(/\s+/).filter(Boolean).length
+  return extractPlainText(text).split(/\s+/).filter(Boolean).length
 }
 
 export async function listLegacyBlogCandidates(maxPages = 5, perPage = 200): Promise<LegacyBlogCandidate[]> {
@@ -96,12 +97,13 @@ export async function listLegacyBlogCandidates(maxPages = 5, perPage = 200): Pro
       if (!isBlogReview(record)) continue
 
       const cleanText = stripBlogMarker(record.review_text || "")
+      const previewText = extractPlainText(cleanText)
       candidates.push({
         id: record.id,
         destination: record.destination || "Untitled",
         created: record.created,
         wordCount: toWordCount(cleanText),
-        preview: cleanText.slice(0, 220),
+        preview: truncatePlainText(previewText, 220),
       })
     }
 

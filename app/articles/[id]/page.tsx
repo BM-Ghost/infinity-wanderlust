@@ -34,8 +34,10 @@ import {
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
 import { fetchReviewById, deleteReview, isBlogReview, stripBlogMarker } from "@/lib/reviews"
+import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 import { useQueryClient } from "@tanstack/react-query"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
+import { EngagementMobileDock, EngagementQuickLinks } from "@/components/engagement-nav"
 import { useToast } from "@/components/ui/use-toast"
 import { CommentWithAuthor, createComment, deleteComment, fetchComments, searchUsers, updateComment } from "@/lib/comments"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
@@ -1023,6 +1025,8 @@ export default function ReviewDetailPage() {
           <span className="font-medium truncate max-w-[200px]">{review.destination}</span>
         </div>
 
+        <EngagementQuickLinks destination={review.destination} />
+
         <motion.div
           className="grid grid-cols-1 lg:grid-cols-3 gap-8"
           variants={containerVariants}
@@ -1162,7 +1166,7 @@ export default function ReviewDetailPage() {
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     title={review.title || review.destination}
-                    description={stripBlogMarker(review.review_text || "").substring(0, 150)}
+                    description={truncatePlainText(extractPlainText(stripBlogMarker(review.review_text || "")), 150)}
                   />
                 </div>
 
@@ -1293,6 +1297,7 @@ export default function ReviewDetailPage() {
                   <div className="space-y-4">
                     {relatedReviews.map((relatedReview) => {
                       const relatedAuthorName = resolveBlogAuthorName(relatedReview.authorName)
+                      const relatedPreview = truncatePlainText(extractPlainText(stripBlogMarker(relatedReview.review_text)), 170)
                       return (
                       <Link key={relatedReview.id} href={`/articles/${relatedReview.id}`} className="block">
                         <div className="flex items-start gap-3 group">
@@ -1318,7 +1323,7 @@ export default function ReviewDetailPage() {
                               </div>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              {stripBlogMarker(relatedReview.review_text)}
+                              {relatedPreview || "No content available"}
                             </p>
                             {user && (
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -1366,6 +1371,8 @@ export default function ReviewDetailPage() {
             </div>
           </div>
         </motion.div>
+
+        <EngagementMobileDock destination={review.destination} />
       </div>
     </div>
   )
