@@ -51,7 +51,8 @@ function applySecurityHeaders(response: NextResponse) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
   response.headers.set("Permissions-Policy", "geolocation=(self), microphone=(), camera=(), payment=()")
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
-  response.headers.set("Cross-Origin-Opener-Policy", "same-origin")
+  // Better compatibility with in-app browsers while keeping popup isolation controls.
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
   response.headers.set("Cross-Origin-Resource-Policy", "same-site")
   response.headers.set("X-Security-Profile", getSecurityProfile())
 }

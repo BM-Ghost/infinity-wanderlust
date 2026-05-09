@@ -35,7 +35,7 @@ import {
 import { motion } from "framer-motion"
 import { useReviews } from "@/hooks/useReviews"
 import { useQueryClient } from "@tanstack/react-query"
-import { EngagementMobileDock, EngagementQuickLinks } from "@/components/engagement-nav"
+import { EngagementMobileDock } from "@/components/engagement-nav"
 import { CommentWithAuthor, createComment, deleteComment, fetchComments, searchUsers, updateComment } from "@/lib/comments"
 import { useToast } from "@/components/ui/use-toast"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
@@ -943,8 +943,6 @@ export default function ReviewDetailPage() {
           <ChevronRight className="h-4 w-4 mx-2 text-muted-foreground" />
           <span className="font-medium truncate max-w-[200px]">{review.destination}</span>
         </div>
-
-        <EngagementQuickLinks destination={review.destination} />
 
         <motion.div
           className="grid grid-cols-1 lg:grid-cols-3 gap-8"

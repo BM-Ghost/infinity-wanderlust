@@ -37,7 +37,7 @@ import { fetchReviewById, deleteReview, isBlogReview, stripBlogMarker } from "@/
 import { extractPlainText, truncatePlainText } from "@/lib/rich-text"
 import { useQueryClient } from "@tanstack/react-query"
 import { RichTextRenderer } from "@/components/rich-text-renderer"
-import { EngagementMobileDock, EngagementQuickLinks } from "@/components/engagement-nav"
+import { EngagementMobileDock } from "@/components/engagement-nav"
 import { useToast } from "@/components/ui/use-toast"
 import { CommentWithAuthor, createComment, deleteComment, fetchComments, searchUsers, updateComment } from "@/lib/comments"
 import { getUserLikedItems, toggleItemLike } from "@/lib/likes"
@@ -1024,8 +1024,6 @@ export default function ReviewDetailPage() {
           <ChevronRight className="h-4 w-4 mx-2 text-muted-foreground" />
           <span className="font-medium truncate max-w-[200px]">{review.destination}</span>
         </div>
-
-        <EngagementQuickLinks destination={review.destination} />
 
         <motion.div
           className="grid grid-cols-1 lg:grid-cols-3 gap-8"

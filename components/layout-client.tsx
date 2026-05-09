@@ -3,6 +3,7 @@
 import { ReactNode, Suspense } from "react"
 import { ScrollToTop } from "@/components/scroll-to-top"
 import { GlobalVisitTracker } from "@/components/global-visit-tracker"
+import { InAppBrowserNotice } from "@/components/in-app-browser-notice"
 
 export function LayoutClient({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export function LayoutClient({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <GlobalVisitTracker />
       </Suspense>
+      <InAppBrowserNotice />
       <ScrollToTop />
       {children}
     </>
